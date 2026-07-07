@@ -16,6 +16,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findByProjectIdAndSprintIdIsNullOrderByRankAsc(Long projectId);
 
+    List<Task> findBySprintIdOrderByRankAsc(Long sprintId);
+
     List<Task> findByEpicIdInOrderByRankAsc(java.util.Collection<Long> epicIds);
 
     @Query("select coalesce(max(t.seq), 0) from Task t where t.projectId = :projectId")

@@ -31,7 +31,8 @@ public class Activity extends TenantEntity {
     @Column(name = "task_id", nullable = false)
     private Long taskId;
 
-    @Column(name = "actor_id", nullable = false)
+    /** null = 系统动作（如 Sprint 自动轮转 job）。 */
+    @Column(name = "actor_id")
     private Long actorId;
 
     @Column(nullable = false)

@@ -9,5 +9,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
     List<Membership> findByUserId(Long userId);
 
+    List<Membership> findByTenantId(Long tenantId);
+
     Optional<Membership> findByUserIdAndTenantId(Long userId, Long tenantId);
 }

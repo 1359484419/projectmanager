@@ -67,7 +67,7 @@ public class TaskService {
 
     /** 建任务：seq 项目内自增（锁项目行串行分配），rank 尾插，默认 TODO。 */
     @Transactional
-    public TaskView create(String projectKey, CreateTaskRequest req, long actor, Activity.Source source) {
+    public TaskView create(String projectKey, CreateTaskRequest req, Long actor, Activity.Source source) {
         if (req.type() == null) {
             throw ApiException.badRequest("VALIDATION", "type is required");
         }
@@ -91,7 +91,7 @@ public class TaskService {
 
     /** 状态流转：进 DONE 写 done_at，离开清空；写 STATUS_CHANGED。 */
     @Transactional
-    public void changeStatus(Task task, Task.Status newStatus, long actor, Activity.Source source) {
+    public void changeStatus(Task task, Task.Status newStatus, Long actor, Activity.Source source) {
         Task.Status old = task.getStatus();
         if (old == newStatus) {
             return;
@@ -107,7 +107,7 @@ public class TaskService {
 
     /** 通用 PATCH：每个可变字段变更都留 activity。 */
     @Transactional
-    public TaskView update(Long taskId, UpdateTaskRequest req, long actor, Activity.Source source) {
+    public TaskView update(Long taskId, UpdateTaskRequest req, Long actor, Activity.Source source) {
         Task task = requireById(taskId);
         if (req.status() != null) {
             changeStatus(task, req.status(), actor, source);
@@ -153,7 +153,7 @@ public class TaskService {
 
     /** Sprint 归属变更（含移回 Backlog：sprintId=null），写 SPRINT_CHANGED。 */
     @Transactional
-    public void changeSprint(Task task, Long newSprintId, long actor, Activity.Source source) {
+    public void changeSprint(Task task, Long newSprintId, Long actor, Activity.Source source) {
         if (Objects.equals(task.getSprintId(), newSprintId)) {
             return;
         }

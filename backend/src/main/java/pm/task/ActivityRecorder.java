@@ -14,7 +14,8 @@ public class ActivityRecorder {
         this.activities = activities;
     }
 
-    public void record(Task task, long actor, String type, String oldValue, String newValue,
+    /** actor 为 null 表示系统动作（自动轮转等）。 */
+    public void record(Task task, Long actor, String type, String oldValue, String newValue,
                        Activity.Source source) {
         activities.save(new Activity(task.getId(), actor, type, oldValue, newValue, source));
     }
