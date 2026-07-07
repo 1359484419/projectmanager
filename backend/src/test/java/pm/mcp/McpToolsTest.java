@@ -181,6 +181,14 @@ class McpToolsTest extends IntegrationTest {
         assertThat(mine).anySatisfy(t -> assertThat(t.get("title")).isEqualTo("my bug"));
     }
 
+    @Test
+    void listMyTasksSprintOmittedDefaultsToCurrent() {
+        mcpTools.createTasks("MCP", "current_sprint", List.of(
+                new McpTools.TaskInput(Task.Type.TASK, "默认 current 任务", null, null, null)));
+        List<Map<String, Object>> mine = mcpTools.listMyTasks("MCP", null);
+        assertThat(mine).anySatisfy(t -> assertThat(t.get("title")).isEqualTo("默认 current 任务"));
+    }
+
     private long projectId() {
         return projects.findByKey("MCP").orElseThrow().getId();
     }

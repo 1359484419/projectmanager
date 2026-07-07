@@ -60,7 +60,8 @@ public class McpConfig {
 
     // ---------- 工具定义 ----------
 
-    private List<McpServerFeatures.SyncToolSpecification> toolSpecs(
+    /** 包内可见：McpToolSchemaTest 直接校验工具 schema。 */
+    List<McpServerFeatures.SyncToolSpecification> toolSpecs(
             McpTools tools, ObjectMapper om, McpJsonMapper jsonMapper) {
         return List.of(
                 spec(jsonMapper, om, "list_projects",
@@ -89,12 +90,13 @@ public class McpConfig {
                         args -> tools.listEpics(str(args, "projectKey"))),
 
                 spec(jsonMapper, om, "list_my_tasks",
-                        "列出我（PAT 用户）在某个 Sprint 的任务与状态，供生成日报/周报。sprint=current 为进行中 Sprint，previous 为上一个已关闭 Sprint。",
+                        "列出我（PAT 用户）在某个 Sprint 的任务与状态，供生成日报/周报。"
+                                + "sprint 可选，默认 current（当前进行中 Sprint）；写周报回顾上一周期时传 previous（上一个已关闭 Sprint）。",
                         """
                         {"type":"object","properties":{
                           "projectKey":{"type":"string","description":"项目 key，如 PM"},
-                          "sprint":{"type":"string","enum":["current","previous"],"description":"current=当前 Sprint，previous=上个已关闭 Sprint"}
-                        },"required":["projectKey","sprint"]}
+                          "sprint":{"type":"string","enum":["current","previous"],"description":"可选，默认 current=当前 Sprint；previous=上个已关闭 Sprint（周报用）"}
+                        },"required":["projectKey"]}
                         """,
                         args -> tools.listMyTasks(str(args, "projectKey"), str(args, "sprint"))),
 
