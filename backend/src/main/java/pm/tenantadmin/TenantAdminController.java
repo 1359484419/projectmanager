@@ -3,6 +3,7 @@ package pm.tenantadmin;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,12 +24,14 @@ import java.util.stream.Collectors;
 public class TenantAdminController {
 
     private final InviteService inviteService;
+    private final MemberService memberService;
     private final MembershipRepository memberships;
     private final UserRepository users;
 
-    public TenantAdminController(InviteService inviteService, MembershipRepository memberships,
-                                 UserRepository users) {
+    public TenantAdminController(InviteService inviteService, MemberService memberService,
+                                 MembershipRepository memberships, UserRepository users) {
         this.inviteService = inviteService;
+        this.memberService = memberService;
         this.memberships = memberships;
         this.users = users;
     }
@@ -61,5 +64,11 @@ public class TenantAdminController {
                             u == null ? null : u.getEmail(), m.getRole());
                 })
                 .toList();
+    }
+
+    /** 移除成员：仅 ADMIN（MEMBER → 404）；约束与副作用见 MemberService.remove。 */
+    @DeleteMapping("/api/t/{slug}/members/{userId}")
+    void removeMember(@PathVariable String slug, @PathVariable Long userId) {
+        memberService.remove(userId, CurrentUser.id());
     }
 }

@@ -12,4 +12,6 @@ public interface ApiTokenRepository extends JpaRepository<ApiToken, Long> {
     List<ApiToken> findByUserIdOrderByIdDesc(Long userId);
 
     Optional<ApiToken> findByIdAndUserId(Long id, Long userId);
+
+    void deleteByUserIdAndTenantId(Long userId, Long tenantId);
 }
