@@ -1,6 +1,10 @@
 package pm.project;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +16,13 @@ import java.util.Optional;
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     Optional<Project> findByKey(String key);
+
+    Optional<Project> findOneById(Long id);
+
+    /** 锁项目行以串行分配任务 seq（SELECT ... FOR UPDATE）。 */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Project p where p.key = :key")
+    Optional<Project> findByKeyForUpdate(@Param("key") String key);
 
     boolean existsByKey(String key);
 
