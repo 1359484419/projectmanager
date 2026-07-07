@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pm": {
+      "type": "http",
+      "url": "https://pm.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer pmt_<在个人设置页生成的令牌>"
+      }
+    }
+  }
+}
