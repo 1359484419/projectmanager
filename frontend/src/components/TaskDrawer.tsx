@@ -20,6 +20,7 @@ import type {
   TaskType,
   UpdateTaskInput,
 } from '../api/types'
+import { isConflictError } from '../api/client'
 import { Icon } from './icons'
 import { avatarColor } from './TaskCard'
 import TypeIcon from './TypeIcon'
@@ -402,7 +403,9 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
           )}
           {updateTask.isError && (
             <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
-              保存失败：{updateTask.error.message}
+              {isConflictError(updateTask.error)
+                ? '他人已修改，已回填最新值，请重试'
+                : `保存失败：${updateTask.error.message}`}
             </span>
           )}
           <button

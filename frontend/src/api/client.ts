@@ -51,6 +51,14 @@ export class ApiError extends Error {
   }
 }
 
+/** 乐观锁并发冲突统一提示文案（F9） */
+export const CONFLICT_TOAST = '该任务刚被他人修改，已刷新最新数据，请重试'
+
+/** 乐观锁并发冲突：HTTP 409 且 code=CONFLICT（区别于成员移出等其他 409 语义） */
+export function isConflictError(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 409 && err.code === 'CONFLICT'
+}
+
 // 并发 401 时共享同一次 refresh 请求
 let refreshPromise: Promise<boolean> | null = null
 

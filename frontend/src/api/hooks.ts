@@ -1,6 +1,7 @@
 // 数据层：TanStack Query 封装。所有 URL 与 docs/superpowers/plans/2026-07-06-mini-jira.md 对齐。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from './client'
+import { api, CONFLICT_TOAST, isConflictError } from './client'
+import { useToast } from '../components/ui'
 import type {
   ApiToken,
   Board,
@@ -138,10 +139,18 @@ export function useTask(slug: string, taskId: number | null | undefined) {
 
 export function useUpdateTask(slug: string) {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateTaskInput & { id: number }) =>
       api<Task>(`${t(slug)}/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+    // 乐观锁 409（F9）：统一提示「重取后重试」，并失效租户缓存让打开中的表单回填最新值
+    onError: (err) => {
+      if (isConflictError(err)) {
+        toast.show(CONFLICT_TOAST, 'info')
+        qc.invalidateQueries({ queryKey: [slug] })
+      }
+    },
   })
 }
 
