@@ -12,3 +12,8 @@ spring:
 
 server:
   port: 8080
+
+pm:
+  jwt:
+    # 仅开发默认值；生产必须通过 JWT_SECRET env 覆盖（HS256 至少 32 字节）
+    secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
