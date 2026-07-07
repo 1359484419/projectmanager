@@ -19,15 +19,22 @@ public class TaskService {
     private final ActivityRepository activityRepo;
     private final ActivityRecorder recorder;
     private final RankService rankService;
+    private final pm.sprint.SprintRepository sprints;
+    private final pm.epic.EpicRepository epics;
+    private final pm.tenantadmin.MembershipRepository memberships;
 
     public TaskService(TaskRepository tasks, ProjectRepository projects,
                        ActivityRepository activityRepo, ActivityRecorder recorder,
-                       RankService rankService) {
+                       RankService rankService, pm.sprint.SprintRepository sprints,
+                       pm.epic.EpicRepository epics, pm.tenantadmin.MembershipRepository memberships) {
         this.tasks = tasks;
         this.projects = projects;
         this.activityRepo = activityRepo;
         this.recorder = recorder;
         this.rankService = rankService;
+        this.sprints = sprints;
+        this.epics = epics;
+        this.memberships = memberships;
     }
 
     // ---------- 视图 ----------
@@ -84,6 +91,9 @@ public class TaskService {
         }
         validatePoints(req.points());
         Project project = projects.findByKeyForUpdate(projectKey).orElseThrow(ApiException::notFound);
+        validateEpicRef(req.epicId(), project.getId());
+        validateSprintRef(req.sprintId(), project.getId());
+        validateAssigneeRef(req.assigneeId());
         int seq = tasks.maxSeq(project.getId()) + 1;
         String rank = rankService.between(tasks.maxRank(project.getId()).orElse(null), null);
         Task task = new Task(project.getId(), req.type(), seq, req.title(), rank);
@@ -130,6 +140,7 @@ public class TaskService {
         }
         if (req.assigneeId() != null) {
             Long v = req.assigneeId().value();
+            validateAssigneeRef(v);
             if (!Objects.equals(task.getAssigneeId(), v)) {
                 recorder.record(task, actor, "ASSIGNED",
                         toStr(task.getAssigneeId()), toStr(v), source);
@@ -138,6 +149,7 @@ public class TaskService {
         }
         if (req.epicId() != null) {
             Long v = req.epicId().value();
+            validateEpicRef(v, task.getProjectId());
             if (!Objects.equals(task.getEpicId(), v)) {
                 recorder.record(task, actor, "EPIC_CHANGED",
                         toStr(task.getEpicId()), toStr(v), source);
@@ -171,6 +183,7 @@ public class TaskService {
         if (Objects.equals(task.getSprintId(), newSprintId)) {
             return;
         }
+        validateSprintRef(newSprintId, task.getProjectId());
         recorder.record(task, actor, "SPRINT_CHANGED",
                 toStr(task.getSprintId()), toStr(newSprintId), source);
         task.setSprintId(newSprintId);
@@ -236,6 +249,41 @@ public class TaskService {
             return rankService.between(after, before);
         } catch (IllegalArgumentException e) {
             throw ApiException.badRequest("INVALID_RANK_MOVE", e.getMessage());
+        }
+    }
+
+    /**
+     * 跨实体引用归属校验（REST 与 MCP 共用；置空 null 直接放行）：
+     * sprint/epic 必须属于任务所在项目（跨租户经 tenantFilter 查不到，同样 400），
+     * assignee 必须是当前租户成员。防同租户跨项目污染看板/路线图与跨租户悬挂引用。
+     */
+    private void validateSprintRef(Long sprintId, Long projectId) {
+        if (sprintId == null) {
+            return;
+        }
+        boolean ok = sprints.findOneById(sprintId)
+                .map(s -> s.getProjectId().equals(projectId))
+                .orElse(false);
+        if (!ok) {
+            throw ApiException.badRequest("INVALID_SPRINT", "sprint 不存在或不属于该项目");
+        }
+    }
+
+    private void validateEpicRef(Long epicId, Long projectId) {
+        if (epicId == null) {
+            return;
+        }
+        if (epics.findByIdAndProjectId(epicId, projectId).isEmpty()) {
+            throw ApiException.badRequest("INVALID_EPIC", "epic 不存在或不属于该项目");
+        }
+    }
+
+    private void validateAssigneeRef(Long assigneeId) {
+        if (assigneeId == null) {
+            return;
+        }
+        if (memberships.findByUserIdAndTenantId(assigneeId, pm.tenant.TenantContext.require()).isEmpty()) {
+            throw ApiException.badRequest("INVALID_ASSIGNEE", "assignee 不是本租户成员");
         }
     }
 
