@@ -6,6 +6,7 @@ import { useBurndown, useCapacity, useProjects, useSprints } from '../api/hooks'
 import type { BurndownDay, CapacityEntry, Sprint, SprintStatus } from '../api/types'
 import { SelectWrap, cardStyle, pageTitleStyle } from '../components/ui'
 import { fmtPoints } from '../utils/points'
+import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 
 const SPRINT_STATUS_LABEL: Record<SprintStatus, string> = {
   PLANNED: '未开始',
@@ -254,7 +255,9 @@ export default function Reports() {
   const [searchParams] = useSearchParams()
 
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
-  const projectKey = searchParams.get('project') ?? projects?.[0]?.key ?? ''
+  // ?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个项目
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects)
 
   const { data: sprints, isLoading: sprintsLoading } = useSprints(slug, projectKey)
 

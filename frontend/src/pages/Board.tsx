@@ -21,6 +21,7 @@ import TaskCard, { Avatar } from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { STATUS_LABEL, STATUS_VAR, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
+import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 
 // 设计稿列定义：色点用状态 CSS 变量（var(--todo)/--prog/--comp/--done）
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = (
@@ -374,7 +375,9 @@ export default function Board() {
 
   const projectsQuery = useProjects(slug)
   const projects = projectsQuery.data ?? []
-  const projectKey = searchParams.get('project') ?? projects[0]?.key ?? ''
+  // ?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个项目
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects)
 
   const sprintsQuery = useSprints(slug, projectKey)
   const activeSprint = sprintsQuery.data?.find((s) => s.status === 'ACTIVE') ?? null

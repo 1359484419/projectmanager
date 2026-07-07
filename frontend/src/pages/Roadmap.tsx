@@ -1,7 +1,7 @@
 // Roadmap：按季度分组的 Epic 路线图。
 // 视觉真源：docs/design/mock/markup.html ROADMAP + EPIC MODAL 节。
 // 数据：GET /api/t/{slug}/projects/{key}/roadmap（useRoadmap，后端已按季度分组）。
-// 项目选择：?project=KEY 查询参数，缺省取项目列表第一个（与 Dashboard 一致）。
+// 项目选择：?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个（与 Dashboard 一致）。
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useCreateEpic, useProjects, useRoadmap } from '../api/hooks'
@@ -20,6 +20,7 @@ import {
   selStyle,
   useToast,
 } from '../components/ui'
+import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 
 /** 当前及后续 3 个季度选项，如 "2026-Q3" */
 function quarterOptions(): string[] {
@@ -263,7 +264,8 @@ export default function Roadmap() {
   const { slug = '' } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
   const projects = useProjects(slug)
-  const projectKey = searchParams.get('project') ?? projects.data?.[0]?.key ?? ''
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects.data)
   const roadmap = useRoadmap(slug, projectKey)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)

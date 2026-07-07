@@ -13,6 +13,7 @@ import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
 import { STATUS_LABEL, btnPrimary, pageTitleStyle, statusColor } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter, type AssigneeFilter } from '../state/assigneeFilter'
+import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 
 const STATUSES: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE']
 
@@ -303,8 +304,9 @@ export default function Dashboard() {
   const { slug = '' } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
   const projects = useProjects(slug)
-  // ?project=KEY 指定项目，缺省用第一个项目
-  const projectKey = searchParams.get('project') ?? projects.data?.[0]?.key ?? ''
+  // ?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个项目
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects.data)
   const dashboard = useDashboard(slug, projectKey)
   const [assigneeFilter] = useAssigneeFilter()
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)

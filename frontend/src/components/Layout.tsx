@@ -1,10 +1,11 @@
 // 租户内布局：左侧可折叠侧边栏 + 顶栏 + 路由内容（<Outlet/>）
 // 视觉真源：docs/design/mock/markup.html（SIDEBAR / topbar 节）
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearTokens, getAccessToken } from '../api/client'
 import { useBacklog, useDashboard, useMyTenants, useProjects, useSearchTasks } from '../api/hooks'
+import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import type { SearchHit } from '../api/types'
 import { Icon, type IconName } from './icons'
 import { useToast } from './ui'
@@ -358,8 +359,22 @@ export default function Layout() {
   const { data: tenants } = useMyTenants()
   const tenantName = tenants?.find((t) => t.slug === slug)?.name ?? slug
   const { data: projects } = useProjects(slug)
-  const project = projects?.[0]
-  const projectKey = project?.key ?? ''
+  // 当前项目：URL ?project=（深链）→ 记忆的选中项目 → 第一个项目，全站联动
+  const [searchParams, setSearchParams] = useSearchParams()
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects)
+  const project = projects?.find((p) => p.key === projectKey)
+
+  function handleSwitchProject(key: string) {
+    setSelectedProjectKey(slug, key)
+    // URL 上带着 ?project= 深链时同步改写，避免 URL 覆盖切换结果
+    if (searchParams.get('project')) {
+      const next = new URLSearchParams(searchParams)
+      next.set('project', key)
+      setSearchParams(next, { replace: true })
+    }
+    setProjMenu(false)
+  }
   const { data: backlogTasks } = useBacklog(slug, projectKey)
   const { data: dashboard } = useDashboard(slug, projectKey)
   const boardCount = dashboard?.counts
@@ -588,23 +603,26 @@ export default function Layout() {
               >
                 切换项目
               </div>
-              {(projects ?? []).map((p, i) => (
-                <div
-                  key={p.id}
-                  className={i === 0 ? undefined : 'menu-item'}
-                  style={{
-                    ...menuItemStyle,
-                    background: i === 0 ? 'var(--accent-soft)' : undefined,
-                    color: i === 0 ? 'var(--text)' : 'var(--dim)',
-                  }}
-                  onClick={() => setProjMenu(false)}
-                >
-                  <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
-                  {p.name}
-                  <span style={{ flex: 1 }} />
-                  {i === 0 && <Icon name="check" size={14} style={{ color: 'var(--accent)' }} />}
-                </div>
-              ))}
+              {(projects ?? []).map((p) => {
+                const active = p.key === projectKey
+                return (
+                  <div
+                    key={p.id}
+                    className={active ? undefined : 'menu-item'}
+                    style={{
+                      ...menuItemStyle,
+                      background: active ? 'var(--accent-soft)' : undefined,
+                      color: active ? 'var(--text)' : 'var(--dim)',
+                    }}
+                    onClick={() => handleSwitchProject(p.key)}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
+                    {p.name}
+                    <span style={{ flex: 1 }} />
+                    {active && <Icon name="check" size={14} style={{ color: 'var(--accent)' }} />}
+                  </div>
+                )
+              })}
               <div
                 className="menu-item"
                 style={{ ...menuItemStyle, color: 'var(--dim)' }}

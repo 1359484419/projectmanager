@@ -24,6 +24,7 @@ import {
   selStyle,
   useToast,
 } from '../components/ui'
+import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { fmtPoints } from '../utils/points'
 
 function errMsg(e: unknown): string {
@@ -233,8 +234,9 @@ export default function AllSprints() {
   const { slug = '' } = useParams<{ slug: string }>()
   const toast = useToast()
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const projectKey = selectedKey ?? projects?.[0]?.key ?? ''
+  // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const projectKey = resolveProjectKey(null, storedProjectKey, projects)
 
   const { data: sprints, isLoading, isError, error } = useSprints(slug, projectKey, true)
   const createSprint = useCreateSprint(slug, projectKey)
@@ -301,7 +303,7 @@ export default function AllSprints() {
           <SelectWrap chevronTop={9}>
             <select
               value={projectKey}
-              onChange={(e) => setSelectedKey(e.target.value)}
+              onChange={(e) => setSelectedProjectKey(slug, e.target.value)}
               aria-label="切换项目"
               style={{ ...selStyle, width: 'auto', background: 'var(--card)' }}
             >

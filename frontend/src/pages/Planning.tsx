@@ -27,6 +27,7 @@ import TaskDrawer from '../components/TaskDrawer'
 import CapacityBar from '../components/CapacityBar'
 import { Icon } from '../components/icons'
 import { SelectWrap, cardStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
+import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { fmtPoints } from '../utils/points'
 
 const BACKLOG_ZONE = 'backlog'
@@ -275,8 +276,9 @@ function SprintSection({
 export default function Planning() {
   const { slug = '' } = useParams<{ slug: string }>()
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
-  const [projectKey, setProjectKey] = useState<string | null>(null)
-  const key = projectKey ?? projects?.[0]?.key ?? ''
+  // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const key = resolveProjectKey(null, storedProjectKey, projects)
 
   const { data: backlog, isLoading: backlogLoading } = useBacklog(slug, key)
   const { data: sprints, isLoading: sprintsLoading } = useSprints(slug, key, true)
@@ -346,7 +348,7 @@ export default function Planning() {
         <h1 style={pageTitleStyle}>Sprint 规划</h1>
         {projects && projects.length > 0 && (
           <SelectWrap chevronTop={9} style={{ width: 200 }}>
-            <select value={key} onChange={(e) => setProjectKey(e.target.value)} style={selStyle}>
+            <select value={key} onChange={(e) => setSelectedProjectKey(slug, e.target.value)} style={selStyle}>
               {projects.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.key} · {p.name}

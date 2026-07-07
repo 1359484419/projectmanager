@@ -9,6 +9,7 @@ import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon, SelectWrap, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
+import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { POINTS_MAX, POINTS_MIN, POINTS_RANGE_MSG, POINTS_STEP, parsePointsInput } from '../utils/points'
 
 const TYPE_FILTERS: Array<{ value: TaskType | 'ALL'; label: string }> = [
@@ -295,8 +296,9 @@ export default function Backlog() {
   const { slug = '' } = useParams<{ slug: string }>()
   const projectsQuery = useProjects(slug)
   const projects = projectsQuery.data
-  const [projectKey, setProjectKey] = useState<string | null>(null)
-  const activeKey = projectKey ?? projects?.[0]?.key ?? ''
+  // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
+  const storedProjectKey = useSelectedProjectKey(slug)
+  const activeKey = resolveProjectKey(null, storedProjectKey, projects)
 
   const backlogQuery = useBacklog(slug, activeKey)
   const sprintsQuery = useSprints(slug, activeKey)
@@ -347,7 +349,7 @@ export default function Backlog() {
           <SelectWrap chevronTop={8} style={{ flex: 'none' }}>
             <select
               value={activeKey}
-              onChange={(e) => setProjectKey(e.target.value)}
+              onChange={(e) => setSelectedProjectKey(slug, e.target.value)}
               aria-label="选择项目"
               style={{
                 height: 28,
