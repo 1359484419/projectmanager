@@ -94,9 +94,18 @@ async function rawFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(path, { ...init, headers })
 }
 
+/** 会话失效兜底：清 token 并整页跳转 /login?returnTo=<当前页>，避免用户卡死在报错页面 */
+function redirectToLogin(): void {
+  clearTokens()
+  if (window.location.pathname === '/login') return
+  const returnTo = window.location.pathname + window.location.search
+  window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`)
+}
+
 /**
  * fetch 封装：自动带 Authorization: Bearer <accessToken>；
- * 401 时尝试 refresh 后重试一次。返回解析后的 JSON（204 返回 undefined）。
+ * 401 时尝试 refresh 后重试一次；refresh 也失败（refreshToken 过期/吊销）则
+ * 清 token 并跳转 /login（带 returnTo）。返回解析后的 JSON（204 返回 undefined）。
  */
 export async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   let res = await rawFetch(path, init)
@@ -104,6 +113,9 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
     const refreshed = await tryRefresh()
     if (refreshed) {
       res = await rawFetch(path, init)
+    } else {
+      redirectToLogin()
+      throw new ApiError(401, 'SESSION_EXPIRED', '登录已过期，请重新登录')
     }
   }
   if (!res.ok) {
