@@ -139,5 +139,8 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
     throw new ApiError(res.status, code, message)
   }
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  // 后端 void 写接口返回 200 空 body（如 DELETE 成员），res.json() 对空串会抛
+  // SyntaxError 把成功误判为失败，这里按文本解析、空体返回 undefined
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
