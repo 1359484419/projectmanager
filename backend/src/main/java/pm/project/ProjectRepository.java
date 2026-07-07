@@ -27,4 +27,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     boolean existsByKey(String key);
 
     List<Project> findAllByOrderByIdAsc();
+
+    /** 供自动轮转 job 跨租户遍历（调度线程未开 tenantFilter）。 */
+    List<Project> findByAutoRotateTrue();
 }
