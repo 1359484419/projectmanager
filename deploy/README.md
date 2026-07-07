@@ -39,6 +39,7 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 | `DB_URL` | `jdbc:postgresql://127.0.0.1:5432/pm` |
 | `DB_USER` / `DB_PASS` | 独立 pm 库用户（setup 随机生成） |
 | `JWT_SECRET` | HS256 密钥，≥32 字节，`openssl rand -hex 32` |
+| `PM_BASE_URL` | 对外访问地址前缀（邀请链接用），如 `http://124.222.85.240:8080`；漏配会退回 `http://localhost:5173` |
 
 模板见 `env.example`。真实值只存在于服务器 `/opt/pm/env`，绝不提交仓库。
 
