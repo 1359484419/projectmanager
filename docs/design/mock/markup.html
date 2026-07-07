@@ -1,0 +1,545 @@
+<div style="{{ theme }}display:flex;height:100vh;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Public Sans',system-ui,sans-serif;">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside style="{{ sidebarStyle }}flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .16s ease;overflow:hidden;">
+    <div style="height:52px;display:flex;align-items:center;gap:9px;padding:0 14px;flex:none;">
+      <div style="width:26px;height:26px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;flex:none;letter-spacing:-.02em;">P</div>
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;line-height:1.1;overflow:hidden;">
+          <span style="font-size:13.5px;font-weight:650;color:var(--text);white-space:nowrap;">Acme 团队</span>
+          <span style="font-size:11px;color:var(--faint);white-space:nowrap;">mini-jira</span>
+        </div>
+      </sc-if>
+    </div>
+
+    <nav style="flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:1px;">
+      <sc-for list="{{ navMain }}" as="item" hint-placeholder-count="7">
+        <a onclick="{{ item.onClick }}" title="{{ item.label }}" style="{{ item.style }}" style-hover="background:var(--card-hover);color:var(--text);">
+          <sc-if value="{{ item.active }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:-8px;top:7px;bottom:7px;width:2.5px;border-radius:2px;background:var(--accent);"></span></sc-if>
+          <span dangerouslysetinnerhtml="{{ item.icon }}" style="width:16px;height:16px;display:flex;flex:none;"></span>
+          <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}"><span style="flex:1;white-space:nowrap;">{{ item.label }}</span></sc-if>
+          <sc-if value="{{ item.showCount }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ item.count }}</span></sc-if>
+        </a>
+      </sc-for>
+      <div style="height:1px;background:var(--border);margin:8px 6px;"></div>
+      <sc-for list="{{ navAdmin }}" as="item" hint-placeholder-count="2">
+        <a onclick="{{ item.onClick }}" title="{{ item.label }}" style="{{ item.style }}" style-hover="background:var(--card-hover);color:var(--text);">
+          <sc-if value="{{ item.active }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:-8px;top:7px;bottom:7px;width:2.5px;border-radius:2px;background:var(--accent);"></span></sc-if>
+          <span dangerouslysetinnerhtml="{{ item.icon }}" style="width:16px;height:16px;display:flex;flex:none;"></span>
+          <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}"><span style="flex:1;white-space:nowrap;">{{ item.label }}</span></sc-if>
+        </a>
+      </sc-for>
+    </nav>
+
+    <div style="flex:none;border-top:1px solid var(--border);padding:8px;display:flex;align-items:center;gap:9px;">
+      <span style="width:26px;height:26px;border-radius:50%;background:#6e79d6;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">ZM</span>
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;flex-direction:column;line-height:1.15;overflow:hidden;">
+          <span style="font-size:12.5px;font-weight:550;white-space:nowrap;">张明</span>
+          <span style="font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">zhangming@acme.io</span>
+        </div>
+        <span onclick="{{ toggleCollapse }}" title="折叠侧边栏" dangerouslysetinnerhtml="{{ icons.panel }}" style="width:16px;height:16px;color:var(--faint);cursor:pointer;flex:none;" style-hover="color:var(--text);"></span>
+      </sc-if>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- topbar -->
+    <header style="height:52px;flex:none;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--bg);">
+      <sc-if value="{{ collapsed }}" hint-placeholder-val="{{ false }}">
+        <span onclick="{{ toggleCollapse }}" dangerouslysetinnerhtml="{{ icons.panel }}" style="width:16px;height:16px;color:var(--dim);cursor:pointer;flex:none;" style-hover="color:var(--text);"></span>
+      </sc-if>
+      <div style="position:relative;">
+        <button onclick="{{ toggleProjMenu }}" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 9px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:550;cursor:pointer;" style-hover="background:var(--card-hover);">
+          <span style="width:6px;height:6px;border-radius:2px;background:var(--accent);"></span>
+          Web 平台
+          <span dangerouslysetinnerhtml="{{ icons.chevron }}" style="width:13px;height:13px;color:var(--faint);display:flex;"></span>
+        </button>
+        <sc-if value="{{ projMenu }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:36px;left:0;width:220px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:5px;z-index:40;animation:fadeIn .1s;">
+            <div style="padding:5px 9px;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;">切换项目</div>
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;background:var(--accent-soft);font-size:13px;"><span style="width:6px;height:6px;border-radius:2px;background:var(--accent);"></span>Web 平台<span style="flex:1;"></span><span dangerouslysetinnerhtml="{{ icons.check }}" style="width:14px;height:14px;color:var(--accent);display:flex;"></span></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;font-size:13px;color:var(--dim);cursor:pointer;" style-hover="background:var(--card-hover);color:var(--text);"><span dangerouslysetinnerhtml="{{ icons.plus }}" style="width:14px;height:14px;display:flex;"></span>新建项目</div>
+          </div>
+        </sc-if>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--faint);font-size:12.5px;min-width:230px;cursor:text;">
+        <span dangerouslysetinnerhtml="{{ icons.search }}" style="width:14px;height:14px;display:flex;"></span>
+        <span style="flex:1;">搜索任务、Sprint…</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border);border-radius:4px;padding:1px 5px;">⌘K</span>
+      </div>
+      <button onclick="{{ openCreate }}" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 11px 0 9px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;" style-hover="filter:brightness(1.08);">
+        <span dangerouslysetinnerhtml="{{ icons.plus }}" style="width:14px;height:14px;display:flex;"></span>新建
+      </button>
+      <span onclick="{{ toggleTheme }}" title="切换主题" dangerouslysetinnerhtml="{{ themeIcon }}" style="width:17px;height:17px;color:var(--dim);cursor:pointer;flex:none;" style-hover="color:var(--text);"></span>
+      <div style="position:relative;">
+        <span onclick="{{ toggleUserMenu }}" style="width:28px;height:28px;border-radius:50%;background:#6e79d6;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;">ZM</span>
+        <sc-if value="{{ userMenu }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:36px;right:0;width:170px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:5px;z-index:40;animation:fadeIn .1s;">
+            <div onclick="{{ goSettings }}" style="padding:7px 9px;border-radius:6px;font-size:13px;color:var(--text);cursor:pointer;" style-hover="background:var(--card-hover);">个人设置</div>
+            <div style="height:1px;background:var(--border);margin:4px 2px;"></div>
+            <div onclick="{{ logout }}" style="padding:7px 9px;border-radius:6px;font-size:13px;color:var(--type-bug);cursor:pointer;" style-hover="background:var(--card-hover);">登出</div>
+          </div>
+        </sc-if>
+      </div>
+    </header>
+
+    <!-- content -->
+    <main style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+
+      <!-- ===== BOARD ===== -->
+      <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px 20px 12px;flex:none;">
+            <h1 style="font-size:16px;font-weight:650;margin:0;">看板</h1>
+            <span style="font-size:12px;color:var(--dim);">Sprint 24 · 剩 <b style="color:var(--comp);">7</b> 天</span>
+            <span style="flex:1;"></span>
+            <span style="font-size:12px;color:var(--faint);">拖拽卡片切换状态</span>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;gap:14px;padding:0 20px 20px;overflow-x:auto;">
+            <sc-for list="{{ boardColumns }}" as="col" hint-placeholder-count="4">
+              <div ondragover="{{ col.onDragOver }}" ondragenter="{{ col.onDragEnter }}" ondrop="{{ col.onDrop }}" style="{{ col.style }}">
+                <div style="display:flex;align-items:center;gap:8px;padding:2px 4px 10px;flex:none;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:{{ col.dot }};"></span>
+                  <span style="font-size:12.5px;font-weight:600;color:var(--text);">{{ col.label }}</span>
+                  <span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace;background:var(--card-2);border-radius:20px;padding:1px 7px;">{{ col.count }}</span>
+                </div>
+                <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:1px 1px 4px;">
+                  <sc-for list="{{ col.tasks }}" as="tv" hint-placeholder-count="3">
+                    <div draggable="true" ondragstart="{{ tv.onDragStart }}" ondragend="{{ onDragEnd }}" style="cursor:grab;">
+                      <dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="card" flagged="{{ tv.flagged }}" on-open="{{ tv.onOpen }}" hint-size="100%,100px"></dc-import>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ col.empty }}" hint-placeholder-val="{{ false }}">
+                    <div style="border:1.5px dashed var(--border-strong);border-radius:9px;min-height:64px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--faint);">拖拽到此处</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== DASHBOARD ===== -->
+      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+            <h1 style="font-size:16px;font-weight:650;margin:0;">Dashboard</h1>
+            <span style="flex:1;"></span>
+            <span onclick="{{ refresh }}" dangerouslysetinnerhtml="{{ icons.refresh }}" title="刷新" style="width:15px;height:15px;color:var(--dim);cursor:pointer;" style-hover="color:var(--text);"></span>
+          </div>
+
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;">
+            <div style="flex:1;min-width:230px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:18px;">
+              <div style="position:relative;width:74px;height:74px;flex:none;">
+                <span dangerouslysetinnerhtml="{{ donutSvg }}" style="display:block;width:74px;height:74px;"></span>
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;"><b style="font-size:18px;">29%</b><span style="font-size:9.5px;color:var(--faint);margin-top:2px;">完成</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <span style="font-size:12px;color:var(--dim);">当前 Sprint</span>
+                <span style="font-size:16px;font-weight:650;">Sprint 24</span>
+                <span style="font-size:12px;color:var(--dim);">剩余 <b style="color:var(--comp);font-family:'JetBrains Mono',monospace;">7</b> 天 · 07-01 → 07-14</span>
+              </div>
+            </div>
+            <sc-for list="{{ statusCards }}" as="s" hint-placeholder-count="4">
+              <div style="width:150px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:9px;">
+                <div style="display:flex;align-items:center;gap:7px;"><span style="width:8px;height:8px;border-radius:50%;background:{{ s.dot }};"></span><span style="font-size:12px;color:var(--dim);">{{ s.label }}</span></div>
+                <span style="font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1;">{{ s.count }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="sk" style="height:180px;"></div><div class="sk" style="height:180px;"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+              <sc-for list="{{ dashGroups }}" as="g" hint-placeholder-count="4">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                  <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border-soft);">
+                    <span style="width:8px;height:8px;border-radius:50%;background:{{ g.dot }};"></span>
+                    <span style="font-size:12.5px;font-weight:600;">{{ g.label }}</span>
+                    <span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ g.count }}</span>
+                  </div>
+                  <div style="padding:5px;">
+                    <sc-for list="{{ g.tasks }}" as="tv" hint-placeholder-count="2">
+                      <dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="row" show-status="{{ false }}" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import>
+                    </sc-for>
+                    <sc-if value="{{ g.empty }}" hint-placeholder-val="{{ false }}"><div style="padding:14px;text-align:center;font-size:12px;color:var(--faint);">暂无</div></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ===== BACKLOG ===== -->
+      <sc-if value="{{ isBacklog }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <h1 style="font-size:16px;font-weight:650;margin:0;">Backlog</h1>
+            <span style="font-size:12px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ backlogTotal }} 项</span>
+            <span style="flex:1;"></span>
+            <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px;">
+              <sc-for list="{{ backlogFilters }}" as="f" hint-placeholder-count="4">
+                <span onclick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:10px;height:46px;padding:0 12px;border-bottom:1px solid var(--border-soft);background:var(--card-2);">
+              <div style="position:relative;">
+                <select value="{{ quickType }}" onchange="{{ setQuickType }}" style="height:28px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;padding:0 26px 0 9px;cursor:pointer;">
+                  <option value="STORY">故事</option><option value="BUG">缺陷</option><option value="TASK">任务</option>
+                </select>
+                <span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:7px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span>
+              </div>
+              <input value="{{ quickTitle }}" oninput="{{ setQuickTitle }}" onkeydown="{{ quickKey }}" placeholder="快速创建任务，回车提交…" style="flex:1;height:28px;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;">
+              <input value="{{ quickPoints }}" oninput="{{ setQuickPoints }}" type="number" min="1" style="width:52px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;text-align:center;font-family:'JetBrains Mono',monospace;">
+              <button onclick="{{ addQuickTask }}" style="height:28px;padding:0 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">添加</button>
+            </div>
+            <div style="padding:5px;">
+              <sc-for list="{{ backlogRows }}" as="tv" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;" style-hover="background:var(--card-hover);border-radius:7px;">
+                  <div style="flex:1;min-width:0;"><dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="row" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import></div>
+                  <button onclick="{{ tv.moveToSprint }}" title="移入 Sprint 24" style="display:flex;align-items:center;gap:5px;height:26px;margin-right:10px;padding:0 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:11.5px;cursor:pointer;white-space:nowrap;" style-hover="background:var(--accent-soft);border-color:var(--accent);color:var(--accent);">移入 Sprint <span dangerouslysetinnerhtml="{{ icons.arrowRight }}" style="width:12px;height:12px;display:flex;"></span></button>
+                </div>
+              </sc-for>
+              <sc-if value="{{ backlogEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:34px;text-align:center;font-size:13px;color:var(--faint);">该筛选下暂无任务</div></sc-if>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== PLANNING ===== -->
+      <sc-if value="{{ isPlanning }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+          <div style="padding:20px 24px 12px;flex:none;"><h1 style="font-size:16px;font-weight:650;margin:0;">Sprint 规划</h1></div>
+          <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 20px;">
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+              <div style="padding:12px 14px;border-bottom:1px solid var(--border-soft);font-size:12.5px;font-weight:600;color:var(--dim);">Backlog <span style="color:var(--faint);font-weight:400;">· 拖入右侧</span></div>
+              <div style="flex:1;overflow-y:auto;padding:6px;">
+                <sc-for list="{{ planBacklog }}" as="tv" hint-placeholder-count="5">
+                  <div draggable="true" style="cursor:grab;"><dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="row" show-status="{{ false }}" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:16px;min-height:0;">
+              <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;flex:1;overflow:hidden;">
+                <div style="padding:12px 14px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:8px;">
+                  <span dangerouslysetinnerhtml="{{ pulseDot }}"></span>
+                  <span style="font-size:12.5px;font-weight:600;">Sprint 24</span>
+                  <span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ planSprintPts }} pts</span>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:6px;">
+                  <sc-for list="{{ planSprint }}" as="tv" hint-placeholder-count="4">
+                    <dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="row" show-status="{{ false }}" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;flex:none;">
+                <div style="font-size:12.5px;font-weight:600;margin-bottom:12px;">成员容量</div>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <sc-for list="{{ capacityRows }}" as="m" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;gap:11px;">
+                      <span style="width:24px;height:24px;border-radius:50%;background:{{ m.color }};color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">{{ m.initials }}</span>
+                      <span style="width:52px;font-size:12.5px;flex:none;">{{ m.name }}</span>
+                      <div style="flex:1;height:9px;border-radius:5px;background:var(--card-2);overflow:hidden;position:relative;">
+                        <span dangerouslysetinnerhtml="{{ m.bar }}"></span>
+                      </div>
+                      <span style="font-size:11.5px;font-family:'JetBrains Mono',monospace;color:{{ m.numColor }};width:30px;text-align:right;flex:none;">{{ m.assigned }}</span>
+                      <span style="font-size:11px;color:var(--faint);">/</span>
+                      <input value="{{ m.cap }}" oninput="{{ m.onCap }}" type="number" min="1" style="width:38px;height:22px;border-radius:5px;border:1px solid var(--border);background:var(--card-2);color:var(--dim);font-size:11.5px;text-align:center;font-family:'JetBrains Mono',monospace;flex:none;">
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== SPRINTS ===== -->
+      <sc-if value="{{ isSprints }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;">
+          <div style="display:flex;align-items:center;margin-bottom:16px;"><h1 style="font-size:16px;font-weight:650;margin:0;">所有 Sprint</h1><span style="flex:1;"></span><button onclick="{{ toast_newSprint }}" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;font-weight:550;cursor:pointer;" style-hover="background:var(--card-hover);"><span dangerouslysetinnerhtml="{{ icons.plus }}" style="width:14px;height:14px;display:flex;"></span>新建 Sprint</button></div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <sc-for list="{{ sprintGroups }}" as="sp" hint-placeholder-count="3">
+              <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border-soft);">
+                  <span dangerouslysetinnerhtml="{{ sp.badge }}"></span>
+                  <span style="font-size:13.5px;font-weight:600;">{{ sp.name }}</span>
+                  <span style="font-size:12px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ sp.dates }}</span>
+                  <span style="font-size:12px;color:var(--dim);">{{ sp.count }} 任务 · {{ sp.points }} pts</span>
+                  <span style="flex:1;"></span>
+                  <sc-if value="{{ sp.canStart }}" hint-placeholder-val="{{ false }}"><button onclick="{{ sp.onStart }}" style="height:27px;padding:0 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">启动</button></sc-if>
+                </div>
+                <div style="padding:4px 6px;">
+                  <sc-for list="{{ sp.tasks }}" as="tv" hint-placeholder-count="3">
+                    <dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" epic="{{ tv.epic }}" variant="row" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== REPORTS ===== -->
+      <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;"><h1 style="font-size:16px;font-weight:650;margin:0;">报表</h1><div style="position:relative;"><select style="height:30px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;padding:0 28px 0 11px;cursor:pointer;"><option>Sprint 24（进行中）</option><option>Sprint 23</option></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:9px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div></div>
+          <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;">
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;">
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;"><span style="font-size:12.5px;font-weight:600;">燃尽图</span><span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);"><span style="width:16px;height:2px;background:var(--accent);border-radius:2px;"></span>剩余</span><span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);"><span style="width:16px;height:0;border-top:2px dashed var(--faint);"></span>理想</span></div>
+              <div data-om-raster="true" dangerouslysetinnerhtml="{{ burndownSvg }}" style="width:100%;"></div>
+            </div>
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;">
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:16px;">每人负载</div>
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <sc-for list="{{ capacityRows }}" as="m" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="width:46px;font-size:12px;flex:none;color:var(--dim);">{{ m.name }}</span>
+                    <div style="flex:1;height:16px;border-radius:5px;background:var(--card-2);overflow:hidden;position:relative;"><span dangerouslysetinnerhtml="{{ m.bar }}"></span></div>
+                    <span style="font-size:11.5px;font-family:'JetBrains Mono',monospace;color:{{ m.numColor }};width:46px;text-align:right;flex:none;">{{ m.assigned }}/{{ m.cap }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== ROADMAP ===== -->
+      <sc-if value="{{ isRoadmap }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;">
+          <div style="display:flex;align-items:center;margin-bottom:16px;"><h1 style="font-size:16px;font-weight:650;margin:0;">路线图</h1><span style="flex:1;"></span><button onclick="{{ openEpicModal }}" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 9px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12.5px;font-weight:550;cursor:pointer;" style-hover="background:var(--card-hover);"><span dangerouslysetinnerhtml="{{ icons.plus }}" style="width:14px;height:14px;display:flex;"></span>新建 Epic</button></div>
+          <div style="display:flex;flex-direction:column;gap:22px;">
+            <sc-for list="{{ roadmapQuarters }}" as="q" hint-placeholder-count="3">
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">{{ q.label }}</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;">
+                  <sc-for list="{{ q.epics }}" as="e" hint-placeholder-count="2">
+                    <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:0;overflow:hidden;display:flex;">
+                      <span style="width:4px;background:{{ e.color }};flex:none;"></span>
+                      <div style="padding:13px 15px;flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="font-size:13.5px;font-weight:600;">{{ e.name }}</span><span style="flex:1;"></span><span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace;">{{ e.done }}/{{ e.total }}</span></div>
+                        <div style="height:6px;border-radius:4px;background:var(--card-2);overflow:hidden;margin-bottom:10px;"><span dangerouslysetinnerhtml="{{ e.bar }}"></span></div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                          <sc-for list="{{ e.tasks }}" as="tv" hint-placeholder-count="2">
+                            <dc-import name="TaskCard" task="{{ tv.task }}" assignee="{{ tv.assignee }}" variant="row" on-open="{{ tv.onOpen }}" hint-size="100%,38px"></dc-import>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== ADMIN ===== -->
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;max-width:820px;">
+          <h1 style="font-size:16px;font-weight:650;margin:0 0 18px;">租户管理</h1>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden;">
+            <div style="padding:13px 16px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;"><span style="font-size:13px;font-weight:600;">成员</span><span style="flex:1;"></span><button onclick="{{ genInvite }}" style="height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;cursor:pointer;" style-hover="background:var(--card-hover);">生成邀请链接</button></div>
+            <sc-if value="{{ inviteLink }}" hint-placeholder-val="{{ false }}">
+              <div style="margin:12px 16px 0;display:flex;align-items:center;gap:10px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;">
+                <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ inviteLink }}</span>
+                <button onclick="{{ copyInvite }}" style="display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:11.5px;cursor:pointer;"><span dangerouslysetinnerhtml="{{ icons.copy }}" style="width:12px;height:12px;display:flex;"></span>复制</button>
+              </div>
+            </sc-if>
+            <div style="padding:6px 8px;">
+              <sc-for list="{{ memberRows }}" as="m" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:11px;height:44px;padding:0 8px;">
+                  <span style="width:28px;height:28px;border-radius:50%;background:{{ m.color }};color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">{{ m.initials }}</span>
+                  <span style="font-size:13px;width:70px;">{{ m.name }}</span>
+                  <span style="font-size:12.5px;color:var(--dim);flex:1;">{{ m.email }}</span>
+                  <span style="font-size:11px;color:var(--dim);background:var(--card-2);border:1px solid var(--border-soft);border-radius:20px;padding:2px 10px;">{{ m.role }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:14px;">项目设置</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;"><span style="font-size:13px;flex:1;">默认 Sprint 周期<div style="font-size:11.5px;color:var(--faint);">新建 Sprint 时的默认天数</div></span><div style="position:relative;"><select style="height:30px;border-radius:7px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:12.5px;padding:0 28px 0 11px;cursor:pointer;"><option>2 周</option><option>1 周</option><option>3 周</option></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:9px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div></div>
+            <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:13px;flex:1;">Sprint 自动轮转<div style="font-size:11.5px;color:var(--faint);">当前 Sprint 结束时自动创建下一个</div></span><span onclick="{{ toggleRotate }}" dangerouslysetinnerhtml="{{ rotateToggle }}" style="cursor:pointer;"></span></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== SETTINGS ===== -->
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;overflow-y:auto;padding:20px 24px 40px;max-width:720px;">
+          <h1 style="font-size:16px;font-weight:650;margin:0 0 18px;">个人设置</h1>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:14px;">个人资料</div>
+            <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">昵称</label>
+            <input value="张明" style="width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">修改密码</label>
+            <input type="password" value="••••••••" style="width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;">
+          </div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <div style="display:flex;align-items:center;margin-bottom:6px;"><span style="font-size:13px;font-weight:600;">个人访问令牌 (PAT)</span><span style="flex:1;"></span><button onclick="{{ genToken }}" style="height:28px;padding:0 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">生成 Token</button></div>
+          <div style="font-size:11.5px;color:var(--faint);margin-bottom:14px;">用于 API / MCP 集成访问。</div>
+            <sc-if value="{{ patToken }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid var(--comp);background:var(--comp-soft);border-radius:9px;padding:12px 13px;">
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--comp);font-weight:600;margin-bottom:9px;"><span dangerouslysetinnerhtml="{{ icons.alert }}" style="width:14px;height:14px;display:flex;"></span>此 Token 只显示一次，请立即保存</div>
+                <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;">
+                  <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--comp);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.01em;">{{ patToken }}</span>
+                  <button onclick="{{ copyToken }}" style="display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:11.5px;cursor:pointer;" style-hover="background:var(--card-hover);"><span dangerouslysetinnerhtml="{{ icons.copy }}" style="width:12px;height:12px;display:flex;"></span>复制</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noPat }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1px dashed var(--border-strong);border-radius:9px;padding:20px;text-align:center;font-size:12.5px;color:var(--faint);">尚未生成任何 Token</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+    </main>
+  </div>
+
+  <!-- ============ TASK DRAWER ============ -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;animation:fadeIn .12s;"></div>
+    <div style="position:fixed;top:0;right:0;bottom:0;width:480px;max-width:92vw;background:var(--bg);border-left:1px solid var(--border);z-index:61;display:flex;flex-direction:column;box-shadow:-14px 0 40px -18px rgba(0,0,0,.8);animation:drawerIn .18s ease;">
+      <div style="height:52px;flex:none;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;">
+        <span dangerouslysetinnerhtml="{{ drawer.typeIcon }}" style="width:15px;height:15px;display:flex;"></span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--faint);">{{ drawer.id }}</span>
+        <span style="flex:1;"></span>
+        <span onclick="{{ closeDrawer }}" dangerouslysetinnerhtml="{{ icons.x }}" style="width:16px;height:16px;color:var(--dim);cursor:pointer;" style-hover="color:var(--text);"></span>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:18px 18px 30px;">
+        <textarea value="{{ drawer.title }}" oninput="{{ drawer.onTitle }}" rows="2" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:17px;font-weight:600;line-height:1.35;resize:none;margin-bottom:16px;font-family:inherit;"></textarea>
+
+        <div style="display:grid;grid-template-columns:78px 1fr;gap:10px 12px;align-items:center;font-size:12.5px;margin-bottom:20px;">
+          <span style="color:var(--dim);">状态</span>
+          <div style="position:relative;"><select value="{{ drawer.status }}" onchange="{{ drawer.onStatus }}" style="{{ drawer.statusSelStyle }}"><sc-for list="{{ statusOptions }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+          <span style="color:var(--dim);">类型</span>
+          <div style="position:relative;"><select value="{{ drawer.type }}" onchange="{{ drawer.onType }}" style="{{ selStyle }}"><sc-for list="{{ typeOptions }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+          <span style="color:var(--dim);">Points</span>
+          <div style="position:relative;"><select value="{{ drawer.points }}" onchange="{{ drawer.onPoints }}" style="{{ selStyle }}"><sc-for list="{{ pointsOptions }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+          <span style="color:var(--dim);">负责人</span>
+          <div style="position:relative;"><select value="{{ drawer.assigneeId }}" onchange="{{ drawer.onAssignee }}" style="{{ selStyle }}"><sc-for list="{{ memberOptions }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+          <span style="color:var(--dim);">Epic</span>
+          <div style="position:relative;"><select value="{{ drawer.epicId }}" onchange="{{ drawer.onEpic }}" style="{{ selStyle }}"><sc-for list="{{ epicOptions }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+        </div>
+
+        <div style="font-size:12px;color:var(--dim);margin-bottom:6px;">描述</div>
+        <div style="font-size:13px;line-height:1.6;color:var(--text);background:var(--card);border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:20px;">{{ drawer.desc }}</div>
+
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+          <span onclick="{{ tabComments }}" style="{{ drawer.tabCommentsStyle }}">评论</span>
+          <span onclick="{{ tabHistory }}" style="{{ drawer.tabHistoryStyle }}">变更历史</span>
+        </div>
+
+        <sc-if value="{{ drawer.showComments }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:14px;">
+            <sc-for list="{{ drawer.comments }}" as="c" hint-placeholder-count="2">
+              <div style="display:flex;gap:10px;">
+                <span style="width:26px;height:26px;border-radius:50%;background:{{ c.color }};color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;">{{ c.initials }}</span>
+                <div style="flex:1;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;"><span style="font-size:12.5px;font-weight:600;">{{ c.who }}</span><span style="font-size:11px;color:var(--faint);">{{ c.time }}</span></div><div style="font-size:13px;line-height:1.5;color:var(--text);">{{ c.text }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input value="{{ commentDraft }}" oninput="{{ setCommentDraft }}" onkeydown="{{ commentKey }}" placeholder="写下评论，回车发送…" style="flex:1;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;padding:0 11px;outline:none;">
+            <button onclick="{{ addComment }}" style="height:34px;padding:0 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">发送</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ drawer.showHistory }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;">
+            <sc-for list="{{ drawer.history }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:11px;padding-bottom:16px;position:relative;">
+                <div style="display:flex;flex-direction:column;align-items:center;flex:none;"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:5px;"></span><span style="{{ h.lineStyle }}"></span></div>
+                <div style="flex:1;font-size:12.5px;line-height:1.5;"><span style="color:var(--text);"><b style="font-weight:600;">{{ h.who }}</b> {{ h.text }}</span><div style="display:flex;align-items:center;gap:7px;margin-top:2px;"><span style="font-size:11px;color:var(--faint);">{{ h.time }}</span><sc-if value="{{ h.mcp }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 5px;">via MCP</span></sc-if></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ EPIC MODAL ============ -->
+  <sc-if value="{{ showEpicModal }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ closeEpicModal }}" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;display:flex;align-items:center;justify-content:center;animation:fadeIn .12s;">
+      <div onclick="{{ stop }}" style="width:440px;max-width:92vw;background:var(--bg);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:20px;">
+        <div style="font-size:15px;font-weight:650;margin-bottom:16px;">新建 Epic</div>
+        <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">名称</label>
+        <input value="{{ epicName }}" oninput="{{ setEpicName }}" placeholder="如：搜索体验" style="width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:7px;">颜色</label>
+        <div style="display:flex;gap:9px;margin-bottom:16px;">
+          <sc-for list="{{ epicPalette }}" as="c" hint-placeholder-count="6">
+            <span onclick="{{ c.onPick }}" style="{{ c.style }}"></span>
+          </sc-for>
+        </div>
+        <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">季度</label>
+        <div style="position:relative;margin-bottom:20px;"><select value="{{ epicQuarter }}" onchange="{{ setEpicQuarter }}" style="{{ selStyle }}"><option value="2026-Q3">2026-Q3</option><option value="2026-Q4">2026-Q4</option><option value="">未指定</option></select><span dangerouslysetinnerhtml="{{ icons.chevron }}" style="position:absolute;right:9px;top:8px;width:12px;height:12px;color:var(--faint);pointer-events:none;"></span></div>
+        <div style="display:flex;justify-content:flex-end;gap:9px;"><button onclick="{{ closeEpicModal }}" style="height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12.5px;cursor:pointer;">取消</button><button onclick="{{ createEpic }}" style="height:32px;padding:0 16px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">创建</button></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ CONFIRM ============ -->
+  <sc-if value="{{ confirm }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ closeConfirm }}" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:80;display:flex;align-items:center;justify-content:center;animation:fadeIn .12s;">
+      <div onclick="{{ stop }}" style="width:380px;max-width:92vw;background:var(--bg);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:20px;">
+        <div style="font-size:15px;font-weight:650;margin-bottom:8px;">{{ confirm.title }}</div>
+        <div style="font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:20px;">{{ confirm.msg }}</div>
+        <div style="display:flex;justify-content:flex-end;gap:9px;"><button onclick="{{ closeConfirm }}" style="height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12.5px;cursor:pointer;">取消</button><button onclick="{{ doConfirm }}" style="height:32px;padding:0 16px;border-radius:8px;border:none;background:var(--type-bug);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">{{ confirm.action }}</button></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ TOAST ============ -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:90;display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:11px 15px;animation:toastIn .16s ease;">
+      <span dangerouslysetinnerhtml="{{ toastIcon }}" style="width:16px;height:16px;display:flex;flex:none;"></span>
+      <span style="font-size:13px;color:var(--text);">{{ toast.msg }}</span>
+    </div>
+  </sc-if>
+
+  <!-- ============ AUTH ============ -->
+  <sc-if value="{{ showAuth }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s;">
+      <div style="width:380px;max-width:92vw;">
+        <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:26px;">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:22px;margin-bottom:12px;">P</div>
+          <div style="font-size:16px;font-weight:650;">欢迎回到 PM</div>
+          <div style="font-size:13px;color:var(--faint);margin-top:3px;">Acme 团队的项目管理</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow);">
+          <div style="display:flex;gap:4px;background:var(--card-2);border-radius:9px;padding:3px;margin-bottom:18px;">
+            <span onclick="{{ authLogin }}" style="{{ authLoginStyle }}">登录</span>
+            <span onclick="{{ authRegister }}" style="{{ authRegisterStyle }}">注册</span>
+          </div>
+          <sc-if value="{{ isRegister }}" hint-placeholder-val="{{ false }}">
+            <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">团队名称</label>
+            <input placeholder="Acme Inc." style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;margin-bottom:12px;">
+            <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">团队 slug</label>
+            <div style="display:flex;align-items:center;gap:2px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);padding:0 11px;margin-bottom:12px;"><span style="font-size:13px;color:var(--faint);font-family:'JetBrains Mono',monospace;">/t/</span><input placeholder="acme" style="flex:1;height:34px;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;"></div>
+          </sc-if>
+          <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">邮箱</label>
+          <input placeholder="you@acme.io" style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;margin-bottom:12px;">
+          <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px;">密码</label>
+          <input type="password" placeholder="••••••••" style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:var(--text);font-size:13px;padding:0 11px;margin-bottom:18px;">
+          <button onclick="{{ enterApp }}" style="width:100%;height:38px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">{{ authCta }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
