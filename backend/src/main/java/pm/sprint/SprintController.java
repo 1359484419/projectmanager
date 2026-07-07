@@ -1,5 +1,6 @@
 package pm.sprint;
 
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,7 +14,9 @@ import pm.task.TaskBrief;
 import pm.task.TaskRepository;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class SprintController {
@@ -37,6 +40,11 @@ public class SprintController {
     }
 
     public record CapacityPut(int capacity) {
+    }
+
+    /** Board 页四列数据：{sprint, columns:{TODO:[TaskBrief],...}}。 */
+    public record BoardView(SprintService.SprintView sprint,
+                            Map<String, List<TaskBrief>> columns) {
     }
 
     @PostMapping("/api/t/{slug}/projects/{key}/sprints")
@@ -68,6 +76,20 @@ public class SprintController {
                                         .map(TaskBrief::from).toList()
                                 : null))
                 .toList();
+    }
+
+    /** 看板：Sprint 内任务按四态分列（每列按 rank 排序）。 */
+    @GetMapping("/api/t/{slug}/sprints/{id}/board")
+    @Transactional(readOnly = true)
+    BoardView board(@PathVariable String slug, @PathVariable Long id) {
+        Sprint sprint = sprintService.requireById(id);
+        List<pm.task.Task> sprintTasks = tasks.findBySprintIdOrderByRankAsc(sprint.getId());
+        Map<String, List<TaskBrief>> columns = new LinkedHashMap<>();
+        for (pm.task.Task.Status s : pm.task.Task.Status.values()) {
+            columns.put(s.name(), sprintTasks.stream()
+                    .filter(t -> t.getStatus() == s).map(TaskBrief::from).toList());
+        }
+        return new BoardView(SprintService.SprintView.from(sprint), columns);
     }
 
     @GetMapping("/api/t/{slug}/sprints/{id}/burndown")

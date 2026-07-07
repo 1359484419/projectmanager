@@ -2,7 +2,7 @@
 // 默认全部展开，点标题折叠。数据来自 GET /projects/{key}/sprints?withTasks=true。
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useProjects, useSprints } from '../api/hooks'
+import { useCreateSprint, useProjects, useSprints, useStartSprint } from '../api/hooks'
 import type { SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
 import StatusBadge from '../components/StatusBadge'
 import TaskDrawer from '../components/TaskDrawer'
@@ -114,11 +114,15 @@ function SprintCard({
   collapsed,
   onToggle,
   onOpenTask,
+  onStart,
+  starting,
 }: {
   sprint: SprintWithTasks
   collapsed: boolean
   onToggle: () => void
   onOpenTask: (task: TaskBrief) => void
+  onStart?: () => void
+  starting?: boolean
 }) {
   return (
     <section
@@ -154,6 +158,28 @@ function SprintCard({
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>
           {sprint.tasks.length} 个任务
         </span>
+        {sprint.status === 'PLANNED' && onStart && (
+          <span
+            role="button"
+            aria-label={`启动 ${sprint.name}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!starting) onStart()
+            }}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#4f46e5',
+              color: '#fff',
+              whiteSpace: 'nowrap',
+              opacity: starting ? 0.6 : 1,
+            }}
+          >
+            {starting ? '启动中…' : '启动'}
+          </span>
+        )}
       </button>
       {!collapsed && <TaskTable tasks={sprint.tasks} onOpen={onOpenTask} />}
     </section>
@@ -167,6 +193,8 @@ export default function AllSprints() {
   const projectKey = selectedKey ?? projects?.[0]?.key ?? ''
 
   const { data: sprints, isLoading, isError, error } = useSprints(slug, projectKey, true)
+  const createSprint = useCreateSprint(slug, projectKey)
+  const startSprint = useStartSprint(slug)
 
   // 默认全部展开：记录被折叠的 sprint id
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set())
@@ -204,7 +232,38 @@ export default function AllSprints() {
             ))}
           </select>
         )}
+        {projectKey && (
+          <button
+            type="button"
+            onClick={() => createSprint.mutate({})}
+            disabled={createSprint.isPending}
+            style={{
+              marginLeft: 'auto',
+              padding: '6px 16px',
+              borderRadius: 6,
+              border: 'none',
+              background: '#4f46e5',
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              opacity: createSprint.isPending ? 0.6 : 1,
+            }}
+          >
+            {createSprint.isPending ? '创建中…' : '新建 Sprint'}
+          </button>
+        )}
       </div>
+      {createSprint.isError && (
+        <p style={{ color: '#dc2626', fontSize: 13 }}>
+          创建失败：{createSprint.error instanceof Error ? createSprint.error.message : '未知错误'}
+        </p>
+      )}
+      {startSprint.isError && (
+        <p style={{ color: '#dc2626', fontSize: 13 }}>
+          启动失败：{startSprint.error instanceof Error ? startSprint.error.message : '未知错误'}
+        </p>
+      )}
 
       {(projectsLoading || isLoading) && (
         <p style={{ color: '#6b7280', fontSize: 14 }}>加载中…</p>
@@ -232,6 +291,8 @@ export default function AllSprints() {
             collapsed={collapsedIds.has(sprint.id)}
             onToggle={() => toggle(sprint.id)}
             onOpenTask={setDrawerTask}
+            onStart={() => startSprint.mutate(sprint.id)}
+            starting={startSprint.isPending}
           />
         ))}
       </div>

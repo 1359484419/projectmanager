@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import Layout from './components/Layout'
 import Login from './pages/Login'
 import AcceptInvite from './pages/AcceptInvite'
 import TenantSelect from './pages/TenantSelect'
@@ -15,11 +16,6 @@ import Settings from './pages/Settings'
 
 const queryClient = new QueryClient()
 
-// 租户内布局路由：Task 15 将替换为带侧边导航的 Layout 组件
-function TenantLayout() {
-  return <Outlet />
-}
-
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -28,7 +24,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/tenants" element={<TenantSelect />} />
-          <Route path="/t/:slug" element={<TenantLayout />}>
+          <Route path="/t/:slug" element={<Layout />}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="backlog" element={<Backlog />} />

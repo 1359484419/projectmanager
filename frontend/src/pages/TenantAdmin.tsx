@@ -4,7 +4,7 @@
 // 非 ADMIN 调用 members/invites 时后端按约定返回 404，页面据此展示无权限提示。
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useCreateInvite, useMembers, useProjects, useUpdateProject } from '../api/hooks'
+import { useCreateInvite, useCreateProject, useMembers, useProjects, useUpdateProject } from '../api/hooks'
 import { ApiError } from '../api/client'
 import type { Invite, Project, Role, SprintLength } from '../api/types'
 
@@ -270,12 +270,88 @@ function ProjectSettingsRow({ slug, project }: { slug: string; project: Project 
   )
 }
 
+/** 新建项目表单：key（2-6 大写字母）+ 名称 */
+function CreateProjectForm({ slug }: { slug: string }) {
+  const [key, setKey] = useState('')
+  const [name, setName] = useState('')
+  const createProject = useCreateProject(slug)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!key.trim() || !name.trim() || createProject.isPending) return
+    createProject.mutate(
+      { key: key.trim().toUpperCase(), name: name.trim() },
+      {
+        onSuccess: () => {
+          setKey('')
+          setName('')
+        },
+      },
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          value={key}
+          onChange={(e) => setKey(e.target.value.toUpperCase())}
+          placeholder="Key（如 PM）"
+          aria-label="项目 Key"
+          pattern="[A-Z]{2,6}"
+          title="2-6 个大写字母"
+          required
+          style={{
+            width: 110,
+            padding: '6px 10px',
+            fontSize: 14,
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--bg)',
+            color: 'var(--text-h)',
+          }}
+        />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="项目名称"
+          aria-label="项目名称"
+          required
+          style={{
+            flex: 1,
+            minWidth: 180,
+            padding: '6px 10px',
+            fontSize: 14,
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--bg)',
+            color: 'var(--text-h)',
+          }}
+        />
+        <button
+          type="submit"
+          disabled={createProject.isPending}
+          style={{ ...buttonStyle, opacity: createProject.isPending ? 0.6 : 1 }}
+        >
+          {createProject.isPending ? '创建中…' : '新建项目'}
+        </button>
+      </div>
+      {createProject.isError && (
+        <p style={{ fontSize: 13, color: '#dc2626', margin: '8px 0 0' }}>
+          创建失败：{createProject.error.message}
+        </p>
+      )}
+    </form>
+  )
+}
+
 /** 项目 Sprint 默认设置 */
 function ProjectsSection({ slug }: { slug: string }) {
   const projects = useProjects(slug)
   return (
     <section style={cardStyle}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>项目 Sprint 设置</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>项目</h2>
+      <CreateProjectForm slug={slug} />
       {projects.isLoading && <p style={{ fontSize: 14, color: 'var(--text)' }}>加载中…</p>}
       {projects.isError && (
         <p style={{ fontSize: 14, color: '#dc2626' }}>项目加载失败：{projects.error.message}</p>

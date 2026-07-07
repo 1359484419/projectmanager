@@ -36,6 +36,12 @@ public class TaskController {
         return taskService.backlog(key);
     }
 
+    /** 任务详情（TaskDrawer 用）。 */
+    @GetMapping("/api/t/{slug}/tasks/{id}")
+    TaskService.TaskView get(@PathVariable String slug, @PathVariable Long id) {
+        return taskService.toView(taskService.requireById(id));
+    }
+
     @GetMapping("/api/t/{slug}/tasks/{id}/activities")
     List<TaskService.ActivityView> activities(@PathVariable String slug, @PathVariable Long id) {
         return taskService.activities(id);
