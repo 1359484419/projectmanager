@@ -54,8 +54,8 @@ tasks        id, tenant_id, project_id, sprint_id(NULL=Backlog),
              epic_id(可空, → epics), type(STORY|BUG|TASK),
              seq(项目内自增, 展示为 PM-42), title, description,
              points(整数, 单位=天, 可空), assignee_id(可空),
-             status(TODO|IN_PROGRESS|DONE), rank(字典序排序键),
-             created_at, done_at
+             status(TODO|IN_PROGRESS|COMPLETED|DONE), rank(字典序排序键),
+             created_at, done_at(进入 DONE 时记录)
 comments     id, tenant_id, task_id, author_id, body, created_at
 activities   id, tenant_id, task_id, actor_id,
              type(STATUS_CHANGED|POINTS_CHANGED|SPRINT_CHANGED|ASSIGNED|CREATED|...),
@@ -88,6 +88,14 @@ activities   id, tenant_id, task_id, actor_id,
 - 任务类型 `type`：STORY（用户故事）/ BUG / TASK（杂项），看板与列表上用图标/颜色区分，可按类型筛选。
 - Epic 完成（status=DONE）由用户手动标记，不自动判定。
 
+### 5.3.1 任务四态工作流
+
+`TODO → IN_PROGRESS → COMPLETED → DONE`（允许回退）。
+
+- **COMPLETED** = 开发/自测完成待验收；**DONE** = 验收通过，真正完成。
+- 燃尽图、Epic 进度、Sprint 结转均以 **DONE** 为准：非 DONE（含 COMPLETED）任务在自动轮转时转入新 Sprint。
+- `done_at` 在任务进入 DONE 时写入，回退则清空。
+
 ### 5.4 燃尽图
 
 - 不做每日快照定时任务。
@@ -108,7 +116,9 @@ POST /api/t/{slug}/projects/{key}/sprints
 POST /api/t/{slug}/projects/{key}/epics
 GET  /api/t/{slug}/projects/{key}/roadmap    # 按季度分组的 Epic 及进度
 POST /api/t/{slug}/sprints/{id}/start | close
-GET  /api/t/{slug}/sprints/{id}/board        # 看板数据
+GET  /api/t/{slug}/projects/{key}/dashboard  # 当前 Sprint 四状态概览
+GET  /api/t/{slug}/projects/{key}/sprints?withTasks=true  # All Sprints 列表
+GET  /api/t/{slug}/sprints/{id}/board        # 看板数据（四列）
 GET  /api/t/{slug}/sprints/{id}/capacity     # 每人容量与负载
 GET  /api/t/{slug}/sprints/{id}/burndown
 PATCH /api/t/{slug}/tasks/{id}               # 状态/指派/points/sprint/rank
@@ -123,13 +133,15 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 
 1. 登录 / 注册 / 接受邀请（开放注册：注册时即创建一个新租户，注册者成为该租户 ADMIN；已有租户的成员经邀请链接加入）
 2. 租户/项目选择
-3. Backlog：任务列表、快速创建、拖拽进 Sprint
-4. Sprint 看板：TODO / IN_PROGRESS / DONE 三列拖拽
-5. Sprint 规划：成员容量条（已分配/容量，超载标红）
-6. 报表：燃尽图、每人负载
-7. 任务详情抽屉：编辑（含类型、所属 Epic）、评论、变更历史
-8. **路线图**：按季度分组的 Epic 卡片 + 完成进度，Epic 展开可见其下 Story/Bug
-9. 租户管理（仅 ADMIN）：成员列表、邀请链接、Sprint 周期默认值与自动轮转开关
+3. **Dashboard（项目首页）**：当前 ACTIVE Sprint 概览——Story/Bug 按 TODO / IN_PROGRESS / COMPLETED / DONE 四种状态分组展示，含各状态计数、Sprint 剩余天数、整体完成度
+4. Backlog：任务列表、快速创建、拖拽进 Sprint
+5. Sprint 看板：TODO / IN_PROGRESS / COMPLETED / DONE 四列拖拽
+6. **All Sprints**：所有 Sprint 倒序列表（含 ACTIVE/CLOSED/PLANNED），每个 Sprint 分组下列出其全部任务，**默认全部展开**，可折叠
+7. Sprint 规划：成员容量条（已分配/容量，超载标红）
+8. 报表：燃尽图、每人负载
+9. 任务详情抽屉：编辑（含类型、所属 Epic）、评论、变更历史
+10. **路线图**：按季度分组的 Epic 卡片 + 完成进度，Epic 展开可见其下 Story/Bug
+11. 租户管理（仅 ADMIN）：成员列表、邀请链接、Sprint 周期默认值与自动轮转开关
 
 ## 8. 首版明确不做（YAGNI）
 
@@ -153,8 +165,9 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 | 骨架 + 认证 + 多租户 harness | 0.5 天 |
 | Backlog + 看板 + Sprint 生命周期 + 自动轮转 | 1 天 |
 | Epic/季度路线图 + 任务类型 | 0.5 天 |
+| Dashboard + All Sprints 页 | 0.5 天 |
 | 容量条 + 燃尽图 + 评论/历史 | 1 天 |
 | Docker 部署 + 联调 + 安全测试 | 0.5 天 |
-| **合计** | **约 3.5 个工作日** |
+| **合计** | **约 4 个工作日** |
 
 不可压缩项：真机部署联调、多租户越权测试。
