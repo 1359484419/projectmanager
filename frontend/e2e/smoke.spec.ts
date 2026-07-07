@@ -10,10 +10,11 @@ const email = `smoke-${runId}@example.com`
 const password = 'secret123'
 const PROJECT_KEY = 'SMK'
 
+// points 走 0.5-5 小数估点（0.5 步进）；总和保持 6，使 donePct = 3/6 = 50% 断言不变
 const TASKS = [
   { title: '冒烟任务一', points: '3' },
-  { title: '冒烟任务二', points: '2' },
-  { title: '冒烟任务三', points: '1' },
+  { title: '冒烟任务二', points: '2.5' },
+  { title: '冒烟任务三', points: '0.5' },
 ]
 
 async function nav(page: Page, label: string) {
@@ -43,6 +44,15 @@ test('注册到报表全链路冒烟', async ({ page }) => {
 
   // ---------- 3. Backlog 建 3 任务 ----------
   await nav(page, 'Backlog')
+
+  // 估点校验：points=6 超出 0.5-5 范围被前端拒绝（toast 提示 + 不创建）
+  await page.getByLabel('任务标题').fill('非法估点任务')
+  await page.getByLabel('points').fill('6')
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await expect(page.getByText('单任务估点 0.5-5，过大请拆分').first()).toBeVisible()
+  await expect(page.getByText('非法估点任务')).toHaveCount(0)
+
+  // points=0.5 成功（冒烟任务三即 0.5，见 TASKS）
   for (const t of TASKS) {
     await page.getByLabel('任务标题').fill(t.title)
     await page.getByLabel('points').fill(t.points)
