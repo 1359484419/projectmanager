@@ -39,6 +39,8 @@ tenants      id, slug(唯一), name, created_at
 users        id, email(全局唯一), password_hash, display_name, created_at
 memberships  id, user_id → users, tenant_id → tenants, role(ADMIN|MEMBER)
              UNIQUE(user_id, tenant_id)
+api_tokens   id, tenant_id, user_id, token_hash, name,
+             created_at, last_used_at        # MCP 用个人访问令牌(PAT)
 invites      id, tenant_id, token(唯一), role, expires_at, created_by
 projects     id, tenant_id, key(租户内唯一, 如 "PM"), name,
              default_sprint_length(默认 WEEK_2), auto_rotate(默认 true)
@@ -129,7 +131,34 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 
 统一错误体 `{code, message}`；跨租户资源一律 404。
 
-## 7. 前端页面（首版 8 个）
+## 6.5 MCP 接口层与 Agent Skill
+
+让团队成员在自己的 agent（Claude Code / Cursor / 其他 MCP 客户端）里用自然语言直接操作系统，免去手写日报/周报/计划。典型场景：**「把我今天做的这些事整理成 user story，挂到当前（或下个）Sprint」**。
+
+### 架构
+
+- **MCP Server 内置在 Spring Boot 应用里**（MCP Java SDK，Streamable HTTP，端点 `/mcp`），不单独部署进程——同一套服务、同一套租户 harness。
+- **认证**：个人访问令牌（PAT），用户在「个人设置」页生成，`Authorization: Bearer <token>` 携带；PAT 绑定 用户+租户，MCP 请求走与 REST 相同的 TenantContext 拦截器，隔离逻辑零重复。
+- **审计**：MCP 的写操作与 REST 一样写入 `activities`，并标记来源为 MCP。
+
+### 首版 MCP 工具（写为主，读为辅）
+
+| 工具 | 用途 |
+|---|---|
+| `list_projects` / `list_sprints` / `list_epics` | 查询挂载目标（当前/下个 Sprint、Epic 列表） |
+| `create_tasks` | **批量**创建任务：type/title/描述/points/epic/指派（默认自己），target 可指定 `current_sprint` / `next_sprint` / `backlog` |
+| `update_task_status` | 推进任务状态（如整理完直接标 COMPLETED） |
+| `list_my_tasks` | 我在某 Sprint 的任务与状态（供 agent 生成日报/周报文字） |
+
+爆炸半径控制：`create_tasks` 工具描述中要求 agent 先向用户展示将创建的清单再调用；单次批量上限 20 条。若指定 `next_sprint` 而下个 PLANNED Sprint 不存在，自动按项目默认周期预建一个。
+
+### Agent Skill
+
+- 仓库内维护 `skill/` 目录，发布一个可分发的 skill 包（`SKILL.md` + MCP 连接配置示例），团队成员装到自己的 agent 里。
+- Skill 内容：如何生成/配置 PAT、常用话术到工具的映射（整理今日工作→`create_tasks`、写周报→`list_my_tasks` 后按模板生成文字）、日报/周报输出模板。
+- 报告文字由用户自己的 agent 生成，系统**不存档报告**（首版）。
+
+## 7. 前端页面（首版 12 个）
 
 1. 登录 / 注册 / 接受邀请（开放注册：注册时即创建一个新租户，注册者成为该租户 ADMIN；已有租户的成员经邀请链接加入）
 2. 租户/项目选择
@@ -142,6 +171,7 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 9. 任务详情抽屉：编辑（含类型、所属 Epic）、评论、变更历史
 10. **路线图**：按季度分组的 Epic 卡片 + 完成进度，Epic 展开可见其下 Story/Bug
 11. 租户管理（仅 ADMIN）：成员列表、邀请链接、Sprint 周期默认值与自动轮转开关
+12. 个人设置：改名、改密码、**PAT 管理（生成/吊销 MCP 访问令牌）**
 
 ## 8. 首版明确不做（YAGNI）
 
@@ -154,7 +184,8 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
   - 容量计算（各 length 的工作日数、override）；
   - Sprint 关闭时任务流转；
   - **自动轮转 job 的幂等性**（重复触发、停机补跑只轮转一次）；
-  - 燃尽图回放正确性。
+  - 燃尽图回放正确性；
+  - MCP：PAT 认证、失效令牌拒绝、跨租户隔离同样 404、`create_tasks` 批量上限。
 - **前端**：Playwright 冒烟一条主流程：登录 → 建任务 → 拖进 Sprint → 看板拖拽到 DONE → 燃尽图出数。
 - 交付前在真实 Docker Compose 环境端到端验证。
 
@@ -166,8 +197,9 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 | Backlog + 看板 + Sprint 生命周期 + 自动轮转 | 1 天 |
 | Epic/季度路线图 + 任务类型 | 0.5 天 |
 | Dashboard + All Sprints 页 | 0.5 天 |
+| MCP Server + PAT + Skill 包 | 0.5 天 |
 | 容量条 + 燃尽图 + 评论/历史 | 1 天 |
 | Docker 部署 + 联调 + 安全测试 | 0.5 天 |
-| **合计** | **约 4 个工作日** |
+| **合计** | **约 4.5 个工作日** |
 
 不可压缩项：真机部署联调、多租户越权测试。
