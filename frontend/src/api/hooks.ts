@@ -321,6 +321,16 @@ export function useMembers(slug: string) {
   })
 }
 
+/** 移出租户成员（仅 ADMIN）：DELETE /api/t/{slug}/members/{userId}。
+ *  409 code：CANNOT_REMOVE_SELF / LAST_ADMIN。被移出者未完成任务转未指派，故失效整租户缓存。 */
+export function useRemoveMember(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: number) => api<void>(`${t(slug)}/members/${userId}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
 // ---------- PAT ----------
 
 export function useTokens() {

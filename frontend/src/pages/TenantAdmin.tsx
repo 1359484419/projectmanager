@@ -5,11 +5,33 @@
 // 视觉真源：docs/design/mock/markup.html（ADMIN 节）+ logic.jsx（rotateToggle）。
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useCreateInvite, useCreateProject, useMembers, useProjects, useUpdateProject } from '../api/hooks'
-import { ApiError } from '../api/client'
-import { Icon, SelectWrap, cardStyle, inputStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
+import {
+  useCreateInvite,
+  useCreateProject,
+  useMembers,
+  useProjects,
+  useRemoveMember,
+  useUpdateProject,
+} from '../api/hooks'
+import { ApiError, currentUserId } from '../api/client'
+import {
+  ConfirmDialog,
+  Icon,
+  SelectWrap,
+  cardStyle,
+  inputStyle,
+  pageTitleStyle,
+  selStyle,
+  useToast,
+} from '../components/ui'
 import { Avatar } from '../components/TaskCard'
-import type { Invite, Project, Role, SprintLength } from '../api/types'
+import type { Invite, Member, Project, Role, SprintLength } from '../api/types'
+
+/** 移出成员 409 错误码 → 中文提示 */
+const REMOVE_MEMBER_ERR: Record<string, string> = {
+  CANNOT_REMOVE_SELF: '不能移出自己',
+  LAST_ADMIN: '不能移出最后一位管理员',
+}
 
 const SPRINT_LENGTHS: { value: SprintLength; label: string }[] = [
   { value: 'WEEK_1', label: '1 周' },
@@ -99,8 +121,30 @@ function MembersCard({ slug }: { slug: string }) {
   const toast = useToast()
   const members = useMembers(slug)
   const createInvite = useCreateInvite(slug)
+  const removeMember = useRemoveMember(slug)
   const [invite, setInvite] = useState<Invite | null>(null)
   const [role, setRole] = useState<Role>('MEMBER')
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null)
+  const me = currentUserId()
+
+  function confirmRemove() {
+    if (!removeTarget || removeMember.isPending) return
+    const target = removeTarget
+    removeMember.mutate(target.userId, {
+      onSuccess: () => {
+        setRemoveTarget(null)
+        toast.show(`已将 ${target.displayName} 移出租户`)
+      },
+      onError: (err) => {
+        setRemoveTarget(null)
+        const msg =
+          err instanceof ApiError && err.status === 409 && REMOVE_MEMBER_ERR[err.code]
+            ? REMOVE_MEMBER_ERR[err.code]
+            : `移出失败：${err.message}`
+        toast.show(msg, 'info')
+      },
+    })
+  }
 
   // 后端返回 url 优先；否则用 token 拼前端 accept-invite 链接
   const inviteUrl = invite
@@ -264,10 +308,48 @@ function MembersCard({ slug }: { slug: string }) {
                 {m.email}
               </span>
               <RolePill role={m.role} />
+              {m.userId !== me && (
+                <button
+                  type="button"
+                  onClick={() => setRemoveTarget(m)}
+                  disabled={removeMember.isPending}
+                  className="hover-card"
+                  aria-label={`移出租户（${m.displayName}）`}
+                  style={{
+                    height: 26,
+                    padding: '0 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--type-bug)',
+                    fontSize: 11.5,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flex: 'none',
+                    opacity: removeMember.isPending ? 0.6 : 1,
+                  }}
+                >
+                  移出租户
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={removeTarget != null}
+        title={`将 ${removeTarget?.displayName ?? ''} 移出租户？`}
+        message={
+          <>
+            移出后其未完成任务将转为<b>未指派</b>，其在本租户的 API 令牌将立即失效。
+            该成员将无法再访问本租户，此操作不可撤销。
+          </>
+        }
+        actionLabel="移出"
+        danger
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   )
 }
