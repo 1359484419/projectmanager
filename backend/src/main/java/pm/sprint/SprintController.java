@@ -5,9 +5,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pm.auth.CurrentUser;
+import pm.project.Project;
+import pm.task.TaskBrief;
+import pm.task.TaskRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -15,10 +20,20 @@ public class SprintController {
 
     private final SprintService sprintService;
     private final CapacityService capacityService;
+    private final BurndownService burndownService;
+    private final TaskRepository tasks;
 
-    public SprintController(SprintService sprintService, CapacityService capacityService) {
+    public SprintController(SprintService sprintService, CapacityService capacityService,
+                            BurndownService burndownService, TaskRepository tasks) {
         this.sprintService = sprintService;
         this.capacityService = capacityService;
+        this.burndownService = burndownService;
+        this.tasks = tasks;
+    }
+
+    public record SprintWithTasks(Long id, Long projectId, String name, Project.SprintLength length,
+                                  LocalDate startDate, LocalDate endDate, Sprint.Status status,
+                                  List<TaskBrief> tasks) {
     }
 
     public record CapacityPut(int capacity) {
@@ -39,6 +54,25 @@ public class SprintController {
     SprintService.SprintView close(@PathVariable String slug, @PathVariable Long id,
                                    @RequestBody(required = false) SprintService.CloseSprintRequest req) {
         return sprintService.close(id, req, CurrentUser.id());
+    }
+
+    /** All Sprints：倒序列表，withTasks=true 时每个 Sprint 附任务摘要。 */
+    @GetMapping("/api/t/{slug}/projects/{key}/sprints")
+    List<SprintWithTasks> list(@PathVariable String slug, @PathVariable String key,
+                               @RequestParam(defaultValue = "false") boolean withTasks) {
+        return sprintService.listByProject(key).stream()
+                .map(s -> new SprintWithTasks(s.getId(), s.getProjectId(), s.getName(),
+                        s.getLength(), s.getStartDate(), s.getEndDate(), s.getStatus(),
+                        withTasks
+                                ? tasks.findBySprintIdOrderByRankAsc(s.getId()).stream()
+                                        .map(TaskBrief::from).toList()
+                                : null))
+                .toList();
+    }
+
+    @GetMapping("/api/t/{slug}/sprints/{id}/burndown")
+    BurndownService.Burndown burndown(@PathVariable String slug, @PathVariable Long id) {
+        return burndownService.burndown(id);
     }
 
     @GetMapping("/api/t/{slug}/sprints/{id}/capacity")
