@@ -1,111 +1,241 @@
+/* ============================================================
+   设计系统基座 —— 真源：docs/design/mock/styles.css + logic.jsx(themeLight)
+   dark 为默认（:root），light 通过 :root.light 覆盖
+   ============================================================ */
+
+/* 字体：Public Sans（正文）+ JetBrains Mono（数字/编号），variable 版覆盖 450/550/650 等中间字重 */
+@import '@fontsource-variable/public-sans';
+@import '@fontsource-variable/jetbrains-mono';
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* surfaces */
+  --bg: #08090a;
+  --panel: #0b0c0e;
+  --card: #131417;
+  --card-2: #17191d;
+  --card-hover: #1b1d22;
+  /* borders */
+  --border: #212327;
+  --border-soft: #191b1f;
+  --border-strong: #2c2f34;
+  /* shadows */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+  /* text */
+  --text: #e8e9ec;
+  --dim: #8b8e96;
+  --faint: #5a5d66;
+  /* accent */
+  --accent: #7c82f0;
+  --accent-soft: rgba(124, 130, 240, 0.15);
+  --accent-fg: #fff;
+  /* 状态四态：待办 / 进行中 / 待验收 / 已完成 */
+  --todo: #8a8f98;
+  --prog: #4c9aff;
+  --comp: #e0a13a;
+  --done: #3fb950;
+  --todo-soft: rgba(138, 143, 152, 0.14);
+  --prog-soft: rgba(76, 154, 255, 0.14);
+  --comp-soft: rgba(224, 161, 58, 0.14);
+  --done-soft: rgba(63, 185, 80, 0.14);
+  /* 任务类型：故事 / 缺陷 / 任务 */
+  --type-story: #3fb950;
+  --type-bug: #f0616d;
+  --type-task: #7d8aa0;
+  --over: #f0616d;
+  --grid: rgba(255, 255, 255, 0.05);
+  /* fonts */
+  --font-sans: 'Public Sans Variable', 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+:root.light {
+  --bg: #ffffff;
+  --panel: #fbfbfa;
+  --card: #ffffff;
+  --card-2: #f6f6f4;
+  --card-hover: #f1f1ef;
+  --border: #e6e6e3;
+  --border-soft: #efefec;
+  --border-strong: #d7d7d3;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 12px 32px -14px rgba(0, 0, 0, 0.16);
+  --text: #1a1c20;
+  --dim: #6a6d75;
+  --faint: #a2a4ab;
+  --accent: #5b60d6;
+  --accent-soft: rgba(91, 96, 214, 0.1);
+  --todo: #8a8f98;
+  --prog: #2f7fe0;
+  --comp: #c07d1a;
+  --done: #2f9e4a;
+  --todo-soft: rgba(138, 143, 152, 0.12);
+  --prog-soft: rgba(47, 127, 224, 0.1);
+  --comp-soft: rgba(192, 125, 26, 0.12);
+  --done-soft: rgba(47, 158, 74, 0.12);
+  --type-story: #2f9e4a;
+  --type-bug: #e0454f;
+  --type-task: #67738a;
+  --over: #e0454f;
+  --grid: rgba(0, 0, 0, 0.05);
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  color-scheme: light;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+/* ---------------- reset ---------------- */
+* {
   box-sizing: border-box;
 }
-
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
 body {
-  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* ---------------- scrollbar ---------------- */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* ---------------- base elements ---------------- */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+/* ---------------- animations ---------------- */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+@keyframes drawerIn {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
-p {
-  margin: 0;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes toastIn {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* ---------------- skeleton ---------------- */
+.sk {
+  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+  border-radius: 6px;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* ---------------- hover utility classes ----------------
+   （设计稿 style-hover 属性的落地方式：少量全局 class，配合组件内联样式使用） */
+.hover-card:hover {
+  background: var(--card-hover) !important;
+}
+.hover-text:hover {
+  color: var(--text) !important;
+}
+.nav-link:hover {
+  background: var(--card-hover);
+  color: var(--text);
+}
+.menu-item:hover {
+  background: var(--card-hover);
+  color: var(--text) !important;
+}
+.icon-btn {
+  color: var(--dim);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  color: var(--text);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.task-row:hover {
+  background: var(--card-hover);
+}
+.task-card:hover {
+  background: var(--card-hover);
+  border-color: var(--border-strong) !important;
+}
+.hover-accent:hover {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
 }

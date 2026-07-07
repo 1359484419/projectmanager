@@ -1,127 +1,559 @@
-import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
-import { clearTokens } from '../api/client'
+// 租户内布局：左侧可折叠侧边栏 + 顶栏 + 路由内容（<Outlet/>）
+// 视觉真源：docs/design/mock/markup.html（SIDEBAR / topbar 节）
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { clearTokens, getAccessToken } from '../api/client'
+import { useBacklog, useDashboard, useMyTenants, useProjects } from '../api/hooks'
+import { Icon, type IconName } from './icons'
+import { useToast } from './ui'
+import { Avatar } from './TaskCard'
 
-const NAV_ITEMS: { label: string; path: string }[] = [
-  { label: 'Dashboard', path: 'dashboard' },
-  { label: 'Backlog', path: 'backlog' },
-  { label: 'Board', path: 'board' },
-  { label: 'All Sprints', path: 'sprints' },
-  { label: 'Planning', path: 'planning' },
-  { label: 'Reports', path: 'reports' },
-  { label: 'Roadmap', path: 'roadmap' },
-  { label: 'Admin', path: 'admin' },
-  { label: 'Settings', path: 'settings' },
-]
+const THEME_KEY = 'pm-theme'
+const COLLAPSE_KEY = 'pm-sidebar-collapsed'
 
-/** 租户内布局：左侧固定导航 + 右侧路由内容（<Outlet/>） */
+/** 初始化主题（main.tsx 启动时也会调用，保证首帧无闪烁） */
+export function applyStoredTheme() {
+  const light = localStorage.getItem(THEME_KEY) === 'light'
+  document.documentElement.classList.toggle('light', light)
+}
+
+/** best-effort 解析 JWT payload 拿当前用户显示名/邮箱（仅用于展示，失败则回退） */
+function currentUser(): { name: string; email: string } {
+  try {
+    const token = getAccessToken()
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+      const name = payload.displayName ?? payload.name ?? payload.username ?? ''
+      const email = payload.email ?? (typeof payload.sub === 'string' ? payload.sub : '')
+      if (name || email) return { name: name || email.split('@')[0], email }
+    }
+  } catch {
+    // 解析失败走回退
+  }
+  return { name: '我', email: '' }
+}
+
+interface NavItem {
+  path: string
+  label: string
+  icon: IconName
+  count?: number
+}
+
+function SideNavLink({ item, expanded }: { item: NavItem; expanded: boolean }) {
+  return (
+    <NavLink
+      to={item.path}
+      title={item.label}
+      className={({ isActive }) => (isActive ? '' : 'nav-link')}
+      style={({ isActive }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        height: 32,
+        padding: '0 10px',
+        borderRadius: 7,
+        fontSize: 13,
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'background .1s, color .1s',
+        textDecoration: 'none',
+        justifyContent: expanded ? undefined : 'center',
+        ...(isActive
+          ? { background: 'var(--accent-soft)', color: 'var(--text)', fontWeight: 550 }
+          : { color: 'var(--dim)', fontWeight: 450 }),
+      })}
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span
+              style={{
+                position: 'absolute',
+                left: -8,
+                top: 7,
+                bottom: 7,
+                width: 2.5,
+                borderRadius: 2,
+                background: 'var(--accent)',
+              }}
+            />
+          )}
+          <Icon name={item.icon} size={16} />
+          {expanded && <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>}
+          {expanded && item.count != null && (
+            <span style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
+              {item.count}
+            </span>
+          )}
+        </>
+      )}
+    </NavLink>
+  )
+}
+
+/** 点击外部关闭的下拉容器 */
+function Dropdown({
+  open,
+  onClose,
+  children,
+  style,
+}: {
+  open: boolean
+  onClose: () => void
+  children: ReactNode
+  style?: CSSProperties
+}) {
+  if (!open) return null
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={onClose} />
+      <div
+        style={{
+          position: 'absolute',
+          top: 36,
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          boxShadow: 'var(--shadow)',
+          padding: 5,
+          zIndex: 40,
+          animation: 'fadeIn .1s',
+          ...style,
+        }}
+      >
+        {children}
+      </div>
+    </>
+  )
+}
+
+const menuItemStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '7px 9px',
+  borderRadius: 6,
+  fontSize: 13,
+  cursor: 'pointer',
+}
+
 export default function Layout() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const toast = useToast()
+
+  // ---- 主题（持久化到 localStorage） ----
+  const [light, setLight] = useState(() => localStorage.getItem(THEME_KEY) === 'light')
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', light)
+    localStorage.setItem(THEME_KEY, light ? 'light' : 'dark')
+  }, [light])
+
+  // ---- 侧边栏折叠 ----
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
+  useEffect(() => {
+    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
+  }, [collapsed])
+  const expanded = !collapsed
+
+  // ---- 菜单开关 ----
+  const [projMenu, setProjMenu] = useState(false)
+  const [userMenu, setUserMenu] = useState(false)
+
+  // ---- 数据（react-query 缓存与各页面共享，不产生重复请求） ----
+  const { data: tenants } = useMyTenants()
+  const tenantName = tenants?.find((t) => t.slug === slug)?.name ?? slug
+  const { data: projects } = useProjects(slug)
+  const project = projects?.[0]
+  const projectKey = project?.key ?? ''
+  const { data: backlogTasks } = useBacklog(slug, projectKey)
+  const { data: dashboard } = useDashboard(slug, projectKey)
+  const boardCount = dashboard?.counts
+    ? Object.values(dashboard.counts).reduce((a, b) => a + b, 0)
+    : undefined
+
+  const user = currentUser()
+
+  const navMain: NavItem[] = [
+    { path: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { path: 'backlog', label: 'Backlog', icon: 'backlog', count: backlogTasks?.length },
+    { path: 'board', label: '看板 Board', icon: 'board', count: boardCount },
+    { path: 'sprints', label: '所有 Sprint', icon: 'sprints' },
+    { path: 'planning', label: '规划 Planning', icon: 'planning' },
+    { path: 'reports', label: '报表 Reports', icon: 'reports' },
+    { path: 'roadmap', label: '路线图 Roadmap', icon: 'roadmap' },
+  ]
+  const navAdmin: NavItem[] = [
+    { path: 'admin', label: '租户管理 Admin', icon: 'admin' },
+    { path: 'settings', label: '个人设置 Settings', icon: 'settings' },
+  ]
 
   function handleLogout() {
     clearTokens()
     navigate('/login')
   }
 
+  function handleCreate() {
+    navigate('backlog')
+    toast.show('在 Backlog 顶部快速创建', 'info')
+  }
+
+  function handleRefresh() {
+    queryClient.invalidateQueries()
+  }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100svh', textAlign: 'left' }}>
+    <div
+      style={{
+        display: 'flex',
+        height: '100vh',
+        width: '100%',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        textAlign: 'left',
+      }}
+    >
+      {/* ============ 侧边栏 ============ */}
       <aside
         style={{
-          width: 208,
-          flexShrink: 0,
+          width: collapsed ? 60 : 224,
+          flex: 'none',
+          background: 'var(--panel)',
+          borderRight: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
-          borderRight: '1px solid var(--border)',
-          padding: '16px 12px',
-          boxSizing: 'border-box',
+          transition: 'width .16s ease',
+          overflow: 'hidden',
         }}
       >
-        <Link
-          to={`/t/${slug}/dashboard`}
-          style={{
-            fontWeight: 700,
-            fontSize: 17,
-            color: 'var(--text-h)',
-            textDecoration: 'none',
-            padding: '4px 10px',
-            marginBottom: 4,
-          }}
-        >
-          Mini Jira
-        </Link>
+        {/* logo 区 */}
         <div
           style={{
-            fontSize: 12,
-            color: 'var(--text)',
-            padding: '0 10px',
-            marginBottom: 16,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            height: 52,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            padding: '0 14px',
+            flex: 'none',
           }}
-          title={slug}
         >
-          租户：{slug}
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              background: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 14,
+              flex: 'none',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            P
+          </div>
+          {expanded && (
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, overflow: 'hidden' }}>
+              <span
+                style={{ fontSize: 13.5, fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap' }}
+                title={tenantName}
+              >
+                {tenantName}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap' }}>mini-jira</span>
+            </div>
+          )}
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              style={({ isActive }) => ({
-                display: 'block',
-                padding: '8px 10px',
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: isActive ? 600 : 400,
-                textDecoration: 'none',
-                color: isActive ? 'var(--accent)' : 'var(--text)',
-                background: isActive ? 'var(--accent-bg)' : 'transparent',
-              })}
-            >
-              {item.label}
-            </NavLink>
+        {/* 导航 */}
+        <nav
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '6px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          {navMain.map((item) => (
+            <SideNavLink key={item.path} item={item} expanded={expanded} />
+          ))}
+          <div style={{ height: 1, background: 'var(--border)', margin: '8px 6px' }} />
+          {navAdmin.map((item) => (
+            <SideNavLink key={item.path} item={item} expanded={expanded} />
           ))}
         </nav>
 
+        {/* 底部用户区 */}
         <div
           style={{
-            marginTop: 16,
-            paddingTop: 12,
+            flex: 'none',
             borderTop: '1px solid var(--border)',
+            padding: 8,
             display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
+            alignItems: 'center',
+            gap: 9,
+            justifyContent: expanded ? undefined : 'center',
           }}
         >
-          <Link
-            to="/tenants"
-            style={{ fontSize: 13, color: 'var(--text)', textDecoration: 'none', padding: '2px 10px' }}
-          >
-            切换租户
-          </Link>
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              border: 'none',
-              background: 'none',
-              textAlign: 'left',
-              fontSize: 13,
-              color: 'var(--text)',
-              cursor: 'pointer',
-              padding: '2px 10px',
-            }}
-          >
-            退出登录
-          </button>
+          <Avatar name={user.name} size={26} />
+          {expanded && (
+            <>
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  lineHeight: 1.15,
+                  overflow: 'hidden',
+                }}
+              >
+                <span style={{ fontSize: 12.5, fontWeight: 550, whiteSpace: 'nowrap' }}>{user.name}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--faint)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.email || slug}
+                </span>
+              </div>
+              <span className="icon-btn" title="折叠侧边栏" onClick={() => setCollapsed(true)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
+                <Icon name="panel" size={16} />
+              </span>
+            </>
+          )}
         </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0, padding: 24, boxSizing: 'border-box' }}>
-        <Outlet />
-      </main>
+      {/* ============ 主区 ============ */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* 顶栏 */}
+        <header
+          style={{
+            height: 52,
+            flex: 'none',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '0 16px',
+            background: 'var(--bg)',
+          }}
+        >
+          {collapsed && (
+            <span className="icon-btn" title="展开侧边栏" onClick={() => setCollapsed(false)} style={{ display: 'flex', flex: 'none' }}>
+              <Icon name="panel" size={16} />
+            </span>
+          )}
+
+          {/* 项目切换 */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => {
+                setProjMenu((v) => !v)
+                setUserMenu(false)
+              }}
+              className="hover-card"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                height: 30,
+                padding: '0 9px',
+                borderRadius: 7,
+                border: '1px solid var(--border)',
+                background: 'var(--card)',
+                color: 'var(--text)',
+                fontSize: 13,
+                fontWeight: 550,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
+              {project?.name ?? '项目'}
+              <Icon name="chevron" size={13} style={{ color: 'var(--faint)' }} />
+            </button>
+            <Dropdown open={projMenu} onClose={() => setProjMenu(false)} style={{ left: 0, width: 220 }}>
+              <div
+                style={{
+                  padding: '5px 9px',
+                  fontSize: 10.5,
+                  color: 'var(--faint)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                切换项目
+              </div>
+              {(projects ?? []).map((p, i) => (
+                <div
+                  key={p.id}
+                  className={i === 0 ? undefined : 'menu-item'}
+                  style={{
+                    ...menuItemStyle,
+                    background: i === 0 ? 'var(--accent-soft)' : undefined,
+                    color: i === 0 ? 'var(--text)' : 'var(--dim)',
+                  }}
+                  onClick={() => setProjMenu(false)}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
+                  {p.name}
+                  <span style={{ flex: 1 }} />
+                  {i === 0 && <Icon name="check" size={14} style={{ color: 'var(--accent)' }} />}
+                </div>
+              ))}
+              <div
+                className="menu-item"
+                style={{ ...menuItemStyle, color: 'var(--dim)' }}
+                onClick={() => {
+                  setProjMenu(false)
+                  navigate('admin')
+                }}
+              >
+                <Icon name="plus" size={14} />
+                新建项目
+              </div>
+            </Dropdown>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* 全局搜索（占位） */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 30,
+              padding: '0 10px',
+              borderRadius: 7,
+              border: '1px solid var(--border)',
+              background: 'var(--card)',
+              color: 'var(--faint)',
+              fontSize: 12.5,
+              minWidth: 230,
+              cursor: 'text',
+            }}
+          >
+            <Icon name="search" size={14} />
+            <span style={{ flex: 1 }}>搜索任务、Sprint…</span>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                padding: '1px 5px',
+              }}
+            >
+              ⌘K
+            </span>
+          </div>
+
+          {/* 新建 */}
+          <button
+            onClick={handleCreate}
+            className="btn-primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 30,
+              padding: '0 11px 0 9px',
+              borderRadius: 7,
+              border: 'none',
+              background: 'var(--accent)',
+              color: '#fff',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="plus" size={14} />
+            新建
+          </button>
+
+          {/* 刷新 */}
+          <span className="icon-btn" title="刷新数据" onClick={handleRefresh} style={{ display: 'flex', flex: 'none' }}>
+            <Icon name="refresh" size={15} />
+          </span>
+
+          {/* 主题切换：dark 显示 sun（点击去 light），light 显示 moon */}
+          <span
+            className="icon-btn"
+            title="切换主题"
+            onClick={() => setLight((v) => !v)}
+            style={{ display: 'flex', flex: 'none' }}
+          >
+            <Icon name={light ? 'moon' : 'sun'} size={17} />
+          </span>
+
+          {/* 用户菜单 */}
+          <div style={{ position: 'relative' }}>
+            <span
+              onClick={() => {
+                setUserMenu((v) => !v)
+                setProjMenu(false)
+              }}
+              style={{ cursor: 'pointer', display: 'flex' }}
+            >
+              <Avatar name={user.name} size={28} />
+            </span>
+            <Dropdown open={userMenu} onClose={() => setUserMenu(false)} style={{ right: 0, width: 170 }}>
+              <div
+                className="menu-item"
+                style={{ ...menuItemStyle, color: 'var(--text)' }}
+                onClick={() => {
+                  setUserMenu(false)
+                  navigate('settings')
+                }}
+              >
+                个人设置
+              </div>
+              <div
+                className="menu-item"
+                style={{ ...menuItemStyle, color: 'var(--text)' }}
+                onClick={() => {
+                  setUserMenu(false)
+                  navigate('/tenants')
+                }}
+              >
+                切换租户
+              </div>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 2px' }} />
+              <div className="hover-card" style={{ ...menuItemStyle, color: 'var(--type-bug)' }} onClick={handleLogout}>
+                登出
+              </div>
+            </Dropdown>
+          </div>
+        </header>
+
+        {/* 内容区 */}
+        <main
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

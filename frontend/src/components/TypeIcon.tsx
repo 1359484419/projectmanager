@@ -1,32 +1,14 @@
+// 任务类型图标：故事=绿色书签 / 缺陷=红色虫 / 任务=蓝灰勾选框（SVG path 来自设计稿）
 import type { TaskType } from '../api/types'
+import { TypeGlyph, TYPE_LABEL } from './icons'
 
-const TYPE_META: Record<TaskType, { label: string; symbol: string; bg: string }> = {
-  STORY: { label: 'Story', symbol: 'S', bg: '#22c55e' },
-  BUG: { label: 'Bug', symbol: 'B', bg: '#ef4444' },
-  TASK: { label: 'Task', symbol: 'T', bg: '#3b82f6' },
-}
-
-export default function TypeIcon({ type, size = 16 }: { type: TaskType; size?: number }) {
-  const meta = TYPE_META[type]
+export default function TypeIcon({ type, size = 15 }: { type: TaskType; size?: number }) {
   return (
     <span
-      title={meta.label}
-      aria-label={meta.label}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        borderRadius: 3,
-        fontSize: size * 0.65,
-        fontWeight: 700,
-        color: '#fff',
-        background: meta.bg,
-        flexShrink: 0,
-      }}
+      title={TYPE_LABEL[type]}
+      style={{ display: 'inline-flex', flex: 'none', width: size, height: size }}
     >
-      {meta.symbol}
+      <TypeGlyph type={type} size={size} />
     </span>
   )
 }

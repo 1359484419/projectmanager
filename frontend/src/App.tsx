@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
+import { ToastProvider } from './components/ui'
 import Login from './pages/Login'
 import AcceptInvite from './pages/AcceptInvite'
 import TenantSelect from './pages/TenantSelect'
@@ -19,7 +20,8 @@ const queryClient = new QueryClient()
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -37,8 +39,9 @@ export default function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }
