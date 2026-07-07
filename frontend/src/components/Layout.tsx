@@ -399,6 +399,8 @@ export default function Layout() {
 
   function handleLogout() {
     clearTokens()
+    // 清空 react-query 缓存，避免下个账号首帧看到上个账号的数据
+    queryClient.clear()
     navigate('/login')
   }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
@@ -48,6 +49,7 @@ type Mode = 'login' | 'register'
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
   const toast = useToast()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -67,6 +69,8 @@ export default function Login() {
           body: JSON.stringify({ email, password }),
         })
         setTokens(pair.accessToken, pair.refreshToken)
+        // 换账号登录：清空上个账号残留的 react-query 缓存，避免首帧串号
+        queryClient.clear()
         // 会话过期被踢回登录时带上的 returnTo：只接受站内路径，防开放跳转
         const returnTo = searchParams.get('returnTo')
         navigate(returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/tenants')
@@ -76,6 +80,7 @@ export default function Login() {
           body: JSON.stringify({ email, password, displayName, tenantName, tenantSlug }),
         })
         setTokens(pair.accessToken, pair.refreshToken)
+        queryClient.clear()
         navigate(`/t/${tenantSlug}`)
       }
     } catch (err) {

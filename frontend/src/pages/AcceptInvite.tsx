@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
@@ -27,6 +28,7 @@ const fieldInput: CSSProperties = {
 
 export default function AcceptInvite() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const toast = useToast()
   const [searchParams] = useSearchParams()
   const [token, setToken] = useState(searchParams.get('token') ?? '')
@@ -44,6 +46,8 @@ export default function AcceptInvite() {
         body: JSON.stringify({ token, email, password, displayName }),
       })
       setTokens(pair.accessToken, pair.refreshToken)
+      // 换账号加入：清空上个账号残留的 react-query 缓存，避免首帧串号
+      queryClient.clear()
       navigate('/tenants')
     } catch (err) {
       toast.show(err instanceof Error ? err.message : '请求失败，请稍后重试', 'info')

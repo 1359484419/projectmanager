@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useMyTenants } from '../api/hooks'
 import { clearTokens } from '../api/client'
 import type { Role } from '../api/types'
@@ -10,10 +11,13 @@ const ROLE_LABEL: Record<Role, string> = {
 
 export default function TenantSelect() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: tenants, isLoading, isError, error } = useMyTenants()
 
   function handleLogout() {
     clearTokens()
+    // 清空 react-query 缓存，避免下个账号首帧看到上个账号的数据
+    queryClient.clear()
     navigate('/login')
   }
 
