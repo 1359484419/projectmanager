@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.Filter;
 import pm.tenant.TenantEntity;
 
@@ -26,6 +27,11 @@ public class Task extends TenantEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /** 乐观锁：并发编辑同一任务时后提交的旧快照事务冲突失败（→ 409），防丢更新。 */
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     @Column(name = "project_id", nullable = false)
     private Long projectId;

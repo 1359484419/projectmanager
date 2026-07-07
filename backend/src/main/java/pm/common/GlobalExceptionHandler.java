@@ -34,6 +34,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION", "message", msg));
     }
 
+    /** 乐观锁冲突（@Version）：并发编辑同一资源，后提交者 409，客户端重取后重试。 */
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    ResponseEntity<Map<String, String>> handleOptimisticLock(
+            org.springframework.dao.OptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("code", "CONFLICT",
+                        "message", "资源已被他人同时修改，请刷新后重试"));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseEntity<Map<String, String>> handleNoResource(NoResourceFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
