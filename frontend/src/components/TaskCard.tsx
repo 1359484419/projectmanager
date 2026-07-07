@@ -105,8 +105,10 @@ export default function TaskCard({
   const clickable = !!onClick
   const handleClick = onClick ? () => onClick(task) : undefined
 
+  const desc = task.description?.trim() || null
+
   if (variant === 'row') {
-    // 紧凑列表行（~38px）：类型图标 · 编号 · 标题 · [状态] · points · 头像
+    // 紧凑列表行：类型图标 · 编号 · 标题(+描述摘要第二行) · [状态] · points · 头像
     return (
       <div
         onClick={handleClick}
@@ -116,8 +118,8 @@ export default function TaskCard({
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          height: 38,
-          padding: '0 9px',
+          minHeight: 38,
+          padding: desc ? '6px 9px' : '0 9px',
           borderRadius: 7,
           cursor: clickable ? 'pointer' : 'default',
           minWidth: 0,
@@ -137,18 +139,35 @@ export default function TaskCard({
         >
           {displayId}
         </span>
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            fontSize: 13,
-            color: 'var(--text)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {task.title}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              display: 'block',
+              fontSize: 13,
+              color: 'var(--text)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {task.title}
+          </span>
+          {desc && (
+            <span
+              title={desc}
+              style={{
+                display: 'block',
+                fontSize: 11.5,
+                color: 'var(--dim)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                marginTop: 2,
+              }}
+            >
+              {desc}
+            </span>
+          )}
         </span>
         {flagged && (
           <span title="负责人容量超载" style={{ display: 'flex', color: 'var(--over)', flex: 'none' }}>
@@ -212,6 +231,23 @@ export default function TaskCard({
       >
         {task.title}
       </div>
+      {desc && (
+        <div
+          style={{
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            color: 'var(--dim)',
+            wordBreak: 'break-word',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            marginTop: -2,
+          }}
+        >
+          {desc}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 20 }}>
         {epic && (
           <span

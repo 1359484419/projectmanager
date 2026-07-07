@@ -59,8 +59,15 @@ public class TaskService {
                                     BigDecimal points, Long epicId, Long sprintId, Long assigneeId) {
     }
 
-    public record UpdateTaskRequest(Task.Status status, BigDecimal points, Long assigneeId,
-                                    Long epicId, Long sprintId, String title, String description,
+    /**
+     * assigneeId/epicId/sprintId 用 {@link pm.common.PatchLong} 区分「字段未传」（组件为 null，不改）
+     * 与「显式传 null」（PatchLong(null)，置空——移回 Backlog / 取消指派 / 摘除 Epic）。
+     */
+    public record UpdateTaskRequest(Task.Status status, BigDecimal points,
+                                    pm.common.PatchLong assigneeId,
+                                    pm.common.PatchLong epicId,
+                                    pm.common.PatchLong sprintId,
+                                    String title, String description,
                                     RankMove rank) {
     }
 
@@ -121,18 +128,24 @@ public class TaskService {
                 task.setPoints(req.points());
             }
         }
-        if (req.assigneeId() != null && !Objects.equals(task.getAssigneeId(), req.assigneeId())) {
-            recorder.record(task, actor, "ASSIGNED",
-                    toStr(task.getAssigneeId()), toStr(req.assigneeId()), source);
-            task.setAssigneeId(req.assigneeId());
+        if (req.assigneeId() != null) {
+            Long v = req.assigneeId().value();
+            if (!Objects.equals(task.getAssigneeId(), v)) {
+                recorder.record(task, actor, "ASSIGNED",
+                        toStr(task.getAssigneeId()), toStr(v), source);
+                task.setAssigneeId(v);
+            }
         }
-        if (req.epicId() != null && !Objects.equals(task.getEpicId(), req.epicId())) {
-            recorder.record(task, actor, "EPIC_CHANGED",
-                    toStr(task.getEpicId()), toStr(req.epicId()), source);
-            task.setEpicId(req.epicId());
+        if (req.epicId() != null) {
+            Long v = req.epicId().value();
+            if (!Objects.equals(task.getEpicId(), v)) {
+                recorder.record(task, actor, "EPIC_CHANGED",
+                        toStr(task.getEpicId()), toStr(v), source);
+                task.setEpicId(v);
+            }
         }
-        if (req.sprintId() != null && !Objects.equals(task.getSprintId(), req.sprintId())) {
-            changeSprint(task, req.sprintId(), actor, source);
+        if (req.sprintId() != null) {
+            changeSprint(task, req.sprintId().value(), actor, source);
         }
         if (req.title() != null && !req.title().equals(task.getTitle())) {
             if (req.title().isBlank()) {
@@ -170,6 +183,30 @@ public class TaskService {
         Project project = projects.findByKey(projectKey).orElseThrow(ApiException::notFound);
         return tasks.findByProjectIdAndSprintIdIsNullOrderByRankAsc(project.getId()).stream()
                 .map(t -> TaskView.from(t, project.getKey()))
+                .toList();
+    }
+
+    /** 搜索命中：带 displayKey 与所属项目 key（前端跳转/开抽屉用）。 */
+    public record SearchHit(Long id, int seq, String displayKey, String projectKey, String title,
+                            Task.Type type, Task.Status status, BigDecimal points,
+                            Long assigneeId, String description) {
+    }
+
+    /** 全租户关键词搜索（标题/描述），跨项目跨负责人，最多 20 条，按新→旧。 */
+    @Transactional(readOnly = true)
+    public List<SearchHit> search(String q) {
+        if (q == null || q.strip().length() < 1) {
+            return List.of();
+        }
+        var keyById = new java.util.HashMap<Long, String>();
+        projects.findAllByOrderByIdAsc().forEach(p -> keyById.put(p.getId(), p.getKey()));
+        return tasks.search(q.strip(), org.springframework.data.domain.PageRequest.of(0, 20)).stream()
+                .map(t -> {
+                    String key = keyById.getOrDefault(t.getProjectId(), "?");
+                    return new SearchHit(t.getId(), t.getSeq(), key + "-" + t.getSeq(), key,
+                            t.getTitle(), t.getType(), t.getStatus(), t.getPoints(),
+                            t.getAssigneeId(), TaskBrief.snippet(t.getDescription()));
+                })
                 .toList();
     }
 

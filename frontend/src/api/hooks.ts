@@ -50,6 +50,7 @@ export const qk = {
   comments: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'comments'] as const,
   activities: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'activities'] as const,
   members: (slug: string) => [slug, 'members'] as const,
+  search: (slug: string, q: string) => [slug, 'search', q] as const,
 }
 
 const t = (slug: string) => `/api/t/${slug}`
@@ -112,6 +113,17 @@ export function useCreateTask(slug: string, key: string) {
       }),
     // 任务归属可能影响 backlog/board/dashboard/sprints，统一失效租户下缓存
     onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
+/** 全租户关键词搜索（标题/描述，跨项目跨负责人，后端限 20 条） */
+export function useSearchTasks(slug: string, q: string) {
+  return useQuery({
+    queryKey: qk.search(slug, q),
+    queryFn: () =>
+      api<import('./types').SearchHit[]>(`${t(slug)}/tasks/search?q=${encodeURIComponent(q)}`),
+    enabled: !!slug && q.trim().length >= 1,
+    staleTime: 10_000,
   })
 }
 

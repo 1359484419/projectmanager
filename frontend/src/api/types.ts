@@ -74,6 +74,14 @@ export interface TaskBrief {
   points: number | null
   assigneeId?: number | null
   assigneeName?: string | null
+  /** 描述摘要（后端截断到 200 字符，无描述为 null） */
+  description?: string | null
+}
+
+/** 全租户关键词搜索命中（GET /api/t/{slug}/tasks/search?q=） */
+export interface SearchHit extends TaskBrief {
+  displayKey: string
+  projectKey: string
 }
 
 export interface CreateTaskInput {

@@ -42,6 +42,13 @@ public class TaskController {
         return taskService.toView(taskService.requireById(id));
     }
 
+    /** 全租户关键词搜索（标题/描述，跨项目、跨负责人），最多 20 条。 */
+    @GetMapping("/api/t/{slug}/tasks/search")
+    List<TaskService.SearchHit> search(@PathVariable String slug,
+                                       @org.springframework.web.bind.annotation.RequestParam("q") String q) {
+        return taskService.search(q);
+    }
+
     @GetMapping("/api/t/{slug}/tasks/{id}/activities")
     List<TaskService.ActivityView> activities(@PathVariable String slug, @PathVariable Long id) {
         return taskService.activities(id);

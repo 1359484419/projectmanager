@@ -1,13 +1,201 @@
 // 租户内布局：左侧可折叠侧边栏 + 顶栏 + 路由内容（<Outlet/>）
 // 视觉真源：docs/design/mock/markup.html（SIDEBAR / topbar 节）
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearTokens, getAccessToken } from '../api/client'
-import { useBacklog, useDashboard, useMyTenants, useProjects } from '../api/hooks'
+import { useBacklog, useDashboard, useMyTenants, useProjects, useSearchTasks } from '../api/hooks'
+import type { SearchHit } from '../api/types'
 import { Icon, type IconName } from './icons'
 import { useToast } from './ui'
 import { Avatar } from './TaskCard'
+import StatusBadge from './StatusBadge'
+import TypeIcon from './TypeIcon'
+import TaskDrawer from './TaskDrawer'
+
+/** 顶栏全局搜索：防抖 250ms，全租户按关键词搜标题/描述，点结果开任务抽屉，⌘K 聚焦 */
+function GlobalSearch({ slug }: { slug: string }) {
+  const [q, setQ] = useState('')
+  const [debounced, setDebounced] = useState('')
+  const [focused, setFocused] = useState(false)
+  const [openHit, setOpenHit] = useState<SearchHit | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(q.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [q])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const { data: hits, isFetching } = useSearchTasks(slug, debounced)
+  const showDropdown = focused && debounced.length >= 1
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: 30,
+          padding: '0 10px',
+          borderRadius: 7,
+          border: `1px solid ${focused ? 'var(--accent)' : 'var(--border)'}`,
+          background: 'var(--card)',
+          color: 'var(--faint)',
+          fontSize: 12.5,
+          minWidth: 230,
+          transition: 'border-color .12s',
+        }}
+      >
+        <Icon name="search" size={14} />
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') (e.target as HTMLInputElement).blur()
+          }}
+          placeholder="搜索任务（标题/描述）…"
+          style={{
+            flex: 1,
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            color: 'var(--text)',
+            fontSize: 12.5,
+            minWidth: 0,
+          }}
+        />
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            padding: '1px 5px',
+          }}
+        >
+          ⌘K
+        </span>
+      </div>
+
+      {showDropdown && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 36,
+            right: 0,
+            width: 420,
+            maxHeight: 380,
+            overflowY: 'auto',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            boxShadow: 'var(--shadow)',
+            padding: 5,
+            zIndex: 60,
+          }}
+        >
+          {(hits ?? []).map((h) => (
+            <div
+              key={h.id}
+              className="menu-item"
+              // mousedown 先于 input blur，保证点击生效
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setOpenHit(h)
+                setQ('')
+                inputRef.current?.blur()
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: '7px 9px',
+                borderRadius: 7,
+                cursor: 'pointer',
+                minWidth: 0,
+              }}
+            >
+              <TypeIcon type={h.type} size={14} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11.5,
+                  color: 'var(--faint)',
+                  flex: 'none',
+                }}
+              >
+                {h.displayKey}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 12.5,
+                    color: 'var(--text)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {h.title}
+                </span>
+                {h.description && (
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      color: 'var(--dim)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {h.description}
+                  </span>
+                )}
+              </span>
+              <StatusBadge status={h.status} />
+            </div>
+          ))}
+          {!isFetching && (hits ?? []).length === 0 && (
+            <div style={{ padding: '14px 10px', fontSize: 12.5, color: 'var(--faint)', textAlign: 'center' }}>
+              没有匹配「{debounced}」的任务
+            </div>
+          )}
+          {isFetching && (hits ?? []).length === 0 && (
+            <div style={{ padding: '14px 10px', fontSize: 12.5, color: 'var(--faint)', textAlign: 'center' }}>
+              搜索中…
+            </div>
+          )}
+        </div>
+      )}
+
+      {openHit && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={openHit.projectKey}
+          task={openHit}
+          onClose={() => setOpenHit(null)}
+        />
+      )}
+    </div>
+  )
+}
 
 const THEME_KEY = 'pm-theme'
 const COLLAPSE_KEY = 'pm-sidebar-collapsed'
@@ -433,37 +621,8 @@ export default function Layout() {
 
           <div style={{ flex: 1 }} />
 
-          {/* 全局搜索（占位） */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 30,
-              padding: '0 10px',
-              borderRadius: 7,
-              border: '1px solid var(--border)',
-              background: 'var(--card)',
-              color: 'var(--faint)',
-              fontSize: 12.5,
-              minWidth: 230,
-              cursor: 'text',
-            }}
-          >
-            <Icon name="search" size={14} />
-            <span style={{ flex: 1 }}>搜索任务、Sprint…</span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10.5,
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                padding: '1px 5px',
-              }}
-            >
-              ⌘K
-            </span>
-          </div>
+          {/* 全局搜索：全租户关键词搜索（标题/描述），点结果开任务抽屉 */}
+          <GlobalSearch slug={slug} />
 
           {/* 新建 */}
           <button
