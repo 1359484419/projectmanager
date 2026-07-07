@@ -155,7 +155,10 @@ function SprintCapacity({ slug, sprintId, title }: { slug: string; sprintId: num
 
   return (
     <div style={{ ...cardStyle, padding: '13px 15px', flex: 'none' }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 12 }}>
+        容量 = 本 Sprint 工作日数（1 point = 1 人天），点数字可按人调整（如请假）
+      </div>
       {body}
     </div>
   )
