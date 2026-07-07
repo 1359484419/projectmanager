@@ -2,7 +2,10 @@ package pm.sprint;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pm.auth.CurrentUser;
+import pm.common.ApiException;
 import pm.common.WorkdayCalculator;
+import pm.tenant.TenantContext;
 import pm.task.Task;
 import pm.task.TaskRepository;
 import pm.tenantadmin.Membership;
@@ -73,9 +76,17 @@ public class CapacityService {
                 .toList();
     }
 
+    /** 仅 ADMIN 或本人可改；MEMBER 改他人视为管理操作不存在 → 404；目标须为本租户成员。 */
     @Transactional
     public CapacityRow upsertOverride(Long sprintId, Long userId, int capacity) {
         sprintService.requireById(sprintId); // 归属校验（跨租户 404）
+        if (TenantContext.requireRole() != Membership.Role.ADMIN
+                && (userId == null || userId != CurrentUser.id())) {
+            throw ApiException.notFound();
+        }
+        if (memberships.findByUserIdAndTenantId(userId, TenantContext.require()).isEmpty()) {
+            throw ApiException.badRequest("INVALID_MEMBER", "该用户不是本租户成员");
+        }
         CapacityOverride override = overrides.findBySprintIdAndUserId(sprintId, userId)
                 .orElseGet(() -> new CapacityOverride(sprintId, userId, capacity));
         override.setCapacity(capacity);

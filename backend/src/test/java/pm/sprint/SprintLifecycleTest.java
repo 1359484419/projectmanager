@@ -175,6 +175,44 @@ class SprintLifecycleTest extends IntegrationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void capacityOverride_adminOrSelfOnly_memberValidated() {
+        Map s1 = createSprint(Map.of("startDate", "2026-07-06"));
+        Object sprintId = s1.get("id");
+        ResponseEntity<List> cap = fx.getList(fx.adminTokenA, base + "/sprints/" + sprintId + "/capacity");
+        Object adminUserId = ((Map) cap.getBody().get(0)).get("userId");
+
+        String memberToken = fx.addMemberToA();
+        ResponseEntity<List> cap2 = fx.getList(fx.adminTokenA, base + "/sprints/" + sprintId + "/capacity");
+        Object memberUserId = ((List<Map>) cap2.getBody()).stream()
+                .map(r -> r.get("userId"))
+                .filter(id -> !id.equals(adminUserId))
+                .findFirst().orElseThrow();
+
+        // MEMBER 改他人容量 → 404（管理操作不暴露）
+        ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.PUT,
+                base + "/sprints/" + sprintId + "/capacity/" + adminUserId, Map.of("capacity", 3));
+        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+
+        // MEMBER 改自己 → 200
+        ResponseEntity<Map> self = fx.exchange(memberToken, HttpMethod.PUT,
+                base + "/sprints/" + sprintId + "/capacity/" + memberUserId, Map.of("capacity", 5));
+        assertThat(self.getStatusCode().value()).isEqualTo(200);
+        assertThat(self.getBody().get("capacity")).isEqualTo(5);
+
+        // ADMIN 改非本租户成员（不存在的 userId）→ 400 INVALID_MEMBER
+        ResponseEntity<Map> invalid = fx.exchange(fx.adminTokenA, HttpMethod.PUT,
+                base + "/sprints/" + sprintId + "/capacity/999999", Map.of("capacity", 4));
+        assertThat(invalid.getStatusCode().value()).isEqualTo(400);
+        assertThat(invalid.getBody().get("code")).isEqualTo("INVALID_MEMBER");
+
+        // ADMIN 改本租户成员 → 200（原有行为保持）
+        ResponseEntity<Map> adminPut = fx.exchange(fx.adminTokenA, HttpMethod.PUT,
+                base + "/sprints/" + sprintId + "/capacity/" + memberUserId, Map.of("capacity", 7));
+        assertThat(adminPut.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
     void crossTenant_sprintAccess_is404() {
         Map s1 = createSprint(Map.of());
         ResponseEntity<Map> resp = fx.exchange(fx.adminTokenB, HttpMethod.POST,
