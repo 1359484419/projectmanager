@@ -69,8 +69,8 @@ class RoadmapTest extends IntegrationTest {
         assertThat(e.get("name")).isEqualTo("MVP");
         assertThat(e.get("color")).isEqualTo("#3b82f6");
         assertThat(e.get("status")).isEqualTo("OPEN");
-        assertThat(e.get("donePoints")).isEqualTo(3);
-        assertThat(e.get("totalPoints")).isEqualTo(8);
+        assertThat(((Number) e.get("donePoints")).doubleValue()).isEqualTo(3.0);
+        assertThat(((Number) e.get("totalPoints")).doubleValue()).isEqualTo(8.0);
         assertThat((List<Map>) e.get("tasks")).hasSize(2);
     }
 

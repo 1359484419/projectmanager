@@ -13,6 +13,8 @@ import pm.task.Task;
 import pm.task.TaskBrief;
 import pm.task.TaskRepository;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumMap;
@@ -66,12 +68,15 @@ public class DashboardController {
             groups.put(s.name(), byStatus.get(s).stream().map(TaskBrief::from).toList());
         }
 
-        int totalPoints = sprintTasks.stream()
-                .mapToInt(t -> t.getPoints() == null ? 0 : t.getPoints()).sum();
-        int donePoints = byStatus.get(Task.Status.DONE).stream()
-                .mapToInt(t -> t.getPoints() == null ? 0 : t.getPoints()).sum();
-        double donePct = totalPoints == 0 ? 0
-                : Math.round(donePoints * 10000.0 / totalPoints) / 100.0;
+        BigDecimal totalPoints = sprintTasks.stream()
+                .map(t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal donePoints = byStatus.get(Task.Status.DONE).stream()
+                .map(t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        double donePct = totalPoints.signum() == 0 ? 0
+                : donePoints.multiply(BigDecimal.valueOf(100))
+                        .divide(totalPoints, 2, RoundingMode.HALF_UP).doubleValue();
 
         long daysLeft = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), active.getEndDate()));
         SprintInfo info = new SprintInfo(active.getId(), active.getName(), active.getEndDate(), daysLeft);

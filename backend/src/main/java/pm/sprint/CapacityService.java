@@ -10,6 +10,7 @@ import pm.tenantadmin.MembershipRepository;
 import pm.user.User;
 import pm.user.UserRepository;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,8 @@ public class CapacityService {
         this.tasks = tasks;
     }
 
-    public record CapacityRow(Long userId, String displayName, int capacity, int assignedPoints) {
+    public record CapacityRow(Long userId, String displayName, int capacity,
+                              BigDecimal assignedPoints) {
     }
 
     @Transactional(readOnly = true)
@@ -50,10 +52,12 @@ public class CapacityService {
 
         Map<Long, Integer> overrideByUser = overrides.findBySprintId(sprintId).stream()
                 .collect(Collectors.toMap(CapacityOverride::getUserId, CapacityOverride::getCapacity));
-        Map<Long, Integer> assignedByUser = tasks.findBySprintIdOrderByRankAsc(sprintId).stream()
+        Map<Long, BigDecimal> assignedByUser = tasks.findBySprintIdOrderByRankAsc(sprintId).stream()
                 .filter(t -> t.getAssigneeId() != null)
                 .collect(Collectors.groupingBy(Task::getAssigneeId,
-                        Collectors.summingInt(t -> t.getPoints() == null ? 0 : t.getPoints())));
+                        Collectors.reducing(BigDecimal.ZERO,
+                                t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints(),
+                                BigDecimal::add)));
 
         List<Membership> members = memberships.findByTenantId(sprint.getTenantId());
         Map<Long, User> userById = users
@@ -65,7 +69,7 @@ public class CapacityService {
                 .map(m -> new CapacityRow(m.getUserId(),
                         userById.get(m.getUserId()).getDisplayName(),
                         overrideByUser.getOrDefault(m.getUserId(), defaultCapacity),
-                        assignedByUser.getOrDefault(m.getUserId(), 0)))
+                        assignedByUser.getOrDefault(m.getUserId(), BigDecimal.ZERO)))
                 .toList();
     }
 
@@ -79,6 +83,6 @@ public class CapacityService {
         return capacity(sprintId).stream()
                 .filter(r -> r.userId().equals(userId))
                 .findFirst()
-                .orElse(new CapacityRow(userId, null, capacity, 0));
+                .orElse(new CapacityRow(userId, null, capacity, BigDecimal.ZERO));
     }
 }

@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.Filter;
 import pm.tenant.TenantEntity;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -47,7 +48,9 @@ public class Task extends TenantEntity {
 
     private String description;
 
-    private Integer points;
+    /** 故事点：0.5-5，0.5 的倍数（numeric(2,1)）。 */
+    @Column(precision = 2, scale = 1)
+    private BigDecimal points;
 
     @Column(name = "assignee_id")
     private Long assigneeId;
@@ -128,11 +131,11 @@ public class Task extends TenantEntity {
         this.description = description;
     }
 
-    public Integer getPoints() {
+    public BigDecimal getPoints() {
         return points;
     }
 
-    public void setPoints(Integer points) {
+    public void setPoints(BigDecimal points) {
         this.points = points;
     }
 

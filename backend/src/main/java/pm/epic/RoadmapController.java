@@ -10,6 +10,7 @@ import pm.task.Task;
 import pm.task.TaskBrief;
 import pm.task.TaskRepository;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ public class RoadmapController {
     }
 
     public record EpicProgress(Long id, String name, String color, Epic.Status status,
-                               int donePoints, int totalPoints, List<TaskBrief> tasks) {
+                               BigDecimal donePoints, BigDecimal totalPoints, List<TaskBrief> tasks) {
     }
 
     public record QuarterGroup(String quarter, List<EpicProgress> epics) {
@@ -61,9 +62,12 @@ public class RoadmapController {
     }
 
     private EpicProgress toProgress(Epic epic, List<Task> epicTasks) {
-        int total = epicTasks.stream().mapToInt(t -> t.getPoints() == null ? 0 : t.getPoints()).sum();
-        int done = epicTasks.stream().filter(t -> t.getStatus() == Task.Status.DONE)
-                .mapToInt(t -> t.getPoints() == null ? 0 : t.getPoints()).sum();
+        BigDecimal total = epicTasks.stream()
+                .map(t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal done = epicTasks.stream().filter(t -> t.getStatus() == Task.Status.DONE)
+                .map(t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new EpicProgress(epic.getId(), epic.getName(), epic.getColor(), epic.getStatus(),
                 done, total, epicTasks.stream().map(TaskBrief::from).toList());
     }

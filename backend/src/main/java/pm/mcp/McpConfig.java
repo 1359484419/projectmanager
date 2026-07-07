@@ -110,7 +110,7 @@ public class McpConfig {
                             "type":{"type":"string","enum":["STORY","BUG","TASK"]},
                             "title":{"type":"string"},
                             "description":{"type":"string"},
-                            "points":{"type":"integer","minimum":1,"description":"1 point = 1 人天"},
+                            "points":{"type":"number","minimum":0.5,"maximum":5,"multipleOf":0.5,"description":"故事点：0.5-5，0.5 的倍数（1 point = 1 人天）"},
                             "epicId":{"type":"integer"}
                           },"required":["type","title"]}}
                         },"required":["projectKey","target","tasks"]}

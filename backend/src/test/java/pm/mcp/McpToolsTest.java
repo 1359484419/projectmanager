@@ -25,6 +25,7 @@ import pm.tenantadmin.Membership;
 import pm.tenantadmin.MembershipRepository;
 import pm.tenantadmin.TenantRepository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +113,8 @@ class McpToolsTest extends IntegrationTest {
     @Test
     void createTasksNextSprintAutoCreatesPlannedAndMarksMcpSource() {
         List<McpTools.CreatedTask> created = mcpTools.createTasks("MCP", "next_sprint", List.of(
-                new McpTools.TaskInput(Task.Type.STORY, "story via mcp", "desc", 3, null)));
+                new McpTools.TaskInput(Task.Type.STORY, "story via mcp", "desc",
+                        new BigDecimal("3"), null)));
         assertThat(created).hasSize(1);
         assertThat(created.get(0).seq()).startsWith("MCP-");
 
@@ -134,9 +136,28 @@ class McpToolsTest extends IntegrationTest {
     }
 
     @Test
+    void createTasksRejectsInvalidPoints_chineseMessageForAgent() {
+        // 半点合法
+        List<McpTools.CreatedTask> ok = mcpTools.createTasks("MCP", "backlog", List.of(
+                new McpTools.TaskInput(Task.Type.TASK, "半点任务", null, new BigDecimal("1.5"), null)));
+        assertThat(ok).hasSize(1);
+        // 非 0.5 倍数 / 越界 → INVALID_POINTS，中文文案
+        assertThatThrownBy(() -> mcpTools.createTasks("MCP", "backlog", List.of(
+                new McpTools.TaskInput(Task.Type.TASK, "坏点数", null, new BigDecimal("0.3"), null))))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("INVALID_POINTS");
+                    assertThat(e.getMessage()).contains("0.5", "5");
+                });
+        assertThatThrownBy(() -> mcpTools.createTasks("MCP", "backlog", List.of(
+                new McpTools.TaskInput(Task.Type.TASK, "超上限", null, new BigDecimal("6"), null))))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getCode()).isEqualTo("INVALID_POINTS"));
+    }
+
+    @Test
     void updateTaskStatusToDoneSetsDoneAt() {
         List<McpTools.CreatedTask> created = mcpTools.createTasks("MCP", "current_sprint", List.of(
-                new McpTools.TaskInput(Task.Type.TASK, "finish me", null, 1, null)));
+                new McpTools.TaskInput(Task.Type.TASK, "finish me", null, BigDecimal.ONE, null)));
         String seqKey = created.get(0).seq();
 
         Map<String, Object> result = mcpTools.updateTaskStatus(seqKey, "DONE");
@@ -155,7 +176,7 @@ class McpToolsTest extends IntegrationTest {
         Map<String, Object> sprintsView = mcpTools.listSprints("MCP");
         assertThat(sprintsView.get("active")).isNotNull();
         mcpTools.createTasks("MCP", "current_sprint", List.of(
-                new McpTools.TaskInput(Task.Type.BUG, "my bug", null, 2, null)));
+                new McpTools.TaskInput(Task.Type.BUG, "my bug", null, new BigDecimal("2"), null)));
         List<Map<String, Object>> mine = mcpTools.listMyTasks("MCP", "current");
         assertThat(mine).anySatisfy(t -> assertThat(t.get("title")).isEqualTo("my bug"));
     }

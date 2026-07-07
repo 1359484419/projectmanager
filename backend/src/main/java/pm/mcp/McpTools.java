@@ -19,6 +19,7 @@ import pm.task.TaskService;
 import pm.tenant.TenantContext;
 import pm.tenant.TenantEntity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,7 +63,7 @@ public class McpTools {
     public record ProjectItem(String key, String name) {
     }
 
-    public record TaskInput(Task.Type type, String title, String description, Integer points, Long epicId) {
+    public record TaskInput(Task.Type type, String title, String description, BigDecimal points, Long epicId) {
     }
 
     public record CreatedTask(String seq, String title) {

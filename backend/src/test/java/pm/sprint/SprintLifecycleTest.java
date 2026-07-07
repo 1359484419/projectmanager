@@ -44,7 +44,7 @@ class SprintLifecycleTest extends IntegrationTest {
         return resp.getBody();
     }
 
-    private Map createTask(String title, Integer points) {
+    private Map createTask(String title, Number points) {
         Map<String, Object> body = points == null
                 ? Map.of("type", "TASK", "title", title)
                 : Map.of("type", "TASK", "title", title, "points", points);
@@ -144,7 +144,7 @@ class SprintLifecycleTest extends IntegrationTest {
         assertThat(cap.getBody()).hasSize(1); // 租户 A 只有 admin 一人
         Map row = (Map) cap.getBody().get(0);
         assertThat(row.get("capacity")).isEqualTo(10);
-        assertThat(row.get("assignedPoints")).isEqualTo(0);
+        assertThat(((Number) row.get("assignedPoints")).doubleValue()).isEqualTo(0.0);
         Object userId = row.get("userId");
         assertThat(row.get("displayName")).isNotNull();
 
@@ -153,9 +153,9 @@ class SprintLifecycleTest extends IntegrationTest {
                 base + "/sprints/" + sprintId + "/capacity/" + userId, Map.of("capacity", 8));
         assertThat(put.getStatusCode().value()).isEqualTo(200);
 
-        // 指派两个任务 3+5 pt
+        // 指派两个任务 3 + 2.5 pt（小数求和）
         Map t1 = createTask("a", 3);
-        Map t2 = createTask("b", 5);
+        Map t2 = createTask("b", 2.5);
         for (Object tid : List.of(t1.get("id"), t2.get("id"))) {
             fx.exchange(fx.adminTokenA, HttpMethod.PATCH, base + "/tasks/" + tid,
                     Map.of("sprintId", sprintId, "assigneeId", userId));
@@ -164,7 +164,7 @@ class SprintLifecycleTest extends IntegrationTest {
         ResponseEntity<List> cap2 = fx.getList(fx.adminTokenA, base + "/sprints/" + sprintId + "/capacity");
         Map row2 = (Map) cap2.getBody().get(0);
         assertThat(row2.get("capacity")).isEqualTo(8);
-        assertThat(row2.get("assignedPoints")).isEqualTo(8);
+        assertThat(((Number) row2.get("assignedPoints")).doubleValue()).isEqualTo(5.5);
 
         // 重复 PUT 幂等（upsert）
         ResponseEntity<Map> put2 = fx.exchange(fx.adminTokenA, HttpMethod.PUT,

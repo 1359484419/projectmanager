@@ -7,6 +7,7 @@ import pm.task.ActivityRepository;
 import pm.task.Task;
 import pm.task.TaskRepository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -42,7 +43,7 @@ public class BurndownService {
         this.activities = activities;
     }
 
-    public record DayPoint(LocalDate date, int remaining, double ideal) {
+    public record DayPoint(LocalDate date, BigDecimal remaining, double ideal) {
     }
 
     public record Burndown(List<DayPoint> days) {
@@ -71,33 +72,34 @@ public class BurndownService {
         int totalDays = (int) (sprint.getEndDate().toEpochDay() - sprint.getStartDate().toEpochDay()) + 1;
 
         List<DayPoint> days = new ArrayList<>();
-        Map<LocalDate, Integer> scopeByDay = new HashMap<>();
+        Map<LocalDate, BigDecimal> scopeByDay = new HashMap<>();
         for (LocalDate d = sprint.getStartDate(); !d.isAfter(last); d = d.plusDays(1)) {
             Instant eod = d.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-            int scope = 0;
-            int done = 0;
+            BigDecimal scope = BigDecimal.ZERO;
+            BigDecimal done = BigDecimal.ZERO;
             for (Long taskId : taskIds) {
                 Task task = taskById.get(taskId);
                 if (task == null || !inSprintAt(task, changesByTask.get(taskId), sid, eod)) {
                     continue;
                 }
-                int points = task.getPoints() == null ? 0 : task.getPoints();
-                scope += points;
+                BigDecimal points = task.getPoints() == null ? BigDecimal.ZERO : task.getPoints();
+                scope = scope.add(points);
                 if (task.getDoneAt() != null && !task.getDoneAt().isAfter(eod)) {
-                    done += points;
+                    done = done.add(points);
                 }
             }
             scopeByDay.put(d, scope);
-            days.add(new DayPoint(d, scope - done, 0));
+            days.add(new DayPoint(d, scope.subtract(done), 0));
         }
 
         // ideal：首日 scope 线性递减到最后一天 0
-        int firstScope = days.isEmpty() ? 0 : scopeByDay.get(sprint.getStartDate());
+        BigDecimal firstScope = days.isEmpty() ? BigDecimal.ZERO
+                : scopeByDay.get(sprint.getStartDate());
         List<DayPoint> withIdeal = new ArrayList<>(days.size());
         for (int i = 0; i < days.size(); i++) {
             DayPoint p = days.get(i);
             double ideal = totalDays <= 1 ? 0
-                    : firstScope * (double) (totalDays - 1 - i) / (totalDays - 1);
+                    : firstScope.doubleValue() * (totalDays - 1 - i) / (totalDays - 1);
             withIdeal.add(new DayPoint(p.date(), p.remaining(), Math.round(ideal * 100) / 100.0));
         }
         return new Burndown(withIdeal);

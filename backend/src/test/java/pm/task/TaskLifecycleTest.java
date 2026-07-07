@@ -112,7 +112,7 @@ class TaskLifecycleTest extends IntegrationTest {
         Map t = createTask("估点");
         Object id = t.get("id");
         Map updated = patchTask(id, Map.of("points", 5));
-        assertThat(updated.get("points")).isEqualTo(5);
+        assertThat(((Number) updated.get("points")).doubleValue()).isEqualTo(5.0);
         ResponseEntity<List> acts = fx.getList(fx.adminTokenA, base + "/tasks/" + id + "/activities");
         assertThat((List<Map>) acts.getBody()).anyMatch(a ->
                 "POINTS_CHANGED".equals(a.get("type")) && "5".equals(a.get("newValue")));
@@ -120,6 +120,45 @@ class TaskLifecycleTest extends IntegrationTest {
         ResponseEntity<Map> bad = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
                 base + "/tasks/" + id, Map.of("points", 0));
         assertThat(bad.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    void points_acceptsHalfSteps_rejectsOutOfRangeOrOffStep() {
+        Map t = createTask("小数估点");
+        Object id = t.get("id");
+        // 0.5 的倍数、0.5-5 区间 → 合法
+        Map half = patchTask(id, Map.of("points", 2.5));
+        assertThat(((Number) half.get("points")).doubleValue()).isEqualTo(2.5);
+        // 详情回读也是 2.5
+        ResponseEntity<Map> detail = fx.exchange(fx.adminTokenA, HttpMethod.GET,
+                base + "/tasks/" + id, null);
+        assertThat(((Number) detail.getBody().get("points")).doubleValue()).isEqualTo(2.5);
+        // 非 0.5 倍数 → 400 INVALID_POINTS
+        ResponseEntity<Map> offStep = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/tasks/" + id, Map.of("points", 0.3));
+        assertThat(offStep.getStatusCode().value()).isEqualTo(400);
+        assertThat(offStep.getBody().get("code")).isEqualTo("INVALID_POINTS");
+        // 超上限 → 400 INVALID_POINTS
+        ResponseEntity<Map> tooBig = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/tasks/" + id, Map.of("points", 5.5));
+        assertThat(tooBig.getStatusCode().value()).isEqualTo(400);
+        assertThat(tooBig.getBody().get("code")).isEqualTo("INVALID_POINTS");
+        // 低于下限 → 400 INVALID_POINTS
+        ResponseEntity<Map> tooSmall = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/tasks/" + id, Map.of("points", 0.25));
+        assertThat(tooSmall.getStatusCode().value()).isEqualTo(400);
+        assertThat(tooSmall.getBody().get("code")).isEqualTo("INVALID_POINTS");
+        // 创建时同样校验
+        ResponseEntity<Map> badCreate = fx.exchange(fx.adminTokenA, HttpMethod.POST,
+                base + "/projects/PM/tasks",
+                Map.of("type", "TASK", "title", "bad", "points", 6));
+        assertThat(badCreate.getStatusCode().value()).isEqualTo(400);
+        assertThat(badCreate.getBody().get("code")).isEqualTo("INVALID_POINTS");
+        ResponseEntity<Map> okCreate = fx.exchange(fx.adminTokenA, HttpMethod.POST,
+                base + "/projects/PM/tasks",
+                Map.of("type", "TASK", "title", "ok", "points", 0.5));
+        assertThat(okCreate.getStatusCode().value()).isEqualTo(200);
+        assertThat(((Number) okCreate.getBody().get("points")).doubleValue()).isEqualTo(0.5);
     }
 
     @Test

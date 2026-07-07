@@ -68,7 +68,7 @@ class DashboardTest extends IntegrationTest {
         createTask("doing", 3, sprintId, "IN_PROGRESS");
         createTask("completed", 1, sprintId, "COMPLETED");
         createTask("done", 3, sprintId, "DONE");
-        createTask("backlog不算", 8, null, "TODO");
+        createTask("backlog不算", 5, null, "TODO");
 
         ResponseEntity<Map> resp = fx.exchange(fx.adminTokenA, HttpMethod.GET,
                 base + "/projects/PM/dashboard", null);

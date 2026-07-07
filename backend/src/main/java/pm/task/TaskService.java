@@ -6,6 +6,7 @@ import pm.common.ApiException;
 import pm.project.Project;
 import pm.project.ProjectRepository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -32,7 +33,7 @@ public class TaskService {
     // ---------- 视图 ----------
 
     public record TaskView(Long id, Long projectId, int seq, String displayKey, Task.Type type,
-                           String title, String description, Integer points, Long epicId,
+                           String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
                            Instant createdAt, Instant doneAt) {
         public static TaskView from(Task t, String projectKey) {
@@ -55,10 +56,10 @@ public class TaskService {
     }
 
     public record CreateTaskRequest(Task.Type type, String title, String description,
-                                    Integer points, Long epicId, Long sprintId, Long assigneeId) {
+                                    BigDecimal points, Long epicId, Long sprintId, Long assigneeId) {
     }
 
-    public record UpdateTaskRequest(Task.Status status, Integer points, Long assigneeId,
+    public record UpdateTaskRequest(Task.Status status, BigDecimal points, Long assigneeId,
                                     Long epicId, Long sprintId, String title, String description,
                                     RankMove rank) {
     }
@@ -114,7 +115,7 @@ public class TaskService {
         }
         if (req.points() != null) {
             validatePoints(req.points());
-            if (!Objects.equals(task.getPoints(), req.points())) {
+            if (task.getPoints() == null || task.getPoints().compareTo(req.points()) != 0) {
                 recorder.record(task, actor, "POINTS_CHANGED",
                         toStr(task.getPoints()), toStr(req.points()), source);
                 task.setPoints(req.points());
@@ -201,9 +202,20 @@ public class TaskService {
         }
     }
 
-    private void validatePoints(Integer points) {
-        if (points != null && points <= 0) {
-            throw ApiException.badRequest("INVALID_POINTS", "points must be a positive integer");
+    private static final BigDecimal MIN_POINTS = new BigDecimal("0.5");
+    private static final BigDecimal MAX_POINTS = new BigDecimal("5");
+
+    /** points 非空时必须 0.5 ≤ p ≤ 5 且为 0.5 的倍数。文案中文，REST 前端与 MCP agent 共用。 */
+    private void validatePoints(BigDecimal points) {
+        if (points == null) {
+            return;
+        }
+        boolean inRange = points.compareTo(MIN_POINTS) >= 0 && points.compareTo(MAX_POINTS) <= 0;
+        // 0.5 的倍数 ⇔ points*2 为整数
+        boolean halfStep = points.multiply(BigDecimal.valueOf(2)).stripTrailingZeros().scale() <= 0;
+        if (!inRange || !halfStep) {
+            throw ApiException.badRequest("INVALID_POINTS",
+                    "points 必须在 0.5 到 5 之间，且为 0.5 的倍数（如 0.5、1、1.5、2 … 5）");
         }
     }
 
