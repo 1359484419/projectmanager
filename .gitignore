@@ -1,0 +1,25 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Java / Maven
+backend/target/
+*.class
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+
+# OS
+.DS_Store
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log

@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pm}
+    username: ${DB_USER:pm}
+    password: ${DB_PASS:pm}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: true
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
