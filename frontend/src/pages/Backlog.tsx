@@ -4,9 +4,11 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useBacklog, useCreateTask, useProjects, useSprints, useUpdateTask } from '../api/hooks'
 import type { Sprint, Task, TaskBrief, TaskType } from '../api/types'
+import AssigneeFilterCompact from '../components/AssigneeFilterCompact'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon, SelectWrap, useToast } from '../components/ui'
+import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 
 const TYPE_FILTERS: Array<{ value: TaskType | 'ALL'; label: string }> = [
   { value: 'ALL', label: '全部' },
@@ -162,6 +164,7 @@ function BacklogRow({
   task,
   current,
   next,
+  unassignedTag,
   onOpen,
 }: {
   slug: string
@@ -169,6 +172,7 @@ function BacklogRow({
   task: Task
   current: Sprint | null
   next: Sprint | null
+  unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
   const updateTask = useUpdateTask(slug)
@@ -190,7 +194,13 @@ function BacklogRow({
   return (
     <div className="task-row" style={{ display: 'flex', alignItems: 'center', borderRadius: 7 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <TaskCard task={task} projectKey={projectKey} variant="row" onClick={onOpen} />
+        <TaskCard
+          task={task}
+          projectKey={projectKey}
+          variant="row"
+          unassignedTag={unassignedTag}
+          onClick={onOpen}
+        />
       </div>
       <button
         onClick={moveToSprint}
@@ -277,14 +287,19 @@ export default function Backlog() {
   const { current, next } = pickCurrentAndNext(sprintsQuery.data as Sprint[] | undefined)
 
   const [typeFilter, setTypeFilter] = useState<TaskType | 'ALL'>('ALL')
+  const [assigneeFilter] = useAssigneeFilter()
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   // rank 序（后端已按 rank 返回，前端再稳定排序一次防御）
   const tasks = useMemo(() => {
     const list = backlogQuery.data ?? []
-    const filtered = typeFilter === 'ALL' ? list : list.filter((t) => t.type === typeFilter)
+    const filtered = list.filter(
+      (t) =>
+        (typeFilter === 'ALL' || t.type === typeFilter) &&
+        taskMatchesFilter(t.assigneeId, assigneeFilter),
+    )
     return [...filtered].sort((a, b) => a.rank.localeCompare(b.rank))
-  }, [backlogQuery.data, typeFilter])
+  }, [backlogQuery.data, typeFilter, assigneeFilter])
 
   const backlogTotal = backlogQuery.data?.length ?? 0
 
@@ -339,6 +354,7 @@ export default function Backlog() {
           </SelectWrap>
         )}
         <span style={{ flex: 1 }} />
+        <AssigneeFilterCompact slug={slug} />
         <div
           style={{
             display: 'flex',
@@ -395,7 +411,7 @@ export default function Backlog() {
           {backlogQuery.isError && <EmptyHint text="Backlog 加载失败，请刷新重试" />}
           {backlogQuery.isSuccess &&
             tasks.length === 0 &&
-            (typeFilter === 'ALL' ? (
+            (backlogTotal === 0 ? (
               <EmptyHint text="Backlog 是空的，用上面的快速创建行添加第一个任务吧" />
             ) : (
               <EmptyHint text="该筛选下暂无任务" />
@@ -408,6 +424,7 @@ export default function Backlog() {
               task={task}
               current={current}
               next={next}
+              unassignedTag={assigneeFilter === 'me'}
               onOpen={setDrawerTask}
             />
           ))}

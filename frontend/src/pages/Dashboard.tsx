@@ -3,14 +3,16 @@
 // 项目选择：?project=KEY 查询参数，缺省取项目列表第一个。
 // 点任务卡打开 TaskDrawer 查看/编辑详情。
 // 视觉真源：docs/design/mock/markup.html DASHBOARD 节 + logic.jsx donutSvg。
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useDashboard, useProjects } from '../api/hooks'
 import type { Dashboard as DashboardData, TaskBrief, TaskStatus } from '../api/types'
+import AssigneeFilterCompact from '../components/AssigneeFilterCompact'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
 import { STATUS_LABEL, btnPrimary, pageTitleStyle, statusColor } from '../components/ui'
+import { taskMatchesFilter, useAssigneeFilter, type AssigneeFilter } from '../state/assigneeFilter'
 
 const STATUSES: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE']
 
@@ -144,14 +146,31 @@ function StatsRow({ data }: { data: DashboardData }) {
   )
 }
 
+/** 负责人筛选后的派生视图：groups 过滤、counts 重数、donePct 按 points 同口径重算 */
+function applyAssigneeFilter(data: DashboardData, filter: AssigneeFilter): DashboardData {
+  if (filter === 'all' || data.sprint == null) return data
+  const groups = {} as Record<TaskStatus, TaskBrief[]>
+  const counts = {} as Record<TaskStatus, number>
+  for (const s of STATUSES) {
+    groups[s] = (data.groups[s] ?? []).filter((t) => taskMatchesFilter(t.assigneeId, filter))
+    counts[s] = groups[s].length
+  }
+  const sum = (list: TaskBrief[]) => list.reduce((acc, t) => acc + (t.points ?? 0), 0)
+  const total = STATUSES.reduce((acc, s) => acc + sum(groups[s]), 0)
+  const donePct = total > 0 ? Math.round((sum(groups.DONE) / total) * 100) : 0
+  return { ...data, groups, counts, donePct }
+}
+
 /** 四状态分组列表（点行开抽屉） */
 function StatusGroups({
   data,
   projectKey,
+  unassignedTag,
   onOpen,
 }: {
   data: DashboardData
   projectKey: string
+  unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
   return (
@@ -212,6 +231,7 @@ function StatusGroups({
                     projectKey={projectKey}
                     variant="row"
                     showStatus={false}
+                    unassignedTag={unassignedTag}
                     onClick={onOpen}
                   />
                 ))
@@ -248,13 +268,22 @@ function DashboardSkeleton() {
   )
 }
 
-/** 页面容器 + 标题行（含刷新按钮） */
-function Page({ onRefresh, children }: { onRefresh?: () => void; children: React.ReactNode }) {
+/** 页面容器 + 标题行（含负责人筛选与刷新按钮） */
+function Page({
+  onRefresh,
+  filterBar,
+  children,
+}: {
+  onRefresh?: () => void
+  filterBar?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <h1 style={pageTitleStyle}>Dashboard</h1>
         <span style={{ flex: 1 }} />
+        {filterBar}
         {onRefresh && (
           <Icon
             name="refresh"
@@ -277,7 +306,13 @@ export default function Dashboard() {
   // ?project=KEY 指定项目，缺省用第一个项目
   const projectKey = searchParams.get('project') ?? projects.data?.[0]?.key ?? ''
   const dashboard = useDashboard(slug, projectKey)
+  const [assigneeFilter] = useAssigneeFilter()
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+
+  const filtered = useMemo(
+    () => (dashboard.data ? applyAssigneeFilter(dashboard.data, assigneeFilter) : undefined),
+    [dashboard.data, assigneeFilter],
+  )
 
   if (projects.isLoading || (projectKey && dashboard.isLoading)) {
     return (
@@ -323,9 +358,12 @@ export default function Dashboard() {
     )
   }
 
-  const data = dashboard.data
+  const data = filtered
   return (
-    <Page onRefresh={() => void dashboard.refetch()}>
+    <Page
+      onRefresh={() => void dashboard.refetch()}
+      filterBar={<AssigneeFilterCompact slug={slug} />}
+    >
       {!data || data.sprint == null ? (
         <div
           style={{
@@ -344,7 +382,12 @@ export default function Dashboard() {
       ) : (
         <>
           <StatsRow data={data} />
-          <StatusGroups data={data} projectKey={projectKey} onOpen={setDrawerTask} />
+          <StatusGroups
+            data={data}
+            projectKey={projectKey}
+            unassignedTag={assigneeFilter === 'me'}
+            onOpen={setDrawerTask}
+          />
         </>
       )}
       {drawerTask && (
