@@ -14,12 +14,13 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
-import { qk, useBoard, useProjects, useSprints } from '../api/hooks'
+import { api, currentUserId } from '../api/client'
+import { qk, useBoard, useMembers, useProjects, useSprints } from '../api/hooks'
 import type { Board as BoardData, TaskBrief, TaskStatus } from '../api/types'
-import TaskCard from '../components/TaskCard'
+import TaskCard, { Avatar } from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { STATUS_LABEL, STATUS_VAR, useToast } from '../components/ui'
+import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 
 // 设计稿列定义：色点用状态 CSS 变量（var(--todo)/--prog/--comp/--done）
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = (
@@ -40,10 +41,12 @@ const EMPTY_COLUMNS: Record<TaskStatus, TaskBrief[]> = {
 function DraggableCard({
   task,
   projectKey,
+  unassignedTag,
   onOpen,
 }: {
   task: TaskBrief
   projectKey?: string
+  unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -58,7 +61,120 @@ function DraggableCard({
       style={{ opacity: isDragging ? 0.35 : 1, touchAction: 'none', cursor: 'grab' }}
     >
       {/* PointerSensor distance=4：原地点击不会触发拖拽，click 正常冒泡开抽屉 */}
-      <TaskCard task={task} projectKey={projectKey} showStatus={false} onClick={onOpen} />
+      <TaskCard
+        task={task}
+        projectKey={projectKey}
+        showStatus={false}
+        unassignedTag={unassignedTag}
+        onClick={onOpen}
+      />
+    </div>
+  )
+}
+
+/** 顶部成员筛选行：「全部」胶囊 + 每成员 Avatar（自己排最前，点自己 = 只看我的）+ 任务数徽标 */
+function AssigneeFilterRow({
+  slug,
+  columns,
+}: {
+  slug: string
+  columns: Record<TaskStatus, TaskBrief[]>
+}) {
+  const members = useMembers(slug)
+  const [filter, setFilter] = useAssigneeFilter()
+  const me = currentUserId()
+
+  const all = useMemo(() => Object.values(columns).flat(), [columns])
+  // 自己排最前：「只看我的」即点自己头像
+  const sorted = useMemo(() => {
+    const list = members.data ?? []
+    return [...list].sort((a, b) => Number(b.userId === me) - Number(a.userId === me))
+  }, [members.data, me])
+
+  if (sorted.length === 0) return null
+
+  const allOn = filter === 'all'
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '0 20px 12px',
+        flexWrap: 'wrap',
+        flex: 'none',
+      }}
+    >
+      <span
+        role="button"
+        aria-pressed={allOn}
+        onClick={() => setFilter('all')}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 12px',
+          borderRadius: 20,
+          fontSize: 12,
+          cursor: 'pointer',
+          border: `1px solid ${allOn ? 'var(--accent)' : 'var(--border)'}`,
+          background: allOn ? 'var(--accent)' : 'var(--card)',
+          color: allOn ? '#fff' : 'var(--dim)',
+          fontWeight: allOn ? 600 : 450,
+          transition: '.1s',
+        }}
+      >
+        全部
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{all.length}</span>
+      </span>
+      {sorted.map((m) => {
+        const isMe = m.userId === me
+        const on = isMe ? filter === 'me' : filter === m.userId
+        const count = all.filter((t) => t.assigneeId === m.userId).length
+        return (
+          <span
+            key={m.userId}
+            role="button"
+            aria-pressed={on}
+            title={isMe ? `${m.displayName}（只看我的）` : m.displayName}
+            onClick={() => setFilter(isMe ? 'me' : m.userId)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              cursor: 'pointer',
+              flex: 'none',
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                borderRadius: '50%',
+                padding: 2,
+                boxShadow: on ? '0 0 0 2px var(--accent)' : 'none',
+                transition: 'box-shadow .1s',
+              }}
+            >
+              <Avatar name={m.displayName} size={24} />
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: 'var(--font-mono)',
+                color: on ? 'var(--accent)' : 'var(--faint)',
+                background: on ? 'var(--accent-soft)' : 'var(--card-2)',
+                borderRadius: 20,
+                padding: '1px 7px',
+              }}
+            >
+              {count}
+            </span>
+          </span>
+        )
+      })}
+      {filter === 'me' && (
+        <span style={{ fontSize: 11, color: 'var(--faint)' }}>只看我的（含未指派）</span>
+      )}
     </div>
   )
 }
@@ -69,6 +185,7 @@ function Column({
   dot,
   tasks,
   projectKey,
+  unassignedTag,
   onOpen,
 }: {
   status: TaskStatus
@@ -76,6 +193,7 @@ function Column({
   dot: string
   tasks: TaskBrief[]
   projectKey?: string
+  unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -132,7 +250,13 @@ function Column({
         }}
       >
         {tasks.map((task) => (
-          <DraggableCard key={task.id} task={task} projectKey={projectKey} onOpen={onOpen} />
+          <DraggableCard
+            key={task.id}
+            task={task}
+            projectKey={projectKey}
+            unassignedTag={unassignedTag}
+            onOpen={onOpen}
+          />
         ))}
         {tasks.length === 0 && (
           <div
@@ -262,6 +386,18 @@ export default function Board() {
   )
   const columns = boardQuery.data?.columns ?? EMPTY_COLUMNS
 
+  // 成员筛选：作用于四列卡片（乐观更新仍写原始缓存，过滤只在渲染层）
+  const [assigneeFilter] = useAssigneeFilter()
+  const filteredColumns = useMemo(() => {
+    const next = {} as Record<TaskStatus, TaskBrief[]>
+    for (const { status } of COLUMNS) {
+      next[status] = (columns[status] ?? []).filter((t) =>
+        taskMatchesFilter(t.assigneeId, assigneeFilter),
+      )
+    }
+    return next
+  }, [columns, assigneeFilter])
+
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
@@ -353,6 +489,7 @@ export default function Board() {
         <EmptyHint text="看板加载失败，请刷新重试" />
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <AssigneeFilterRow slug={slug} columns={columns} />
           <div
             style={{
               flex: 1,
@@ -369,8 +506,9 @@ export default function Board() {
                 status={col.status}
                 label={col.label}
                 dot={col.dot}
-                tasks={columns[col.status] ?? []}
+                tasks={filteredColumns[col.status] ?? []}
                 projectKey={projectKey}
+                unassignedTag={assigneeFilter === 'me'}
                 onOpen={setDrawerTask}
               />
             ))}

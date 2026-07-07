@@ -74,7 +74,18 @@ export interface TaskCardProps {
   flagged?: boolean
   /** 所属 Epic（有则在卡片形态展示色点 + 名称） */
   epic?: { name: string; color?: string | null } | null
+  /** 「只看我的」视图下未指派任务的淡标记（避免被误认为自己的任务） */
+  unassignedTag?: boolean
   style?: CSSProperties
+}
+
+/** 「未指派」淡文字标记（11px var(--faint)） */
+function UnassignedTag() {
+  return (
+    <span style={{ fontSize: 11, color: 'var(--faint)', flex: 'none', whiteSpace: 'nowrap' }}>
+      未指派
+    </span>
+  )
 }
 
 export default function TaskCard({
@@ -85,8 +96,10 @@ export default function TaskCard({
   variant = 'card',
   flagged = false,
   epic,
+  unassignedTag = false,
   style,
 }: TaskCardProps) {
+  const showUnassigned = unassignedTag && task.assigneeId == null && task.assigneeName == null
   const displayId = projectKey ? `${projectKey}-${task.seq}` : `#${task.seq}`
   const clickable = !!onClick
   const handleClick = onClick ? () => onClick(task) : undefined
@@ -143,6 +156,7 @@ export default function TaskCard({
         )}
         {showStatus && <StatusBadge status={task.status} />}
         <PointsChip points={task.points} />
+        {showUnassigned && <UnassignedTag />}
         <Avatar name={task.assigneeName} size={20} />
       </div>
     )
@@ -225,6 +239,7 @@ export default function TaskCard({
           </span>
         )}
         <span style={{ flex: 1 }} />
+        {showUnassigned && <UnassignedTag />}
         <Avatar name={task.assigneeName} size={20} />
       </div>
     </div>
