@@ -15,5 +15,7 @@ server:
 
 pm:
   jwt:
-    # 仅开发默认值；生产必须通过 JWT_SECRET env 覆盖（HS256 至少 32 字节）
+    # 仅开发默认值；生产必须通过 JWT_SECRET env 覆盖（HS256 至少 32 字节）。
+    # 启动守卫：非 dev profile 且仍为该默认值 → 拒绝启动（JwtService fail-fast）。
+    # 本地开发以 dev profile 启动：mvn spring-boot:run -Dspring-boot.run.profiles=dev
     secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}

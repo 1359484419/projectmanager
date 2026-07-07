@@ -2,6 +2,7 @@ package pm;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -10,8 +11,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * 集成测试基类：真实 PostgreSQL（Testcontainers），随机端口起完整应用。
  * 容器为静态单例，整个测试 JVM 复用一个 PG 实例。
+ * dev profile：允许使用开发默认 JWT secret（非 dev profile 会 fail-fast）。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("dev")
 @Testcontainers
 public abstract class IntegrationTest {
 
