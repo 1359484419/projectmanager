@@ -59,7 +59,7 @@ public class SprintService {
         Sprint sprint = newSprint(project,
                 req == null ? null : req.name(),
                 req == null || req.length() == null ? project.getDefaultSprintLength() : req.length(),
-                req == null || req.startDate() == null ? LocalDate.now() : req.startDate());
+                req == null || req.startDate() == null ? pm.common.BizTime.today() : req.startDate());
         return SprintView.from(sprint);
     }
 

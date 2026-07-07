@@ -10,7 +10,6 @@ import pm.task.TaskRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,14 +66,14 @@ public class BurndownService {
                 : activities.sprintChangesOfTasks(taskIds).stream()
                         .collect(Collectors.groupingBy(Activity::getTaskId));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = pm.common.BizTime.today();
         LocalDate last = sprint.getEndDate().isBefore(today) ? sprint.getEndDate() : today;
         int totalDays = (int) (sprint.getEndDate().toEpochDay() - sprint.getStartDate().toEpochDay()) + 1;
 
         List<DayPoint> days = new ArrayList<>();
         Map<LocalDate, BigDecimal> scopeByDay = new HashMap<>();
         for (LocalDate d = sprint.getStartDate(); !d.isAfter(last); d = d.plusDays(1)) {
-            Instant eod = d.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            Instant eod = d.plusDays(1).atStartOfDay(pm.common.BizTime.ZONE).toInstant();
             BigDecimal scope = BigDecimal.ZERO;
             BigDecimal done = BigDecimal.ZERO;
             for (Long taskId : taskIds) {

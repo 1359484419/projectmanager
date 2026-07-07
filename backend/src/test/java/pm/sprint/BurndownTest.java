@@ -13,7 +13,6 @@ import pm.TwoTenantsFixture;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +40,7 @@ class BurndownTest extends IntegrationTest {
         base = "/api/t/" + fx.slugA;
         fx.exchange(fx.adminTokenA, HttpMethod.POST, base + "/projects",
                 Map.of("key", "PM", "name", "demo"));
-        d1 = LocalDate.now().minusDays(13); // 2 周 Sprint，今天正好是最后一天 D14
+        d1 = pm.common.BizTime.today().minusDays(13); // 2 周 Sprint，今天正好是最后一天 D14
     }
 
     private long createTaskInSprint(int points, long sprintId) {
@@ -54,9 +53,9 @@ class BurndownTest extends IntegrationTest {
         return id;
     }
 
-    /** 把某天中午换算成 Instant（与服务端同用系统时区做日界）。 */
+    /** 把某天中午换算成 Instant（与服务端同用业务时区 Asia/Shanghai 做日界）。 */
     private Timestamp noonOf(LocalDate day) {
-        Instant instant = day.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant();
+        Instant instant = day.atTime(12, 0).atZone(pm.common.BizTime.ZONE).toInstant();
         return Timestamp.from(instant);
     }
 

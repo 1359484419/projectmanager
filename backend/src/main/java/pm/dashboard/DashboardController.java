@@ -78,7 +78,8 @@ public class DashboardController {
                 : donePoints.multiply(BigDecimal.valueOf(100))
                         .divide(totalPoints, 2, RoundingMode.HALF_UP).doubleValue();
 
-        long daysLeft = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), active.getEndDate()));
+        long daysLeft = Math.max(0,
+                ChronoUnit.DAYS.between(pm.common.BizTime.today(), active.getEndDate()));
         SprintInfo info = new SprintInfo(active.getId(), active.getName(), active.getEndDate(), daysLeft);
         return new Dashboard(info, counts, donePct, groups);
     }

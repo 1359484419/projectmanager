@@ -39,7 +39,7 @@ public class SprintRotationJob {
 
     @Scheduled(cron = "0 5 0 * * *")
     public void run() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = pm.common.BizTime.today();
         for (Project project : projects.findByAutoRotateTrue()) {
             try {
                 TenantContext.set(project.getTenantId(), Membership.Role.ADMIN);

@@ -224,7 +224,7 @@ public class McpTools {
                         LocalDate start = sprints
                                 .findByProjectIdAndStatus(project.getId(), Sprint.Status.ACTIVE)
                                 .map(a -> a.getEndDate().plusDays(1))
-                                .orElse(LocalDate.now());
+                                .orElse(pm.common.BizTime.today());
                         return sprintService.create(project.getKey(),
                                 new SprintService.CreateSprintRequest(null, null, start)).id();
                     });
