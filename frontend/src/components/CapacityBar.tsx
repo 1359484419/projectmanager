@@ -2,6 +2,7 @@
 // 视觉真源：docs/design/mock/markup.html PLANNING 节 + logic.jsx memberLoad()（超载斜纹算法照搬）
 import { useEffect, useState } from 'react'
 import { Avatar } from './TaskCard'
+import { fmtPoints } from '../utils/points'
 
 export interface CapacityBarProps {
   /** 成员显示名 */
@@ -109,7 +110,7 @@ export default function CapacityBar({ name, assigned, capacity, onCapacityChange
           flex: 'none',
         }}
       >
-        {assigned}
+        {fmtPoints(assigned)}
       </span>
       <span style={{ fontSize: 11, color: 'var(--faint)' }}>/</span>
       {onCapacityChange ? (

@@ -27,6 +27,7 @@ import TaskDrawer from '../components/TaskDrawer'
 import CapacityBar from '../components/CapacityBar'
 import { Icon } from '../components/icons'
 import { SelectWrap, cardStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
+import { fmtPoints } from '../utils/points'
 
 const BACKLOG_ZONE = 'backlog'
 const sprintZone = (id: number) => `sprint-${id}`
@@ -206,7 +207,7 @@ function SprintSection({
           />
           <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sprint.name}</span>
           <span style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
-            {totalPoints} pts
+            {fmtPoints(totalPoints)} pts
           </span>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>

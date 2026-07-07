@@ -24,6 +24,7 @@ import { Icon } from './icons'
 import { avatarColor } from './TaskCard'
 import TypeIcon from './TypeIcon'
 import { SelectWrap, selStyle, statusColor, STATUS_OPTIONS, TYPE_OPTIONS } from './ui'
+import { POINTS_CHOICES, fmtPoints } from '../utils/points'
 
 export interface TaskDrawerProps {
   slug: string
@@ -33,8 +34,6 @@ export interface TaskDrawerProps {
   task: TaskBrief
   onClose: () => void
 }
-
-const POINTS_CHOICES = [1, 2, 3, 5, 8]
 
 // ---------- 变更历史文案（who 加粗 + text，同设计稿时间线） ----------
 
@@ -342,7 +341,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
 
   const displayId = `${projectKey}-${seed.seq}`
 
-  // points 下拉：常用估点集合之外的存量值也要能显示
+  // points 下拉（0.5-5，0.5 步进）：规则之外的存量值（如旧数据 8）也要能显示
   const pointsValue = task.points != null ? String(task.points) : ''
   const pointsChoices =
     task.points != null && !POINTS_CHOICES.includes(task.points)
@@ -513,7 +512,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 <option value="">未估点</option>
                 {pointsChoices.map((p) => (
                   <option key={p} value={String(p)}>
-                    {p} pts
+                    {fmtPoints(p)} pts
                   </option>
                 ))}
               </select>

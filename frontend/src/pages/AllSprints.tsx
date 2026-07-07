@@ -24,6 +24,7 @@ import {
   selStyle,
   useToast,
 } from '../components/ui'
+import { fmtPoints } from '../utils/points'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : '未知错误'
@@ -116,7 +117,7 @@ function SprintCard({
           {fmtDates(sprint.startDate, sprint.endDate)}
         </span>
         <span style={{ fontSize: 12, color: 'var(--dim)', whiteSpace: 'nowrap' }}>
-          {sprint.tasks.length} 任务 · {points} pts
+          {sprint.tasks.length} 任务 · {fmtPoints(points)} pts
         </span>
         <span style={{ flex: 1 }} />
         {sprint.status === 'PLANNED' && (

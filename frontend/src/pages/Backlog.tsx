@@ -9,6 +9,7 @@ import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon, SelectWrap, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
+import { POINTS_MAX, POINTS_MIN, POINTS_RANGE_MSG, POINTS_STEP, parsePointsInput } from '../utils/points'
 
 const TYPE_FILTERS: Array<{ value: TaskType | 'ALL'; label: string }> = [
   { value: 'ALL', label: '全部' },
@@ -42,12 +43,17 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
   const submit = () => {
     const trimmed = title.trim()
     if (!trimmed || createTask.isPending) return
-    const parsedPoints = Number.parseInt(points, 10)
+    // 估点 0.5-5（0.5 步进）：非法输入即时拒绝，不发请求
+    const parsedPoints = parsePointsInput(points)
+    if (parsedPoints === undefined) {
+      toast.show(POINTS_RANGE_MSG, 'info')
+      return
+    }
     createTask.mutate(
       {
         type,
         title: trimmed,
-        ...(Number.isInteger(parsedPoints) && parsedPoints > 0 ? { points: parsedPoints } : {}),
+        ...(parsedPoints != null ? { points: parsedPoints } : {}),
       },
       {
         onSuccess: (created) => {
@@ -116,11 +122,21 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
         }}
       />
       <input
+        type="number"
+        min={POINTS_MIN}
+        max={POINTS_MAX}
+        step={POINTS_STEP}
         value={points}
-        onChange={(e) => setPoints(e.target.value.replace(/[^0-9]/g, ''))}
+        onChange={(e) => setPoints(e.target.value)}
+        onBlur={() => {
+          // 输入完成即时校验：非法值立刻提示（提交前的第一道拦截）
+          if (points !== '' && parsePointsInput(points) === undefined) {
+            toast.show(POINTS_RANGE_MSG, 'info')
+          }
+        }}
         placeholder="pts"
         aria-label="points"
-        inputMode="numeric"
+        inputMode="decimal"
         style={{
           width: 52,
           height: 28,

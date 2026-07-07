@@ -5,6 +5,7 @@ import type { TaskBrief } from '../api/types'
 import StatusBadge from './StatusBadge'
 import TypeIcon from './TypeIcon'
 import { Icon } from './icons'
+import { fmtPoints } from '../utils/points'
 
 /** 成员头像色板（与设计稿成员色一致），按名字哈希取色保证稳定 */
 const AVATAR_COLORS = ['#6e79d6', '#3f9d6b', '#d6673f', '#c74d8a', '#4aa3c9']
@@ -44,7 +45,7 @@ function PointsChip({ points }: { points: number | null }) {
   if (points == null) return null
   return (
     <span
-      title={`${points} points`}
+      title={`${fmtPoints(points)} points`}
       style={{
         fontSize: 10.5,
         fontFamily: 'var(--font-mono)',
@@ -56,7 +57,7 @@ function PointsChip({ points }: { points: number | null }) {
         flex: 'none',
       }}
     >
-      {points}
+      {fmtPoints(points)}
     </span>
   )
 }

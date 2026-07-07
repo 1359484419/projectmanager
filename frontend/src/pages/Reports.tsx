@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useBurndown, useCapacity, useProjects, useSprints } from '../api/hooks'
 import type { BurndownDay, CapacityEntry, Sprint, SprintStatus } from '../api/types'
 import { SelectWrap, cardStyle, pageTitleStyle } from '../components/ui'
+import { fmtPoints } from '../utils/points'
 
 const SPRINT_STATUS_LABEL: Record<SprintStatus, string> = {
   PLANNED: '未开始',
@@ -217,7 +218,7 @@ function LoadRow({ entry }: { entry: CapacityEntry }) {
           flex: 'none',
         }}
       >
-        {assigned}/{cap}
+        {fmtPoints(assigned)}/{fmtPoints(cap)}
       </span>
     </div>
   )
