@@ -232,15 +232,32 @@ function SprintSection({
                     onClick={onOpenTask}
                   />
                 </div>
-                <span
-                  className="icon-btn"
+                <button
+                  className="hover-accent"
                   title="移回 Backlog"
-                  role="button"
+                  aria-label={`移回 Backlog（${projectKey}-${task.seq}）`}
                   onClick={() => onMoveToBacklog(task.id)}
-                  style={{ display: 'flex', flex: 'none', color: 'var(--faint)', padding: 5, cursor: 'pointer' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    height: 26,
+                    marginRight: 8,
+                    padding: '0 9px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--dim)',
+                    fontSize: 11.5,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flex: 'none',
+                    transition: '.1s',
+                  }}
                 >
-                  <Icon name="arrowRight" size={13} style={{ transform: 'rotate(180deg)' }} />
-                </span>
+                  <Icon name="arrowRight" size={12} style={{ transform: 'rotate(180deg)', display: 'flex' }} />
+                  移回
+                </button>
               </div>
             ))
           )}
