@@ -40,13 +40,18 @@ users        id, email(全局唯一), password_hash, display_name, created_at
 memberships  id, user_id → users, tenant_id → tenants, role(ADMIN|MEMBER)
              UNIQUE(user_id, tenant_id)
 invites      id, tenant_id, token(唯一), role, expires_at, created_by
-projects     id, tenant_id, key(租户内唯一, 如 "PM"), name
+projects     id, tenant_id, key(租户内唯一, 如 "PM"), name,
+             default_sprint_length(默认 WEEK_2), auto_rotate(默认 true)
+epics        id, tenant_id, project_id, name, description,
+             quarter(如 "2026-Q3", 可空), color,
+             status(OPEN|DONE)
 sprints      id, tenant_id, project_id, name,
              length(WEEK_1|WEEK_2|MONTH_1), start_date, end_date,
              status(PLANNED|ACTIVE|CLOSED)
 capacity_overrides  id, tenant_id, sprint_id, user_id, capacity(整数)
              UNIQUE(sprint_id, user_id)
 tasks        id, tenant_id, project_id, sprint_id(NULL=Backlog),
+             epic_id(可空, → epics), type(STORY|BUG|TASK),
              seq(项目内自增, 展示为 PM-42), title, description,
              points(整数, 单位=天, 可空), assignee_id(可空),
              status(TODO|IN_PROGRESS|DONE), rank(字典序排序键),
@@ -66,15 +71,24 @@ activities   id, tenant_id, task_id, actor_id,
 - `capacity_overrides` 可对个人下调（请假等）。
 - 成员负载 = 该 Sprint 内指派给他的任务 points 之和；规划页显示 `已分配/容量`，超载红色、余量绿色。容量是**提示性**的，不硬性阻止超配。
 
-### 5.2 Sprint 生命周期
+### 5.2 Sprint 生命周期与自动轮转
 
 - `PLANNED → ACTIVE → CLOSED`，单向流转。
-- 创建时选 length（1 周/2 周/1 月）与 start_date，end_date 自动算出（可微调）。
+- 创建时选 length（1 周/2 周/1 月，项目默认 **2 周**）与 start_date，end_date 自动算出（可微调）。
 - 同一项目同时最多一个 ACTIVE Sprint。
-- 关闭 Sprint 时，未完成（非 DONE）任务由用户选择：退回 Backlog，或移入指定的下一个 Sprint。
+- **自动轮转（harness：每日调度 job）**：项目开启 `auto_rotate`（默认开）时，ACTIVE Sprint 过了 end_date 由调度任务自动关闭，并按项目默认周期紧接着开启新 Sprint（顺序命名如 Sprint 24）；**未完成任务自动转入新 Sprint**，逐条写入 `activities` 可追溯。调度 job 必须幂等（重复执行不重复建 Sprint），服务停机数日后补跑只轮转一次到当前周期。
+- 手动关闭仍可用：未完成任务由用户选择退回 Backlog 或移入指定 Sprint。
 - 任务的 sprint 归属变化、状态变化均写入 `activities`。
 
-### 5.3 燃尽图
+### 5.3 季度（Quarter）与 Epic
+
+- Quarter 不建表，是 Epic 上的一个字段（如 `2026-Q3`），按租户时区的自然季度。
+- Epic 属于项目，可指定所属季度（也可暂不指定）；User Story / Bug / Task 可挂到某个 Epic 下（`epic_id` 可空）。
+- **路线图（Roadmap）页**：按季度分组展示 Epic，每个 Epic 显示完成进度（已 DONE task 的 points / 总 points）。
+- 任务类型 `type`：STORY（用户故事）/ BUG / TASK（杂项），看板与列表上用图标/颜色区分，可按类型筛选。
+- Epic 完成（status=DONE）由用户手动标记，不自动判定。
+
+### 5.4 燃尽图
 
 - 不做每日快照定时任务。
 - 由 `activities` 回放计算：Sprint 每一天的剩余 point = 已排入任务的 points 总和 − 截至当天已 DONE 的 points，随任务中途加入/移出动态修正。
@@ -91,6 +105,8 @@ GET  /api/me/tenants                         # 我所属的租户列表
 POST /api/t/{slug}/projects
 GET  /api/t/{slug}/projects/{key}/backlog
 POST /api/t/{slug}/projects/{key}/sprints
+POST /api/t/{slug}/projects/{key}/epics
+GET  /api/t/{slug}/projects/{key}/roadmap    # 按季度分组的 Epic 及进度
 POST /api/t/{slug}/sprints/{id}/start | close
 GET  /api/t/{slug}/sprints/{id}/board        # 看板数据
 GET  /api/t/{slug}/sprints/{id}/capacity     # 每人容量与负载
@@ -111,8 +127,9 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 4. Sprint 看板：TODO / IN_PROGRESS / DONE 三列拖拽
 5. Sprint 规划：成员容量条（已分配/容量，超载标红）
 6. 报表：燃尽图、每人负载
-7. 任务详情抽屉：编辑、评论、变更历史
-8. 租户管理（仅 ADMIN）：成员列表、邀请链接、Sprint 周期默认值
+7. 任务详情抽屉：编辑（含类型、所属 Epic）、评论、变更历史
+8. **路线图**：按季度分组的 Epic 卡片 + 完成进度，Epic 展开可见其下 Story/Bug
+9. 租户管理（仅 ADMIN）：成员列表、邀请链接、Sprint 周期默认值与自动轮转开关
 
 ## 8. 首版明确不做（YAGNI）
 
@@ -124,6 +141,7 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
   - 租户隔离：A 租户 token 访问 B 租户任一资源 → 404；
   - 容量计算（各 length 的工作日数、override）；
   - Sprint 关闭时任务流转；
+  - **自动轮转 job 的幂等性**（重复触发、停机补跑只轮转一次）；
   - 燃尽图回放正确性。
 - **前端**：Playwright 冒烟一条主流程：登录 → 建任务 → 拖进 Sprint → 看板拖拽到 DONE → 燃尽图出数。
 - 交付前在真实 Docker Compose 环境端到端验证。
@@ -133,9 +151,10 @@ POST /api/t/{slug}/invites                   # ADMIN 生成邀请链接
 | 阶段 | 预估 |
 |---|---|
 | 骨架 + 认证 + 多租户 harness | 0.5 天 |
-| Backlog + 看板 + Sprint 生命周期 | 1 天 |
+| Backlog + 看板 + Sprint 生命周期 + 自动轮转 | 1 天 |
+| Epic/季度路线图 + 任务类型 | 0.5 天 |
 | 容量条 + 燃尽图 + 评论/历史 | 1 天 |
 | Docker 部署 + 联调 + 安全测试 | 0.5 天 |
-| **合计** | **约 3 个工作日** |
+| **合计** | **约 3.5 个工作日** |
 
 不可压缩项：真机部署联调、多租户越权测试。
