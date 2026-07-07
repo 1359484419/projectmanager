@@ -25,7 +25,10 @@ function currentUser(): { name: string; email: string } {
     if (token) {
       const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
       const name = payload.displayName ?? payload.name ?? payload.username ?? ''
-      const email = payload.email ?? (typeof payload.sub === 'string' ? payload.sub : '')
+      // sub 可能是数字用户 id，只有形如邮箱时才当 email 展示
+      const email =
+        payload.email ??
+        (typeof payload.sub === 'string' && payload.sub.includes('@') ? payload.sub : '')
       if (name || email) return { name: name || email.split('@')[0], email }
     }
   } catch {

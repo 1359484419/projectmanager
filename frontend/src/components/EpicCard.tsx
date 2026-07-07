@@ -1,21 +1,21 @@
 // EpicCard：路线图 Epic 卡片。
-// 左侧颜色条 + 名称/状态 + donePoints/totalPoints 进度条；点击展开其下任务列表（TaskBrief）。
-import { useState } from 'react'
+// 视觉真源：docs/design/mock/markup.html ROADMAP 节 —— 左侧 4px 色条 + 名称 + mono done/total
+// + 6px 进度条（pct 填充 epic 自身色）+ 任务紧凑行列表（TaskCard variant="row"）。
 import type { RoadmapEpic, TaskBrief } from '../api/types'
 import TaskCard from './TaskCard'
+import { Badge } from './ui'
 
-const DEFAULT_COLOR = '#6366f1'
+const DEFAULT_COLOR = '#6e79d6'
 
 export interface EpicCardProps {
   epic: RoadmapEpic
-  /** 项目 key，透传给展开的 TaskCard 展示 "PM-42" 号 */
+  /** 项目 key，透传给任务行展示 "PM-42" 号 */
   projectKey?: string
-  /** 点击展开列表中的任务卡（开 TaskDrawer） */
+  /** 点击列表中的任务行（开 TaskDrawer） */
   onTaskClick?: (task: TaskBrief) => void
 }
 
 export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProps) {
-  const [expanded, setExpanded] = useState(false)
   const color = epic.color || DEFAULT_COLOR
   const pct =
     epic.totalPoints > 0
@@ -25,48 +25,24 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
   return (
     <div
       style={{
-        display: 'flex',
-        border: '1px solid #e5e7eb',
-        borderRadius: 10,
-        background: '#fff',
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 11,
+        padding: 0,
         overflow: 'hidden',
+        display: 'flex',
       }}
     >
-      {/* 颜色条 */}
-      <div style={{ width: 6, flexShrink: 0, background: color }} aria-hidden />
-      <div style={{ flex: 1, minWidth: 0, padding: '12px 16px' }}>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            width: '100%',
-            border: 'none',
-            background: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              fontSize: 11,
-              color: '#6b7280',
-              transform: expanded ? 'rotate(90deg)' : 'none',
-              transition: 'transform 0.15s',
-            }}
-          >
-            ▶
-          </span>
+      {/* 左侧颜色条 */}
+      <span aria-hidden style={{ width: 4, background: color, flex: 'none' }} />
+      <div style={{ padding: '13px 15px', flex: 1, minWidth: 0 }}>
+        {/* 头部：名称 + done/total */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span
             style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: '#111827',
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: 'var(--text)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -75,24 +51,22 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
             {epic.name}
           </span>
           {epic.status === 'DONE' && (
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#15803d',
-                background: '#dcfce7',
-                borderRadius: 9999,
-                padding: '2px 8px',
-                flexShrink: 0,
-              }}
-            >
-              Done
-            </span>
+            <Badge color="var(--done)" soft="var(--done-soft)" style={{ flex: 'none' }}>
+              已完成
+            </Badge>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280', flexShrink: 0 }}>
-            {epic.donePoints} / {epic.totalPoints} pts · {pct}%
+          <span style={{ flex: 1 }} />
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--faint)',
+              fontFamily: 'var(--font-mono)',
+              flex: 'none',
+            }}
+          >
+            {epic.donePoints}/{epic.totalPoints}
           </span>
-        </button>
+        </div>
 
         {/* 进度条 */}
         <div
@@ -101,38 +75,41 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
           aria-valuemin={0}
           aria-valuemax={100}
           style={{
-            marginTop: 10,
-            height: 8,
-            borderRadius: 9999,
-            background: '#f3f4f6',
+            height: 6,
+            borderRadius: 4,
+            background: 'var(--card-2)',
             overflow: 'hidden',
+            marginBottom: 10,
           }}
         >
-          <div
+          <span
             style={{
-              width: `${pct}%`,
+              display: 'block',
               height: '100%',
-              borderRadius: 9999,
+              width: `${pct}%`,
               background: color,
-              transition: 'width 0.2s',
+              borderRadius: 4,
+              transition: 'width .2s',
             }}
           />
         </div>
 
-        {/* 展开的任务列表 */}
-        {expanded && (
-          <div style={{ marginTop: 12 }}>
-            {epic.tasks.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#9ca3af', padding: '4px 0' }}>
-                该 Epic 下暂无任务
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {epic.tasks.map((task) => (
-                  <TaskCard key={task.id} task={task} projectKey={projectKey} onClick={onTaskClick} />
-                ))}
-              </div>
-            )}
+        {/* 任务列表（紧凑行） */}
+        {epic.tasks.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--faint)', padding: '4px 0' }}>
+            该 Epic 下暂无任务
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {epic.tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                projectKey={projectKey}
+                variant="row"
+                onClick={onTaskClick}
+              />
+            ))}
           </div>
         )}
       </div>

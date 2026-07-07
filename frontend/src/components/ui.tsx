@@ -390,6 +390,9 @@ export function ConfirmDialog({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         style={{
           width: 380,
           maxWidth: '92vw',

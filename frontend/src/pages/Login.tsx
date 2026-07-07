@@ -1,69 +1,63 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
+import { useToast } from '../components/ui'
 
-const cardStyle: React.CSSProperties = {
-  maxWidth: 400,
-  margin: '80px auto',
-  padding: 32,
-  textAlign: 'left',
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  boxShadow: 'var(--shadow)',
-}
-
-const inputStyle: React.CSSProperties = {
+const fieldLabel: CSSProperties = {
   display: 'block',
+  fontSize: 12,
+  color: 'var(--dim)',
+  marginBottom: 5,
+}
+
+const fieldInput: CSSProperties = {
   width: '100%',
-  boxSizing: 'border-box',
-  padding: '8px 10px',
-  marginBottom: 12,
-  fontSize: 15,
+  height: 36,
+  borderRadius: 8,
   border: '1px solid var(--border)',
-  borderRadius: 6,
-  background: 'var(--bg)',
-  color: 'var(--text-h)',
-}
-
-const buttonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 0',
-  fontSize: 15,
-  fontWeight: 600,
-  border: 'none',
-  borderRadius: 6,
-  background: 'var(--accent)',
-  color: '#fff',
-  cursor: 'pointer',
-}
-
-const errorStyle: React.CSSProperties = {
-  margin: '0 0 12px',
-  padding: '8px 10px',
+  background: 'var(--card-2)',
+  color: 'var(--text)',
   fontSize: 13,
-  borderRadius: 6,
-  background: 'rgba(220, 38, 38, 0.1)',
-  color: '#dc2626',
+  padding: '0 11px',
+  marginBottom: 12,
+  outline: 'none',
 }
+
+const tabStyle = (active: boolean): CSSProperties => ({
+  flex: 1,
+  textAlign: 'center',
+  padding: 7,
+  borderRadius: 7,
+  fontSize: 12.5,
+  cursor: 'pointer',
+  userSelect: 'none',
+  ...(active
+    ? {
+        background: 'var(--card)',
+        color: 'var(--text)',
+        fontWeight: 600,
+        boxShadow: 'var(--shadow-xs)',
+      }
+    : { color: 'var(--dim)' }),
+})
 
 type Mode = 'login' | 'register'
 
 export default function Login() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [tenantName, setTenantName] = useState('')
   const [tenantSlug, setTenantSlug] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError(null)
     setSubmitting(true)
     try {
       if (mode === 'login') {
@@ -82,92 +76,199 @@ export default function Login() {
         navigate(`/t/${tenantSlug}`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '请求失败，请稍后重试')
+      toast.show(err instanceof Error ? err.message : '请求失败，请稍后重试', 'info')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: '8px 0',
-    fontSize: 15,
-    fontWeight: 600,
-    textAlign: 'center',
-    cursor: 'pointer',
-    border: 'none',
-    background: 'none',
-    color: active ? 'var(--accent)' : 'var(--text)',
-    borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-  })
+  const isRegister = mode === 'register'
 
   return (
-    <div style={cardStyle}>
-      <h2 style={{ textAlign: 'center' }}>Mini Jira</h2>
-      <div style={{ display: 'flex', marginBottom: 20 }}>
-        <button type="button" style={tabStyle(mode === 'login')} onClick={() => setMode('login')}>
-          登录
-        </button>
-        <button
-          type="button"
-          style={tabStyle(mode === 'register')}
-          onClick={() => setMode('register')}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'var(--bg)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        animation: 'fadeIn .15s',
+      }}
+    >
+      <div style={{ width: 380, maxWidth: '92vw' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            marginBottom: 26,
+          }}
         >
-          注册
-        </button>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 22,
+              marginBottom: 12,
+            }}
+          >
+            P
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>欢迎回到 PM</div>
+          <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
+            {isRegister ? '创建你的团队空间' : '登录以继续你的项目管理'}
+          </div>
+        </div>
+        <div
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 14,
+            padding: 20,
+            boxShadow: 'var(--shadow)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 4,
+              background: 'var(--card-2)',
+              borderRadius: 9,
+              padding: 3,
+              marginBottom: 18,
+            }}
+          >
+            <span style={tabStyle(mode === 'login')} onClick={() => setMode('login')}>
+              登录
+            </span>
+            <span style={tabStyle(mode === 'register')} onClick={() => setMode('register')}>
+              注册
+            </span>
+          </div>
+          <form onSubmit={handleSubmit}>
+            {isRegister && (
+              <>
+                <label style={fieldLabel}>显示名</label>
+                <input
+                  style={fieldInput}
+                  placeholder="张三"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                />
+                <label style={fieldLabel}>团队名称</label>
+                <input
+                  style={fieldInput}
+                  placeholder="Acme Inc."
+                  value={tenantName}
+                  onChange={(e) => setTenantName(e.target.value)}
+                  required
+                />
+                <label style={fieldLabel}>团队 slug</label>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    height: 36,
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'var(--card-2)',
+                    padding: '0 11px',
+                    marginBottom: 12,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--faint)',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    /t/
+                  </span>
+                  <input
+                    placeholder="acme"
+                    value={tenantSlug}
+                    onChange={(e) => setTenantSlug(e.target.value)}
+                    pattern="[a-z0-9-]{3,32}"
+                    title="3-32 位小写字母、数字或连字符"
+                    required
+                    style={{
+                      flex: 1,
+                      height: 34,
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'var(--text)',
+                      fontSize: 13,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  />
+                </div>
+              </>
+            )}
+            <label style={fieldLabel}>邮箱</label>
+            <input
+              style={fieldInput}
+              type="email"
+              placeholder="you@acme.io"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <label style={fieldLabel}>密码</label>
+            <input
+              style={{ ...fieldInput, marginBottom: 18 }}
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: '100%',
+                height: 38,
+                borderRadius: 8,
+                border: 'none',
+                background: 'var(--accent)',
+                color: '#fff',
+                fontSize: 13.5,
+                fontWeight: 600,
+                cursor: submitting ? 'default' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+              }}
+            >
+              {submitting ? '提交中…' : isRegister ? '创建团队' : '登录'}
+            </button>
+          </form>
+        </div>
+        <p
+          style={{
+            marginTop: 16,
+            fontSize: 13,
+            color: 'var(--dim)',
+            textAlign: 'center',
+          }}
+        >
+          收到邀请链接？
+          <Link to="/accept-invite" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+            接受邀请
+          </Link>
+        </p>
       </div>
-      {error && <p style={errorStyle}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input
-          style={inputStyle}
-          type="email"
-          placeholder="邮箱"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          style={inputStyle}
-          type="password"
-          placeholder="密码"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {mode === 'register' && (
-          <>
-            <input
-              style={inputStyle}
-              placeholder="显示名"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-            />
-            <input
-              style={inputStyle}
-              placeholder="租户名（团队/公司名）"
-              value={tenantName}
-              onChange={(e) => setTenantName(e.target.value)}
-              required
-            />
-            <input
-              style={inputStyle}
-              placeholder="租户 slug（3-32 位小写字母/数字/-）"
-              value={tenantSlug}
-              onChange={(e) => setTenantSlug(e.target.value)}
-              pattern="[a-z0-9-]{3,32}"
-              title="3-32 位小写字母、数字或连字符"
-              required
-            />
-          </>
-        )}
-        <button style={buttonStyle} type="submit" disabled={submitting}>
-          {submitting ? '提交中…' : mode === 'login' ? '登录' : '注册并创建租户'}
-        </button>
-      </form>
-      <p style={{ marginTop: 16, fontSize: 13, textAlign: 'center' }}>
-        收到邀请链接？<Link to="/accept-invite">接受邀请</Link>
-      </p>
     </div>
   )
 }

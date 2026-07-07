@@ -1,193 +1,236 @@
 // All Sprints 页：所有 Sprint 倒序列表（ACTIVE/CLOSED/PLANNED），每个 Sprint 一个分组卡，
 // 默认全部展开，点标题折叠。数据来自 GET /projects/{key}/sprints?withTasks=true。
+// 视觉真源：docs/design/mock/markup.html「SPRINTS」节 + logic.jsx sprintGroups 徽标算法。
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useCreateSprint, useProjects, useSprints, useStartSprint } from '../api/hooks'
+import {
+  useCloseSprint,
+  useCreateSprint,
+  useProjects,
+  useSprints,
+  useStartSprint,
+} from '../api/hooks'
 import type { SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
-import StatusBadge from '../components/StatusBadge'
+import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
-import TypeIcon from '../components/TypeIcon'
+import { Icon } from '../components/icons'
+import {
+  Badge,
+  ConfirmDialog,
+  SelectWrap,
+  btnSecondary,
+  cardStyle,
+  pageTitleStyle,
+  selStyle,
+  useToast,
+} from '../components/ui'
 
-const SPRINT_STATUS_META: Record<SprintStatus, { label: string; bg: string; fg: string }> = {
-  PLANNED: { label: 'Planned', bg: '#e5e7eb', fg: '#374151' },
-  ACTIVE: { label: 'Active', bg: '#dbeafe', fg: '#1d4ed8' },
-  CLOSED: { label: 'Closed', bg: '#f3e8ff', fg: '#7e22ce' },
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : '未知错误'
 }
 
+/** Sprint 状态徽标（同 logic.jsx smap）：ACTIVE 带 pulse 呼吸点，PLANNED 灰，CLOSED 淡 */
 function SprintStatusBadge({ status }: { status: SprintStatus }) {
-  const meta = SPRINT_STATUS_META[status]
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: 9999,
-        fontSize: 12,
-        fontWeight: 600,
-        lineHeight: '16px',
-        whiteSpace: 'nowrap',
-        background: meta.bg,
-        color: meta.fg,
-      }}
-    >
-      {meta.label}
-    </span>
-  )
-}
-
-const cellStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  borderTop: '1px solid #f3f4f6',
-  fontSize: 13,
-  color: '#111827',
-  verticalAlign: 'middle',
-}
-
-const headCellStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: '#6b7280',
-  textAlign: 'left',
-  whiteSpace: 'nowrap',
-}
-
-function TaskTable({
-  tasks,
-  onOpen,
-}: {
-  tasks: TaskBrief[]
-  onOpen: (task: TaskBrief) => void
-}) {
-  if (tasks.length === 0) {
+  if (status === 'ACTIVE') {
     return (
-      <div style={{ padding: '12px 16px', fontSize: 13, color: '#9ca3af' }}>
-        该 Sprint 暂无任务
-      </div>
+      <Badge color="var(--prog)" soft="var(--prog-soft)">
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: 'var(--prog)',
+            animation: 'pulse 1.6s infinite',
+          }}
+        />
+        ACTIVE
+      </Badge>
     )
   }
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={headCellStyle}>#</th>
-            <th style={headCellStyle}>类型</th>
-            <th style={{ ...headCellStyle, width: '100%' }}>标题</th>
-            <th style={headCellStyle}>状态</th>
-            <th style={headCellStyle}>Points</th>
-            <th style={headCellStyle}>负责人</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <tr
-              key={task.id}
-              onClick={() => onOpen(task)}
-              role="button"
-              style={{ cursor: 'pointer' }}
-            >
-              <td style={{ ...cellStyle, color: '#6b7280', whiteSpace: 'nowrap' }}>#{task.seq}</td>
-              <td style={cellStyle}>
-                <TypeIcon type={task.type} />
-              </td>
-              <td style={cellStyle}>{task.title}</td>
-              <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>
-                <StatusBadge status={task.status} />
-              </td>
-              <td style={{ ...cellStyle, whiteSpace: 'nowrap', textAlign: 'center' }}>
-                {task.points ?? '—'}
-              </td>
-              <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>
-                {task.assigneeName ?? <span style={{ color: '#9ca3af' }}>未指派</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  if (status === 'PLANNED') return <Badge color="var(--todo)">PLANNED</Badge>
+  return <Badge color="var(--faint)">CLOSED</Badge>
+}
+
+/** 日期区间：'2026-07-01' → '07-01 → 07-14'（设计稿 sp.dates，JetBrains Mono） */
+function fmtDates(start: string, end: string): string {
+  return `${start.slice(5)} → ${end.slice(5)}`
 }
 
 function SprintCard({
   sprint,
+  projectKey,
   collapsed,
   onToggle,
   onOpenTask,
   onStart,
-  starting,
+  onClose,
+  busy,
 }: {
   sprint: SprintWithTasks
+  projectKey: string
   collapsed: boolean
   onToggle: () => void
   onOpenTask: (task: TaskBrief) => void
-  onStart?: () => void
-  starting?: boolean
+  onStart: () => void
+  onClose: () => void
+  busy: boolean
 }) {
+  const points = sprint.tasks.reduce((sum, t) => sum + (t.points ?? 0), 0)
   return (
-    <section
-      style={{
-        border: '1px solid #e5e7eb',
-        borderRadius: 8,
-        background: '#fff',
-        overflow: 'hidden',
-      }}
-    >
-      <button
-        type="button"
+    <section style={{ ...cardStyle, overflow: 'hidden' }}>
+      {/* 分组卡头：badge · 名称 · 日期 · 统计 ·（启动/关闭）——点击折叠/展开 */}
+      <div
         onClick={onToggle}
+        role="button"
         aria-expanded={!collapsed}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          width: '100%',
-          padding: '10px 16px',
-          background: '#f9fafb',
-          border: 'none',
+          padding: '13px 16px',
+          borderBottom: collapsed ? 'none' : '1px solid var(--border-soft)',
           cursor: 'pointer',
-          textAlign: 'left',
+          userSelect: 'none',
         }}
       >
-        <span style={{ fontSize: 12, color: '#6b7280', width: 12 }}>{collapsed ? '▸' : '▾'}</span>
-        <span style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{sprint.name}</span>
+        <Icon
+          name="chevron"
+          size={12}
+          style={{
+            color: 'var(--faint)',
+            flex: 'none',
+            transform: collapsed ? 'rotate(-90deg)' : 'none',
+            transition: 'transform .12s',
+          }}
+        />
         <SprintStatusBadge status={sprint.status} />
-        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>
-          {sprint.startDate} ~ {sprint.endDate}
+        <span style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{sprint.name}</span>
+        <span
+          style={{
+            fontSize: 12,
+            color: 'var(--faint)',
+            fontFamily: 'var(--font-mono)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {fmtDates(sprint.startDate, sprint.endDate)}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>
-          {sprint.tasks.length} 个任务
+        <span style={{ fontSize: 12, color: 'var(--dim)', whiteSpace: 'nowrap' }}>
+          {sprint.tasks.length} 任务 · {points} pts
         </span>
-        {sprint.status === 'PLANNED' && onStart && (
-          <span
-            role="button"
-            aria-label={`启动 ${sprint.name}`}
+        <span style={{ flex: 1 }} />
+        {sprint.status === 'PLANNED' && (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
             onClick={(e) => {
               e.stopPropagation()
-              if (!starting) onStart()
+              onStart()
             }}
             style={{
-              padding: '4px 12px',
+              height: 27,
+              padding: '0 12px',
               borderRadius: 6,
+              border: 'none',
+              background: 'var(--accent)',
+              color: '#fff',
               fontSize: 12,
               fontWeight: 600,
-              background: '#4f46e5',
-              color: '#fff',
-              whiteSpace: 'nowrap',
-              opacity: starting ? 0.6 : 1,
+              cursor: 'pointer',
+              opacity: busy ? 0.6 : 1,
+              flex: 'none',
             }}
           >
-            {starting ? '启动中…' : '启动'}
-          </span>
+            启动
+          </button>
         )}
-      </button>
-      {!collapsed && <TaskTable tasks={sprint.tasks} onOpen={onOpenTask} />}
+        {sprint.status === 'ACTIVE' && (
+          <button
+            type="button"
+            className="hover-card"
+            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            style={{
+              height: 27,
+              padding: '0 12px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--card)',
+              color: 'var(--text)',
+              fontSize: 12,
+              fontWeight: 550,
+              cursor: 'pointer',
+              opacity: busy ? 0.6 : 1,
+              flex: 'none',
+            }}
+          >
+            关闭
+          </button>
+        )}
+      </div>
+      {/* 任务行列表（TaskCard row 形态，~38px/行） */}
+      {!collapsed && (
+        <div style={{ padding: '4px 6px' }}>
+          {sprint.tasks.length === 0 ? (
+            <div style={{ padding: '10px 9px', fontSize: 12.5, color: 'var(--faint)' }}>
+              该 Sprint 暂无任务
+            </div>
+          ) : (
+            sprint.tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                projectKey={projectKey}
+                variant="row"
+                onClick={onOpenTask}
+              />
+            ))
+          )}
+        </div>
+      )}
     </section>
   )
 }
 
+/** 加载骨架：仿分组卡形态的 .sk shimmer */
+function SprintsSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {[0, 1].map((i) => (
+        <div key={i} style={{ ...cardStyle, overflow: 'hidden' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '13px 16px',
+              borderBottom: '1px solid var(--border-soft)',
+            }}
+          >
+            <span className="sk" style={{ width: 64, height: 20, borderRadius: 20 }} />
+            <span className="sk" style={{ width: 90, height: 16 }} />
+            <span className="sk" style={{ width: 120, height: 14 }} />
+          </div>
+          <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {[0, 1, 2].map((j) => (
+              <span key={j} className="sk" style={{ height: 24 }} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type ConfirmState = { kind: 'start' | 'close'; sprint: SprintWithTasks } | null
+
 export default function AllSprints() {
   const { slug = '' } = useParams<{ slug: string }>()
+  const toast = useToast()
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const projectKey = selectedKey ?? projects?.[0]?.key ?? ''
@@ -195,10 +238,12 @@ export default function AllSprints() {
   const { data: sprints, isLoading, isError, error } = useSprints(slug, projectKey, true)
   const createSprint = useCreateSprint(slug, projectKey)
   const startSprint = useStartSprint(slug)
+  const closeSprint = useCloseSprint(slug)
 
   // 默认全部展开：记录被折叠的 sprint id
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set())
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState>(null)
   const toggle = (id: number) =>
     setCollapsedIds((prev) => {
       const next = new Set(prev)
@@ -215,87 +260,113 @@ export default function AllSprints() {
     )
   }, [sprints])
 
+  const handleCreate = () =>
+    createSprint.mutate(
+      {},
+      {
+        onSuccess: (s) => toast.show(`${s.name} 已创建`),
+        onError: (e) => toast.show(`创建失败：${errMsg(e)}`, 'info'),
+      },
+    )
+
+  const handleConfirm = () => {
+    if (!confirm) return
+    const { kind, sprint } = confirm
+    setConfirm(null)
+    if (kind === 'start') {
+      startSprint.mutate(sprint.id, {
+        onSuccess: () => toast.show('Sprint 已启动'),
+        onError: (e) => toast.show(`启动失败：${errMsg(e)}`, 'info'),
+      })
+    } else {
+      closeSprint.mutate(
+        { sprintId: sprint.id, unfinished: 'BACKLOG' },
+        {
+          onSuccess: () => toast.show('Sprint 已关闭'),
+          onError: (e) => toast.show(`关闭失败：${errMsg(e)}`, 'info'),
+        },
+      )
+    }
+  }
+
+  const busy = startSprint.isPending || closeSprint.isPending
+
   return (
-    <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>All Sprints</h1>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+      {/* 页头：标题 · 项目切换 · 新建 Sprint */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <h1 style={pageTitleStyle}>所有 Sprint</h1>
         {projects && projects.length > 1 && (
-          <select
-            value={projectKey}
-            onChange={(e) => setSelectedKey(e.target.value)}
-            style={{ padding: '4px 8px', fontSize: 13 }}
-          >
-            {projects.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.name}（{p.key}）
-              </option>
-            ))}
-          </select>
+          <SelectWrap chevronTop={9}>
+            <select
+              value={projectKey}
+              onChange={(e) => setSelectedKey(e.target.value)}
+              aria-label="切换项目"
+              style={{ ...selStyle, width: 'auto', background: 'var(--card)' }}
+            >
+              {projects.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.name}（{p.key}）
+                </option>
+              ))}
+            </select>
+          </SelectWrap>
         )}
+        <span style={{ flex: 1 }} />
         {projectKey && (
           <button
             type="button"
-            onClick={() => createSprint.mutate({})}
+            className="hover-card"
+            onClick={handleCreate}
             disabled={createSprint.isPending}
             style={{
-              marginLeft: 'auto',
-              padding: '6px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background: '#4f46e5',
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
+              ...btnSecondary,
+              padding: '0 12px 0 9px',
               opacity: createSprint.isPending ? 0.6 : 1,
             }}
           >
-            {createSprint.isPending ? '创建中…' : '新建 Sprint'}
+            <Icon name="plus" size={14} />
+            新建 Sprint
           </button>
         )}
       </div>
-      {createSprint.isError && (
-        <p style={{ color: '#dc2626', fontSize: 13 }}>
-          创建失败：{createSprint.error instanceof Error ? createSprint.error.message : '未知错误'}
-        </p>
-      )}
-      {startSprint.isError && (
-        <p style={{ color: '#dc2626', fontSize: 13 }}>
-          启动失败：{startSprint.error instanceof Error ? startSprint.error.message : '未知错误'}
-        </p>
-      )}
 
-      {(projectsLoading || isLoading) && (
-        <p style={{ color: '#6b7280', fontSize: 14 }}>加载中…</p>
-      )}
+      {(projectsLoading || isLoading) && <SprintsSkeleton />}
 
       {!projectsLoading && projects && projects.length === 0 && (
-        <p style={{ color: '#6b7280', fontSize: 14 }}>暂无项目，请先创建项目。</p>
+        <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--dim)' }}>
+          暂无项目，请先创建项目。
+        </div>
       )}
 
       {isError && (
-        <p style={{ color: '#dc2626', fontSize: 14 }}>
-          加载失败：{error instanceof Error ? error.message : '未知错误'}
-        </p>
+        <div style={{ fontSize: 13, color: 'var(--type-bug)' }}>
+          加载失败：{errMsg(error)}
+        </div>
       )}
 
       {!isLoading && !isError && projectKey && sorted.length === 0 && (
-        <p style={{ color: '#6b7280', fontSize: 14 }}>该项目还没有任何 Sprint。</p>
+        <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--dim)' }}>
+          该项目还没有任何 Sprint。
+        </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {sorted.map((sprint) => (
           <SprintCard
             key={sprint.id}
             sprint={sprint}
+            projectKey={projectKey}
             collapsed={collapsedIds.has(sprint.id)}
             onToggle={() => toggle(sprint.id)}
             onOpenTask={setDrawerTask}
-            onStart={() => startSprint.mutate(sprint.id)}
-            starting={startSprint.isPending}
+            onStart={() => setConfirm({ kind: 'start', sprint })}
+            onClose={() => setConfirm({ kind: 'close', sprint })}
+            busy={busy}
           />
         ))}
       </div>
+
       {drawerTask && (
         <TaskDrawer
           slug={slug}
@@ -304,6 +375,20 @@ export default function AllSprints() {
           onClose={() => setDrawerTask(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirm !== null}
+        title={confirm?.kind === 'close' ? '关闭该 Sprint？' : '启动该 Sprint？'}
+        message={
+          confirm?.kind === 'close'
+            ? '未完成任务将退回 Backlog。'
+            : '启动后当前进行中的 Sprint 将被关闭。'
+        }
+        actionLabel={confirm?.kind === 'close' ? '关闭' : '启动'}
+        danger={confirm?.kind === 'close'}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   )
 }

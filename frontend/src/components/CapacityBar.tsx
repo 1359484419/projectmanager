@@ -1,4 +1,7 @@
+// 成员容量条（PLANNING 节 capacityRows 行）：头像 + 名字 + 进度条 + assigned / capacity 行内编辑
+// 视觉真源：docs/design/mock/markup.html PLANNING 节 + logic.jsx memberLoad()（超载斜纹算法照搬）
 import { useEffect, useState } from 'react'
+import { Avatar } from './TaskCard'
 
 export interface CapacityBarProps {
   /** 成员显示名 */
@@ -7,26 +10,21 @@ export interface CapacityBarProps {
   assigned: number
   /** 容量（工作日数，可被 override） */
   capacity: number
-  /** 点容量数字修改 override 后回调；缺省则数字不可编辑 */
+  /** 容量数字行内编辑提交（Enter / blur）后回调；缺省则数字只读 */
   onCapacityChange?: (capacity: number) => void
 }
 
-const GREEN = '#22c55e'
-const RED = '#ef4444'
-const TRACK = '#e5e7eb'
-
-/** 超出容量部分的斜纹背景 */
-const STRIPES =
-  'repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0px, rgba(255,255,255,0.55) 4px, transparent 4px, transparent 8px)'
+/** 超载段斜纹（logic.jsx memberLoad 原样搬运） */
+const OVER_STRIPES =
+  'repeating-linear-gradient(45deg,var(--over),var(--over) 4px,transparent 4px,transparent 7px)'
 
 /**
- * 成员容量条：`assigned/capacity`。
- * - 占用 ≤100% 绿色，>100% 红色；
- * - 条宽按百分比封顶 100%，超出容量的部分以斜纹标示；
- * - 点击容量数字可行内编辑（提交 override）。
+ * 成员容量条：`assigned / capacity`。
+ * - 占用 ≤100%：var(--prog) 实心条按百分比填充；
+ * - 超载：实心段收窄为 cap/assigned，右侧 (assigned-cap)/assigned 画红斜纹（与设计稿算法一致）；
+ * - 右侧容量数字为常驻 number 输入框，Enter / 失焦提交 override。
  */
 export default function CapacityBar({ name, assigned, capacity, onCapacityChange }: CapacityBarProps) {
-  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(capacity))
 
   useEffect(() => {
@@ -34,12 +32,13 @@ export default function CapacityBar({ name, assigned, capacity, onCapacityChange
   }, [capacity])
 
   const over = assigned > capacity
-  const pct = capacity > 0 ? Math.min((assigned / capacity) * 100, 100) : assigned > 0 ? 100 : 0
-  // 超载时：条被填满，右侧 (assigned-capacity)/assigned 比例的部分画斜纹
-  const stripePct = over && assigned > 0 ? ((assigned - capacity) / assigned) * 100 : 0
+  // 非超载：条宽 = 占用百分比（封顶 100）；capacity=0 且无占用时为 0
+  const pct = capacity > 0 ? Math.min((assigned / capacity) * 100, 100) : 0
+  // 超载：实心段 = cap/assigned，斜纹段 = (assigned-cap)/assigned（同 logic.jsx）
+  const fillW = over && assigned > 0 ? (capacity / assigned) * 100 : pct
+  const overW = over && assigned > 0 ? ((assigned - capacity) / assigned) * 100 : 0
 
   function commit() {
-    setEditing(false)
     const value = Number(draft)
     if (!Number.isInteger(value) || value < 0 || value === capacity) {
       setDraft(String(capacity))
@@ -49,14 +48,15 @@ export default function CapacityBar({ name, assigned, capacity, onCapacityChange
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      <Avatar name={name} size={24} />
       <span
         title={name}
         style={{
-          width: 72,
-          flexShrink: 0,
-          fontSize: 13,
-          color: '#374151',
+          width: 52,
+          flex: 'none',
+          fontSize: 12.5,
+          color: 'var(--text)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -66,72 +66,92 @@ export default function CapacityBar({ name, assigned, capacity, onCapacityChange
       </span>
       <div
         style={{
-          position: 'relative',
           flex: 1,
-          height: 14,
-          background: TRACK,
-          borderRadius: 7,
+          height: 9,
+          borderRadius: 5,
+          background: 'var(--card-2)',
           overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        <div
+        <span
           style={{
             position: 'absolute',
-            inset: 0,
-            width: `${pct}%`,
-            background: over ? RED : GREEN,
-            borderRadius: 7,
-            transition: 'width 0.2s ease',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: `${fillW}%`,
+            background: 'var(--prog)',
+            transition: 'width .2s ease',
           }}
         />
         {over && (
-          <div
+          <span
             style={{
               position: 'absolute',
               top: 0,
               bottom: 0,
               right: 0,
-              width: `${stripePct}%`,
-              background: STRIPES,
+              width: `${overW}%`,
+              background: OVER_STRIPES,
+              borderLeft: '1px solid var(--bg)',
             }}
           />
         )}
       </div>
-      <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-        <span style={{ fontWeight: 600, color: over ? RED : '#111827' }}>{assigned}</span>
-        <span style={{ color: '#9ca3af' }}> / </span>
-        {editing ? (
-          <input
-            autoFocus
-            type="number"
-            min={0}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit()
-              if (e.key === 'Escape') {
-                setDraft(String(capacity))
-                setEditing(false)
-              }
-            }}
-            style={{ width: 48, fontSize: 13, padding: '0 4px' }}
-          />
-        ) : (
-          <span
-            onClick={onCapacityChange ? () => setEditing(true) : undefined}
-            role={onCapacityChange ? 'button' : undefined}
-            title={onCapacityChange ? '点击修改容量 override' : undefined}
-            style={{
-              color: '#6b7280',
-              cursor: onCapacityChange ? 'pointer' : 'default',
-              textDecoration: onCapacityChange ? 'underline dotted' : 'none',
-            }}
-          >
-            {capacity}
-          </span>
-        )}
+      <span
+        style={{
+          fontSize: 11.5,
+          fontFamily: 'var(--font-mono)',
+          color: over ? 'var(--over)' : 'var(--dim)',
+          width: 30,
+          textAlign: 'right',
+          flex: 'none',
+        }}
+      >
+        {assigned}
       </span>
+      <span style={{ fontSize: 11, color: 'var(--faint)' }}>/</span>
+      {onCapacityChange ? (
+        <input
+          type="number"
+          min={0}
+          value={draft}
+          title="修改容量 override"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            if (e.key === 'Escape') setDraft(String(capacity))
+          }}
+          style={{
+            width: 38,
+            height: 22,
+            borderRadius: 5,
+            border: '1px solid var(--border)',
+            background: 'var(--card-2)',
+            color: 'var(--dim)',
+            fontSize: 11.5,
+            textAlign: 'center',
+            fontFamily: 'var(--font-mono)',
+            flex: 'none',
+            outline: 'none',
+          }}
+        />
+      ) : (
+        <span
+          style={{
+            width: 38,
+            fontSize: 11.5,
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--dim)',
+            textAlign: 'center',
+            flex: 'none',
+          }}
+        >
+          {capacity}
+        </span>
+      )}
     </div>
   )
 }

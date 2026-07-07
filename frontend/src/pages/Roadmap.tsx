@@ -1,12 +1,25 @@
 // Roadmap：按季度分组的 Epic 路线图。
+// 视觉真源：docs/design/mock/markup.html ROADMAP + EPIC MODAL 节。
 // 数据：GET /api/t/{slug}/projects/{key}/roadmap（useRoadmap，后端已按季度分组）。
 // 项目选择：?project=KEY 查询参数，缺省取项目列表第一个（与 Dashboard 一致）。
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useCreateEpic, useProjects, useRoadmap } from '../api/hooks'
 import type { TaskBrief } from '../api/types'
 import EpicCard from '../components/EpicCard'
 import TaskDrawer from '../components/TaskDrawer'
+import { Icon } from '../components/icons'
+import {
+  SelectWrap,
+  btnGhost,
+  btnPrimary,
+  btnSecondary,
+  inputStyle,
+  labelStyle,
+  pageTitleStyle,
+  selStyle,
+  useToast,
+} from '../components/ui'
 
 /** 当前及后续 3 个季度选项，如 "2026-Q3" */
 function quarterOptions(): string[] {
@@ -25,9 +38,17 @@ function quarterOptions(): string[] {
   return out
 }
 
-const EPIC_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7']
+/** Epic 色板（设计稿 logic.jsx epicPalette） */
+const EPIC_COLORS = ['#6e79d6', '#3f9d6b', '#d1a03a', '#c74d8a', '#4aa3c9', '#d6673f']
 
-/** 新建 Epic 对话框 */
+/** 页面滚动容器（设计稿主区：flex:1 + 内滚 + 20/24/40 内边距） */
+const pageStyle: CSSProperties = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '20px 24px 40px',
+}
+
+/** 新建 Epic 模态（设计稿 EPIC MODAL 节） */
 function CreateEpicDialog({
   slug,
   projectKey,
@@ -38,6 +59,7 @@ function CreateEpicDialog({
   onClose: () => void
 }) {
   const createEpic = useCreateEpic(slug, projectKey)
+  const toast = useToast()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [quarter, setQuarter] = useState('')
@@ -53,24 +75,16 @@ function CreateEpicDialog({
         quarter: quarter || undefined,
         color,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          toast.show('Epic 已创建')
+          onClose()
+        },
+        onError: (err) => {
+          toast.show(`创建失败：${err.message}`, 'info')
+        },
+      },
     )
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '8px 10px',
-    border: '1px solid #d1d5db',
-    borderRadius: 8,
-    fontSize: 14,
-    boxSizing: 'border-box',
-  }
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#374151',
-    marginBottom: 4,
   }
 
   return (
@@ -82,124 +96,117 @@ function CreateEpicDialog({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.4)',
+        background: 'rgba(0,0,0,.5)',
+        zIndex: 70,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 50,
+        animation: 'fadeIn .12s',
       }}
     >
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 420,
-          maxWidth: '90vw',
-          background: '#fff',
-          borderRadius: 12,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
+          width: 440,
+          maxWidth: '92vw',
+          background: 'var(--bg)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          boxShadow: 'var(--shadow)',
+          padding: 20,
         }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>新建 Epic</h2>
-        <div>
-          <label style={labelStyle} htmlFor="epic-name">
-            名称 *
-          </label>
-          <input
-            id="epic-name"
-            style={inputStyle}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            required
-          />
+        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>新建 Epic</div>
+
+        <label style={labelStyle} htmlFor="epic-name">
+          名称
+        </label>
+        <input
+          id="epic-name"
+          style={{ ...inputStyle, marginBottom: 14 }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="如：搜索体验"
+          autoFocus
+          required
+        />
+
+        <label style={labelStyle} htmlFor="epic-desc">
+          描述
+        </label>
+        <textarea
+          id="epic-desc"
+          style={{
+            ...inputStyle,
+            height: 'auto',
+            minHeight: 60,
+            padding: '8px 11px',
+            resize: 'vertical',
+            fontFamily: 'inherit',
+            marginBottom: 14,
+            boxSizing: 'border-box',
+          }}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+
+        <label style={{ ...labelStyle, marginBottom: 7 }}>颜色</label>
+        <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
+          {EPIC_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-label={`颜色 ${c}`}
+              aria-pressed={c === color}
+              onClick={() => setColor(c)}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: c,
+                cursor: 'pointer',
+                border: `2px solid ${c === color ? 'var(--text)' : 'transparent'}`,
+                boxShadow: '0 0 0 2px var(--bg) inset',
+                transition: '.1s',
+                padding: 0,
+              }}
+            />
+          ))}
         </div>
-        <div>
-          <label style={labelStyle} htmlFor="epic-desc">
-            描述
-          </label>
-          <textarea
-            id="epic-desc"
-            style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label style={labelStyle} htmlFor="epic-quarter">
-            季度
-          </label>
+
+        <label style={labelStyle} htmlFor="epic-quarter">
+          季度
+        </label>
+        <SelectWrap style={{ marginBottom: 20 }}>
           <select
             id="epic-quarter"
-            style={inputStyle}
+            style={selStyle}
             value={quarter}
             onChange={(e) => setQuarter(e.target.value)}
           >
-            <option value="">暂不指定</option>
             {quarterOptions().map((q) => (
               <option key={q} value={q}>
                 {q}
               </option>
             ))}
+            <option value="">未指定</option>
           </select>
-        </div>
-        <div>
-          <span style={labelStyle}>颜色</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {EPIC_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                aria-label={`颜色 ${c}`}
-                onClick={() => setColor(c)}
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: '50%',
-                  background: c,
-                  border: c === color ? '3px solid #111827' : '3px solid transparent',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-        {createEpic.isError && (
-          <p style={{ fontSize: 12, color: '#b91c1c', margin: 0 }}>
-            创建失败：{createEpic.error.message}
-          </p>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: '1px solid #d1d5db',
-              background: '#fff',
-              fontSize: 14,
-              cursor: 'pointer',
-            }}
-          >
+        </SelectWrap>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
+          <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
             取消
           </button>
           <button
             type="submit"
             disabled={!name.trim() || createEpic.isPending}
+            className="btn-primary"
             style={{
-              padding: '8px 16px',
+              ...btnPrimary,
+              height: 32,
+              padding: '0 16px',
               borderRadius: 8,
-              border: 'none',
-              background: '#4f46e5',
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
               opacity: !name.trim() || createEpic.isPending ? 0.6 : 1,
             }}
           >
@@ -207,6 +214,47 @@ function CreateEpicDialog({
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+/** 加载骨架：标题行 + 两个季度分组的卡片骨架（styles.css .sk shimmer） */
+function RoadmapSkeleton() {
+  return (
+    <div style={pageStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <span className="sk" style={{ width: 96, height: 20 }} />
+        <span style={{ flex: 1 }} />
+        <span className="sk" style={{ width: 92, height: 30 }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {[0, 1].map((g) => (
+          <div key={g}>
+            <span className="sk" style={{ width: 72, height: 12, display: 'block', marginBottom: 10 }} />
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+                gap: 12,
+              }}
+            >
+              {[0, 1].map((c) => (
+                <span key={c} className="sk" style={{ height: 140, borderRadius: 11 }} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PageMessage({ children, error = false }: { children: React.ReactNode; error?: boolean }) {
+  return (
+    <div style={pageStyle}>
+      <p style={{ fontSize: 13, color: error ? 'var(--type-bug)' : 'var(--dim)', margin: 0 }}>
+        {children}
+      </p>
     </div>
   )
 }
@@ -221,43 +269,39 @@ export default function Roadmap() {
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   if (projects.isLoading || (projectKey && roadmap.isLoading)) {
-    return <p style={{ padding: 24, color: '#6b7280' }}>加载中…</p>
+    return <RoadmapSkeleton />
   }
   if (projects.isError) {
-    return <p style={{ padding: 24, color: '#b91c1c' }}>项目列表加载失败：{projects.error.message}</p>
+    return <PageMessage error>项目列表加载失败：{projects.error.message}</PageMessage>
   }
   if (!projectKey) {
     return (
-      <div style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Roadmap</h1>
-        <p style={{ color: '#6b7280' }}>当前租户还没有项目，请先创建项目。</p>
+      <div style={pageStyle}>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 8 }}>路线图</h1>
+        <p style={{ fontSize: 13, color: 'var(--dim)', margin: 0 }}>
+          当前租户还没有项目，请先创建项目。
+        </p>
       </div>
     )
   }
   if (roadmap.isError) {
-    return <p style={{ padding: 24, color: '#b91c1c' }}>路线图加载失败：{roadmap.error.message}</p>
+    return <PageMessage error>路线图加载失败：{roadmap.error.message}</PageMessage>
   }
 
   const groups = roadmap.data ?? []
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Roadmap · {projectKey}</h1>
+    <div style={pageStyle}>
+      {/* 标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <h1 style={pageTitleStyle}>路线图</h1>
+        <span style={{ flex: 1 }} />
         <button
           type="button"
           onClick={() => setDialogOpen(true)}
-          style={{
-            marginLeft: 'auto',
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#4f46e5',
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
+          className="hover-card"
+          style={{ ...btnSecondary, padding: '0 12px 0 9px' }}
         >
+          <Icon name="plus" size={14} />
           新建 Epic
         </button>
       </div>
@@ -265,36 +309,40 @@ export default function Roadmap() {
       {groups.length === 0 ? (
         <div
           style={{
-            border: '1px dashed #d1d5db',
-            borderRadius: 12,
+            border: '1px dashed var(--border-strong)',
+            borderRadius: 11,
             padding: '48px 24px',
             textAlign: 'center',
-            color: '#6b7280',
+            fontSize: 13,
+            color: 'var(--dim)',
           }}
         >
           还没有 Epic，点击右上角「新建 Epic」开始规划路线图。
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           {groups.map((group) => (
             <section key={group.quarter ?? '__none__'}>
-              <h2
+              <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: '#374151',
-                  margin: '0 0 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--dim)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '.05em',
+                  marginBottom: 10,
                 }}
               >
                 {group.quarter ?? '未指定季度'}
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#9ca3af' }}>
-                  {group.epics.length} 个 Epic
-                </span>
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+                  gap: 12,
+                  alignItems: 'start',
+                }}
+              >
                 {group.epics.map((epic) => (
                   <EpicCard
                     key={epic.id}
