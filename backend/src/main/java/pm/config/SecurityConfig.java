@@ -9,6 +9,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import pm.auth.JwtAuthFilter;
+import pm.mcp.PatAuthFilter;
 
 /**
  * 无状态 JWT 安全配置：/api/health 与 /api/auth/** 放行，其余要求认证。
@@ -19,7 +20,8 @@ import pm.auth.JwtAuthFilter;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter,
+                                            PatAuthFilter patAuthFilter) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -31,7 +33,9 @@ public class SecurityConfig {
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                     response.getWriter().write("{\"code\":\"UNAUTHENTICATED\",\"message\":\"authentication required\"}");
                 }))
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // PAT（pmt_ 前缀）在 JWT 之前识别，仅作用于 /mcp/** 与 /api/t/**
+                .addFilterBefore(patAuthFilter, JwtAuthFilter.class);
         return http.build();
     }
 }
