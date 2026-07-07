@@ -27,7 +27,9 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/**").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers("/api/**", "/mcp/**").authenticated()
+                        // 其余为前端静态资源与 SPA 路由（fallback 到 index.html），无需认证
+                        .anyRequest().permitAll())
                 .exceptionHandling(eh -> eh.authenticationEntryPoint((request, response, ex) -> {
                     response.setStatus(401);
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);

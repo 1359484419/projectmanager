@@ -1,0 +1,21 @@
+# systemd unit 模板 —— 部署到服务器 /etc/systemd/system/pm.service
+# 凭证不在本文件：DB 连接与 JWT_SECRET 全部来自 /opt/pm/env（root:root 0600）
+[Unit]
+Description=projectmanager (mini-jira) Spring Boot app
+After=network.target postgresql.service
+
+[Service]
+User=pm
+Group=pm
+EnvironmentFile=/opt/pm/env
+ExecStart=/usr/bin/java -Xms256m -Xmx1024m -jar /opt/pm/app.jar
+WorkingDirectory=/opt/pm
+Restart=on-failure
+RestartSec=5
+# 资源与安全约束
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

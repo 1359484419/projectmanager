@@ -23,3 +23,6 @@ frontend/test-results/
 
 # logs
 *.log
+
+# 生产构建时从 frontend/dist 复制，不入库
+backend/src/main/resources/static/
