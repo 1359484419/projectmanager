@@ -39,6 +39,13 @@ public class Invite {
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 
+    /** 一次性消费：accept 成功即写入；非空的 token 不可再用（410 INVITE_USED）。 */
+    @Column(name = "used_at")
+    private Instant usedAt;
+
+    @Column(name = "used_by")
+    private Long usedBy;
+
     protected Invite() {
     }
 
@@ -68,5 +75,18 @@ public class Invite {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    public Instant getUsedAt() {
+        return usedAt;
+    }
+
+    public Long getUsedBy() {
+        return usedBy;
+    }
+
+    public void markUsed(Long userId) {
+        this.usedAt = Instant.now();
+        this.usedBy = userId;
     }
 }

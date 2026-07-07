@@ -87,6 +87,64 @@ class InviteFlowTest extends IntegrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void usedToken_secondAccept_410InviteUsed() {
+        String token = (String) createInvite(adminToken, "MEMBER").getBody().get("token");
+        String u1 = UUID.randomUUID().toString().substring(0, 8);
+        ResponseEntity<Map> first = rest.postForEntity("/api/auth/accept-invite", Map.of(
+                "token", token, "email", u1 + "@example.com",
+                "password", "secret123", "displayName", "First"), Map.class);
+        assertThat(first.getStatusCode().value()).isEqualTo(200);
+
+        // 同一 token 第二个人复用 → 410 INVITE_USED（一次性消费）
+        String u2 = UUID.randomUUID().toString().substring(0, 8);
+        ResponseEntity<Map> second = rest.postForEntity("/api/auth/accept-invite", Map.of(
+                "token", token, "email", u2 + "@example.com",
+                "password", "secret123", "displayName", "Second"), Map.class);
+        assertThat(second.getStatusCode().value()).isEqualTo(410);
+        assertThat(second.getBody().get("code")).isEqualTo("INVITE_USED");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void kickedMember_cannotRejoinWithOldToken() {
+        // carol 经邀请加入
+        String token = (String) createInvite(adminToken, "MEMBER").getBody().get("token");
+        String u = UUID.randomUUID().toString().substring(0, 8);
+        String email = u + "@example.com";
+        ResponseEntity<Map> accept = rest.postForEntity("/api/auth/accept-invite", Map.of(
+                "token", token, "email", email,
+                "password", "secret123", "displayName", "Carol"), Map.class);
+        assertThat(accept.getStatusCode().value()).isEqualTo(200);
+        String carolToken = (String) accept.getBody().get("accessToken");
+
+        // admin 踢掉 carol
+        List<Map> members = (List<Map>) rest.exchange("/api/t/" + slug + "/members",
+                HttpMethod.GET, new HttpEntity<>(bearer(adminToken)), List.class).getBody();
+        long carolId = members.stream()
+                .filter(m -> email.equals(m.get("email")))
+                .map(m -> ((Number) m.get("userId")).longValue())
+                .findFirst().orElseThrow();
+        ResponseEntity<Map> removed = rest.exchange("/api/t/" + slug + "/members/" + carolId,
+                HttpMethod.DELETE, new HttpEntity<>(bearer(adminToken)), Map.class);
+        assertThat(removed.getStatusCode().value()).isEqualTo(200);
+        ResponseEntity<Map> denied = rest.exchange("/api/t/" + slug + "/members",
+                HttpMethod.GET, new HttpEntity<>(bearer(carolToken)), Map.class);
+        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+
+        // carol 用手里的旧邀请链接自助重新加入 → 必须被拒（token 已消费）
+        ResponseEntity<Map> rejoin = rest.postForEntity("/api/auth/accept-invite", Map.of(
+                "token", token, "email", email,
+                "password", "secret123", "displayName", "Carol"), Map.class);
+        assertThat(rejoin.getStatusCode().value()).isEqualTo(410);
+        assertThat(rejoin.getBody().get("code")).isEqualTo("INVITE_USED");
+        // membership 未恢复
+        ResponseEntity<Map> stillDenied = rest.exchange("/api/t/" + slug + "/members",
+                HttpMethod.GET, new HttpEntity<>(bearer(carolToken)), Map.class);
+        assertThat(stillDenied.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void expiredToken_410InviteExpired() {
         ResponseEntity<Map> invite = createInvite(adminToken, "MEMBER");
         String token = (String) invite.getBody().get("token");

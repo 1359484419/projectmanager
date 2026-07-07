@@ -55,13 +55,18 @@ public class InviteService {
 
     /**
      * 接受邀请：老用户（email 已存在且密码对）直接加 membership；新用户注册+加入。
-     * 无效 token → 404；过期 → 410 INVITE_EXPIRED；老用户密码错 → 401。
+     * 无效 token → 404；过期 → 410 INVITE_EXPIRED；已用 → 410 INVITE_USED；老用户密码错 → 401。
+     * token 一次性消费（成功即作废）：防被踢成员拿旧链接自助重新加入；
+     * 失败路径（密码错等）随事务回滚不消费，同一 token 可再试。
      */
     @Transactional
     public AuthService.TokenPair accept(String token, String email, String password, String displayName) {
         Invite invite = invites.findByToken(token).orElseThrow(ApiException::notFound);
         if (invite.getExpiresAt().isBefore(Instant.now())) {
             throw ApiException.gone("INVITE_EXPIRED", "invite link expired");
+        }
+        if (invite.getUsedAt() != null) {
+            throw ApiException.gone("INVITE_USED", "invite link already used");
         }
         User user = users.findByEmail(email)
                 .map(existing -> {
@@ -74,6 +79,7 @@ public class InviteService {
         if (memberships.findByUserIdAndTenantId(user.getId(), invite.getTenantId()).isEmpty()) {
             memberships.save(new Membership(user.getId(), invite.getTenantId(), invite.getRole()));
         }
+        invite.markUsed(user.getId());
         return authService.issueTokens(user.getId());
     }
 }
