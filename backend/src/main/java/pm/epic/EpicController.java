@@ -49,6 +49,9 @@ public class EpicController {
         if (req.name() == null || req.name().isBlank()) {
             throw ApiException.badRequest("VALIDATION", "name is required");
         }
+        pm.common.FieldLimits.check(req.name(), pm.common.FieldLimits.EPIC_NAME, "Epic 名称");
+        pm.common.FieldLimits.check(req.description(),
+                pm.common.FieldLimits.EPIC_DESCRIPTION, "Epic 描述");
         validateQuarter(req.quarter());
         Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
         Epic epic = new Epic(project.getId(), req.name(), req.description(), req.quarter(), req.color());
@@ -72,9 +75,12 @@ public class EpicController {
             if (req.name().isBlank()) {
                 throw ApiException.badRequest("VALIDATION", "name must not be blank");
             }
+            pm.common.FieldLimits.check(req.name(), pm.common.FieldLimits.EPIC_NAME, "Epic 名称");
             epic.setName(req.name());
         }
         if (req.description() != null) {
+            pm.common.FieldLimits.check(req.description(),
+                    pm.common.FieldLimits.EPIC_DESCRIPTION, "Epic 描述");
             epic.setDescription(req.description());
         }
         if (req.quarter() != null) {

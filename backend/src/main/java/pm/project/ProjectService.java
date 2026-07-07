@@ -36,6 +36,7 @@ public class ProjectService {
         if (name == null || name.isBlank()) {
             throw ApiException.badRequest("VALIDATION", "name is required");
         }
+        pm.common.FieldLimits.check(name, pm.common.FieldLimits.PROJECT_NAME, "项目名称");
         if (projects.existsByKey(key)) {
             throw ApiException.conflict("KEY_TAKEN", "project key already exists");
         }
@@ -61,6 +62,7 @@ public class ProjectService {
         }
         Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
         if (name != null) {
+            pm.common.FieldLimits.check(name, pm.common.FieldLimits.PROJECT_NAME, "项目名称");
             project.setName(name);
         }
         if (defaultSprintLength != null) {

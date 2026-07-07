@@ -89,6 +89,8 @@ public class TaskService {
         if (req.title() == null || req.title().isBlank()) {
             throw ApiException.badRequest("VALIDATION", "title is required");
         }
+        pm.common.FieldLimits.check(req.title(), pm.common.FieldLimits.TASK_TITLE, "任务标题");
+        pm.common.FieldLimits.check(req.description(), pm.common.FieldLimits.TASK_DESCRIPTION, "任务描述");
         validatePoints(req.points());
         Project project = projects.findByKeyForUpdate(projectKey).orElseThrow(ApiException::notFound);
         validateEpicRef(req.epicId(), project.getId());
@@ -163,10 +165,13 @@ public class TaskService {
             if (req.title().isBlank()) {
                 throw ApiException.badRequest("VALIDATION", "title must not be blank");
             }
+            pm.common.FieldLimits.check(req.title(), pm.common.FieldLimits.TASK_TITLE, "任务标题");
             recorder.record(task, actor, "TITLE_CHANGED", task.getTitle(), req.title(), source);
             task.setTitle(req.title());
         }
         if (req.description() != null && !req.description().equals(task.getDescription())) {
+            pm.common.FieldLimits.check(req.description(),
+                    pm.common.FieldLimits.TASK_DESCRIPTION, "任务描述");
             recorder.record(task, actor, "DESCRIPTION_CHANGED",
                     task.getDescription(), req.description(), source);
             task.setDescription(req.description());

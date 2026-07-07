@@ -41,6 +41,7 @@ public class CommentController {
         if (req == null || req.body() == null || req.body().isBlank()) {
             throw ApiException.badRequest("VALIDATION", "body is required");
         }
+        pm.common.FieldLimits.check(req.body(), pm.common.FieldLimits.COMMENT_BODY, "评论内容");
         taskService.requireById(id); // 归属校验（跨租户 404）
         Comment comment = comments.save(new Comment(id, CurrentUser.id(), req.body()));
         return CommentView.from(comment);
