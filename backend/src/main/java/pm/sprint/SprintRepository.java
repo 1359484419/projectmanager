@@ -14,6 +14,12 @@ public interface SprintRepository extends JpaRepository<Sprint, Long> {
 
     Optional<Sprint> findByProjectIdAndStatus(Long projectId, Sprint.Status status);
 
+    /** 下个 Sprint = 起始日最早的 PLANNED。 */
+    Optional<Sprint> findFirstByProjectIdAndStatusOrderByStartDateAsc(Long projectId, Sprint.Status status);
+
+    /** 最近关闭的若干 Sprint（MCP list_sprints 用）。 */
+    List<Sprint> findTop5ByProjectIdAndStatusOrderByEndDateDesc(Long projectId, Sprint.Status status);
+
     List<Sprint> findByProjectIdOrderByIdDesc(Long projectId);
 
     long countByProjectId(Long projectId);

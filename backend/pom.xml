@@ -20,6 +20,9 @@
   <properties>
     <java.version>21</java.version>
     <jjwt.version>0.12.6</jjwt.version>
+    <!-- MCP Java SDK：2026-07 经 WebSearch 确认最新稳定版 2.0.0（跟踪 2025-11-25 MCP spec；
+         Spring WebMVC transport 已移入 Spring AI，这里用 SDK 自带的 Servlet Streamable HTTP transport） -->
+    <mcp.version>2.0.0</mcp.version>
     <testcontainers.version>1.21.3</testcontainers.version>
   </properties>
 
@@ -52,6 +55,17 @@
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.modelcontextprotocol.sdk</groupId>
+      <artifactId>mcp-core</artifactId>
+      <version>${mcp.version}</version>
+    </dependency>
+    <dependency>
+      <!-- McpJsonDefaults 通过 ServiceLoader 发现的 Jackson2 实现 -->
+      <groupId>io.modelcontextprotocol.sdk</groupId>
+      <artifactId>mcp-json-jackson2</artifactId>
+      <version>${mcp.version}</version>
     </dependency>
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
