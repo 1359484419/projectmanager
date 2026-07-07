@@ -21,6 +21,7 @@ import {
 } from '../api/hooks'
 import type { Sprint, SprintWithTasks, Task, TaskBrief } from '../api/types'
 import TaskCard from '../components/TaskCard'
+import TaskDrawer from '../components/TaskDrawer'
 import CapacityBar from '../components/CapacityBar'
 
 const BACKLOG_ZONE = 'backlog'
@@ -39,8 +40,16 @@ function toBrief(t: Task): TaskBrief {
   }
 }
 
-/** 可拖拽的任务卡片包装 */
-function DraggableTask({ task, projectKey }: { task: TaskBrief; projectKey?: string }) {
+/** 可拖拽的任务卡片包装（原地点击开抽屉，移动超过 4px 才触发拖拽） */
+function DraggableTask({
+  task,
+  projectKey,
+  onOpen,
+}: {
+  task: TaskBrief
+  projectKey?: string
+  onOpen: (task: TaskBrief) => void
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `task-${task.id}`,
     data: { taskId: task.id },
@@ -52,7 +61,7 @@ function DraggableTask({ task, projectKey }: { task: TaskBrief; projectKey?: str
       {...attributes}
       style={{ opacity: isDragging ? 0.4 : 1, cursor: 'grab', touchAction: 'none' }}
     >
-      <TaskCard task={task} projectKey={projectKey} showStatus={false} />
+      <TaskCard task={task} projectKey={projectKey} showStatus={false} onClick={onOpen} />
     </div>
   )
 }
@@ -88,11 +97,13 @@ function SprintSection({
   sprint,
   projectKey,
   onMoveToBacklog,
+  onOpenTask,
 }: {
   slug: string
   sprint: SprintWithTasks
   projectKey?: string
   onMoveToBacklog: (taskId: number) => void
+  onOpenTask: (task: TaskBrief) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: sprintZone(sprint.id) })
   const totalPoints = sprint.tasks.reduce((sum, t) => sum + (t.points ?? 0), 0)
@@ -138,7 +149,7 @@ function SprintSection({
           sprint.tasks.map((task) => (
             <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <TaskCard task={task} projectKey={projectKey} showStatus />
+                <TaskCard task={task} projectKey={projectKey} showStatus onClick={onOpenTask} />
               </div>
               <button
                 title="移回 Backlog"
@@ -181,6 +192,7 @@ export default function Planning() {
   const updateTask = useUpdateTask(slug)
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
+  const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -262,7 +274,7 @@ export default function Planning() {
               </div>
             ) : (
               backlogBriefs.map((task) => (
-                <DraggableTask key={task.id} task={task} projectKey={key} />
+                <DraggableTask key={task.id} task={task} projectKey={key} onOpen={setDrawerTask} />
               ))
             )}
           </section>
@@ -292,6 +304,7 @@ export default function Planning() {
                   sprint={s}
                   projectKey={key}
                   onMoveToBacklog={moveToBacklog}
+                  onOpenTask={setDrawerTask}
                 />
               ))
             )}
@@ -302,6 +315,14 @@ export default function Planning() {
           {activeTask ? <TaskCard task={activeTask} projectKey={key} showStatus={false} /> : null}
         </DragOverlay>
       </DndContext>
+      {drawerTask && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={key}
+          task={drawerTask}
+          onClose={() => setDrawerTask(null)}
+        />
+      )}
     </PageShell>
   )
 }

@@ -1,7 +1,7 @@
 // EpicCard：路线图 Epic 卡片。
 // 左侧颜色条 + 名称/状态 + donePoints/totalPoints 进度条；点击展开其下任务列表（TaskBrief）。
 import { useState } from 'react'
-import type { RoadmapEpic } from '../api/types'
+import type { RoadmapEpic, TaskBrief } from '../api/types'
 import TaskCard from './TaskCard'
 
 const DEFAULT_COLOR = '#6366f1'
@@ -10,9 +10,11 @@ export interface EpicCardProps {
   epic: RoadmapEpic
   /** 项目 key，透传给展开的 TaskCard 展示 "PM-42" 号 */
   projectKey?: string
+  /** 点击展开列表中的任务卡（开 TaskDrawer） */
+  onTaskClick?: (task: TaskBrief) => void
 }
 
-export default function EpicCard({ epic, projectKey }: EpicCardProps) {
+export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProps) {
   const [expanded, setExpanded] = useState(false)
   const color = epic.color || DEFAULT_COLOR
   const pct =
@@ -127,7 +129,7 @@ export default function EpicCard({ epic, projectKey }: EpicCardProps) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {epic.tasks.map((task) => (
-                  <TaskCard key={task.id} task={task} projectKey={projectKey} />
+                  <TaskCard key={task.id} task={task} projectKey={projectKey} onClick={onTaskClick} />
                 ))}
               </div>
             )}

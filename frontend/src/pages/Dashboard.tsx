@@ -1,12 +1,14 @@
 // Dashboard：当前 ACTIVE Sprint 四状态概览（只读）。
 // 数据：GET /api/t/{slug}/projects/{key}/dashboard（useDashboard）。
 // 项目选择：?project=KEY 查询参数，缺省取项目列表第一个。
-// 注：任务卡点击开 TaskDrawer 由 Task 23 统一接入（届时给 TaskCard 传 onClick）。
+// 点任务卡打开 TaskDrawer 查看/编辑详情。
+import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useDashboard, useProjects } from '../api/hooks'
-import type { Dashboard as DashboardData, TaskStatus } from '../api/types'
+import type { Dashboard as DashboardData, TaskBrief, TaskStatus } from '../api/types'
 import StatusBadge from '../components/StatusBadge'
 import TaskCard from '../components/TaskCard'
+import TaskDrawer from '../components/TaskDrawer'
 
 const STATUSES: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE']
 
@@ -95,8 +97,16 @@ function StatsBar({ data }: { data: DashboardData }) {
   )
 }
 
-/** 四状态分组列表（只读） */
-function StatusGroups({ data, projectKey }: { data: DashboardData; projectKey: string }) {
+/** 四状态分组列表（点卡片开抽屉） */
+function StatusGroups({
+  data,
+  projectKey,
+  onOpen,
+}: {
+  data: DashboardData
+  projectKey: string
+  onOpen: (task: TaskBrief) => void
+}) {
   return (
     <div
       style={{
@@ -127,7 +137,13 @@ function StatusGroups({ data, projectKey }: { data: DashboardData; projectKey: s
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {tasks.map((task) => (
-                  <TaskCard key={task.id} task={task} projectKey={projectKey} showStatus={false} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    projectKey={projectKey}
+                    showStatus={false}
+                    onClick={onOpen}
+                  />
                 ))}
               </div>
             )}
@@ -145,6 +161,7 @@ export default function Dashboard() {
   // ?project=KEY 指定项目，缺省用第一个项目
   const projectKey = searchParams.get('project') ?? projects.data?.[0]?.key ?? ''
   const dashboard = useDashboard(slug, projectKey)
+  const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   if (projects.isLoading || (projectKey && dashboard.isLoading)) {
     return <p style={{ padding: 24, color: '#6b7280' }}>加载中…</p>
@@ -199,8 +216,16 @@ export default function Dashboard() {
       ) : (
         <>
           <StatsBar data={data} />
-          <StatusGroups data={data} projectKey={projectKey} />
+          <StatusGroups data={data} projectKey={projectKey} onOpen={setDrawerTask} />
         </>
+      )}
+      {drawerTask && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={projectKey}
+          task={drawerTask}
+          onClose={() => setDrawerTask(null)}
+        />
       )}
     </div>
   )

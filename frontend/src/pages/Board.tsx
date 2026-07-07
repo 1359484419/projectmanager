@@ -17,6 +17,7 @@ import { api } from '../api/client'
 import { qk, useBoard, useProjects, useSprints } from '../api/hooks'
 import type { Board as BoardData, TaskBrief, TaskStatus } from '../api/types'
 import TaskCard from '../components/TaskCard'
+import TaskDrawer from '../components/TaskDrawer'
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
   { status: 'TODO', label: 'To Do', accent: '#9ca3af' },
@@ -32,7 +33,15 @@ const EMPTY_COLUMNS: Record<TaskStatus, TaskBrief[]> = {
   DONE: [],
 }
 
-function DraggableCard({ task, projectKey }: { task: TaskBrief; projectKey?: string }) {
+function DraggableCard({
+  task,
+  projectKey,
+  onOpen,
+}: {
+  task: TaskBrief
+  projectKey?: string
+  onOpen: (task: TaskBrief) => void
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -44,7 +53,8 @@ function DraggableCard({ task, projectKey }: { task: TaskBrief; projectKey?: str
       {...attributes}
       style={{ opacity: isDragging ? 0.4 : 1, touchAction: 'none', cursor: 'grab' }}
     >
-      <TaskCard task={task} projectKey={projectKey} showStatus={false} />
+      {/* PointerSensor distance=4：原地点击不会触发拖拽，click 正常冒泡开抽屉 */}
+      <TaskCard task={task} projectKey={projectKey} showStatus={false} onClick={onOpen} />
     </div>
   )
 }
@@ -55,12 +65,14 @@ function Column({
   accent,
   tasks,
   projectKey,
+  onOpen,
 }: {
   status: TaskStatus
   label: string
   accent: string
   tasks: TaskBrief[]
   projectKey?: string
+  onOpen: (task: TaskBrief) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   return (
@@ -85,7 +97,7 @@ function Column({
         <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 'auto' }}>{tasks.length}</span>
       </div>
       {tasks.map((task) => (
-        <DraggableCard key={task.id} task={task} projectKey={projectKey} />
+        <DraggableCard key={task.id} task={task} projectKey={projectKey} onOpen={onOpen} />
       ))}
       {tasks.length === 0 && (
         <div
@@ -125,6 +137,7 @@ export default function Board() {
   const columns = boardQuery.data?.columns ?? EMPTY_COLUMNS
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
+  const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   function handleDragStart(event: DragStartEvent) {
@@ -213,6 +226,7 @@ export default function Board() {
                 accent={col.accent}
                 tasks={columns[col.status] ?? []}
                 projectKey={projectKey}
+                onOpen={setDrawerTask}
               />
             ))}
           </div>
@@ -222,6 +236,14 @@ export default function Board() {
             ) : null}
           </DragOverlay>
         </DndContext>
+      )}
+      {drawerTask && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={projectKey}
+          task={drawerTask}
+          onClose={() => setDrawerTask(null)}
+        />
       )}
     </div>
   )

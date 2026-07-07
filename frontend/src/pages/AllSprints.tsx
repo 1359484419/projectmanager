@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { useProjects, useSprints } from '../api/hooks'
 import type { SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
 import StatusBadge from '../components/StatusBadge'
+import TaskDrawer from '../components/TaskDrawer'
 import TypeIcon from '../components/TypeIcon'
 
 const SPRINT_STATUS_META: Record<SprintStatus, { label: string; bg: string; fg: string }> = {
@@ -51,7 +52,13 @@ const headCellStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-function TaskTable({ tasks }: { tasks: TaskBrief[] }) {
+function TaskTable({
+  tasks,
+  onOpen,
+}: {
+  tasks: TaskBrief[]
+  onOpen: (task: TaskBrief) => void
+}) {
   if (tasks.length === 0) {
     return (
       <div style={{ padding: '12px 16px', fontSize: 13, color: '#9ca3af' }}>
@@ -74,7 +81,12 @@ function TaskTable({ tasks }: { tasks: TaskBrief[] }) {
         </thead>
         <tbody>
           {tasks.map((task) => (
-            <tr key={task.id}>
+            <tr
+              key={task.id}
+              onClick={() => onOpen(task)}
+              role="button"
+              style={{ cursor: 'pointer' }}
+            >
               <td style={{ ...cellStyle, color: '#6b7280', whiteSpace: 'nowrap' }}>#{task.seq}</td>
               <td style={cellStyle}>
                 <TypeIcon type={task.type} />
@@ -101,10 +113,12 @@ function SprintCard({
   sprint,
   collapsed,
   onToggle,
+  onOpenTask,
 }: {
   sprint: SprintWithTasks
   collapsed: boolean
   onToggle: () => void
+  onOpenTask: (task: TaskBrief) => void
 }) {
   return (
     <section
@@ -141,7 +155,7 @@ function SprintCard({
           {sprint.tasks.length} 个任务
         </span>
       </button>
-      {!collapsed && <TaskTable tasks={sprint.tasks} />}
+      {!collapsed && <TaskTable tasks={sprint.tasks} onOpen={onOpenTask} />}
     </section>
   )
 }
@@ -156,6 +170,7 @@ export default function AllSprints() {
 
   // 默认全部展开：记录被折叠的 sprint id
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set())
+  const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
   const toggle = (id: number) =>
     setCollapsedIds((prev) => {
       const next = new Set(prev)
@@ -216,9 +231,18 @@ export default function AllSprints() {
             sprint={sprint}
             collapsed={collapsedIds.has(sprint.id)}
             onToggle={() => toggle(sprint.id)}
+            onOpenTask={setDrawerTask}
           />
         ))}
       </div>
+      {drawerTask && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={projectKey}
+          task={drawerTask}
+          onClose={() => setDrawerTask(null)}
+        />
+      )}
     </div>
   )
 }

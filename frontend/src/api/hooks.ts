@@ -43,6 +43,7 @@ export const qk = {
   epics: (slug: string, key: string) => [slug, 'projects', key, 'epics'] as const,
   sprints: (slug: string, key: string, withTasks: boolean) =>
     [slug, 'projects', key, 'sprints', { withTasks }] as const,
+  task: (slug: string, taskId: number) => [slug, 'tasks', taskId] as const,
   board: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'board'] as const,
   capacity: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'capacity'] as const,
   burndown: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'burndown'] as const,
@@ -111,6 +112,15 @@ export function useCreateTask(slug: string, key: string) {
       }),
     // 任务归属可能影响 backlog/board/dashboard/sprints，统一失效租户下缓存
     onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
+/** 任务详情（TaskDrawer 用）：GET /api/t/{slug}/tasks/{id} */
+export function useTask(slug: string, taskId: number | null | undefined) {
+  return useQuery({
+    queryKey: qk.task(slug, taskId ?? -1),
+    queryFn: () => api<Task>(`${t(slug)}/tasks/${taskId}`),
+    enabled: !!slug && taskId != null,
   })
 }
 

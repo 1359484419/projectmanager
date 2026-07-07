@@ -88,6 +88,7 @@ export interface CreateTaskInput {
 
 /** PATCH /api/t/{slug}/tasks/{id} 请求体（rank 传 after/before 由后端计算） */
 export interface UpdateTaskInput {
+  type?: TaskType
   status?: TaskStatus
   points?: number | null
   assigneeId?: number | null

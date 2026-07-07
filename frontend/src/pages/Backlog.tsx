@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useBacklog, useCreateTask, useProjects, useSprints, useUpdateTask } from '../api/hooks'
-import type { Sprint, Task, TaskType } from '../api/types'
+import type { Sprint, Task, TaskBrief, TaskType } from '../api/types'
 import TaskCard from '../components/TaskCard'
+import TaskDrawer from '../components/TaskDrawer'
 import TypeIcon from '../components/TypeIcon'
 
 const TYPE_FILTERS: Array<{ value: TaskType | 'ALL'; label: string }> = [
@@ -139,12 +140,14 @@ function BacklogRow({
   task,
   current,
   next,
+  onOpen,
 }: {
   slug: string
   projectKey: string
   task: Task
   current: Sprint | null
   next: Sprint | null
+  onOpen: (task: TaskBrief) => void
 }) {
   const updateTask = useUpdateTask(slug)
   const hasTarget = current != null || next != null
@@ -157,7 +160,7 @@ function BacklogRow({
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <TaskCard task={task} projectKey={projectKey} />
+        <TaskCard task={task} projectKey={projectKey} onClick={onOpen} />
       </div>
       <select
         value=""
@@ -201,6 +204,7 @@ export default function Backlog() {
   const { current, next } = pickCurrentAndNext(sprintsQuery.data as Sprint[] | undefined)
 
   const [typeFilter, setTypeFilter] = useState<TaskType | 'ALL'>('ALL')
+  const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   // rank 序（后端已按 rank 返回，前端再稳定排序一次防御）
   const tasks = useMemo(() => {
@@ -298,9 +302,18 @@ export default function Backlog() {
             task={task}
             current={current}
             next={next}
+            onOpen={setDrawerTask}
           />
         ))}
       </div>
+      {drawerTask && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={activeKey}
+          task={drawerTask}
+          onClose={() => setDrawerTask(null)}
+        />
+      )}
     </div>
   )
 }
