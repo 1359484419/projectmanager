@@ -78,6 +78,18 @@ class ProjectTest extends IntegrationTest {
     }
 
     @Test
+    void createProject_adminOnly_member404() {
+        // MEMBER 建项目视为管理操作不存在 → 404（与项目 PATCH 一致）
+        String memberToken = fx.addMemberToA();
+        ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.POST,
+                "/api/t/" + fx.slugA + "/projects", Map.of("key", "MB", "name", "member project"));
+        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+        // ADMIN 仍可建
+        assertThat(createProject(fx.adminTokenA, fx.slugA, "AD", "admin project")
+                .getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
     void patchProject_adminOnly() {
         createProject(fx.adminTokenA, fx.slugA, "PM", "old");
         ResponseEntity<Map> patched = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,

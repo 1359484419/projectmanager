@@ -28,8 +28,12 @@ public class ProjectService {
         this.projects = projects;
     }
 
+    /** 仅 ADMIN；MEMBER 视为管理操作不存在 → 404（与 PATCH 一致）。 */
     @Transactional
     public ProjectView create(String key, String name) {
+        if (TenantContext.requireRole() != Membership.Role.ADMIN) {
+            throw ApiException.notFound();
+        }
         if (key == null || !KEY_PATTERN.matcher(key).matches()) {
             throw ApiException.badRequest("INVALID_KEY", "key must be 2-6 uppercase letters");
         }
