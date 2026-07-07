@@ -19,6 +19,27 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+/** 从 JWT 的 payload.sub 解析用户 id；结构非法 / sub 非正整数返回 null */
+export function userIdFromToken(token: string): number | null {
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    while (b64.length % 4 !== 0) b64 += '='
+    const payload = JSON.parse(atob(b64)) as { sub?: unknown }
+    const n = Number(payload.sub)
+    return Number.isInteger(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
+
+/** 当前登录用户 id（accessToken payload.sub）；未登录或解析失败返回 null */
+export function currentUserId(): number | null {
+  const token = getAccessToken()
+  return token ? userIdFromToken(token) : null
+}
+
 export class ApiError extends Error {
   status: number
   code: string
