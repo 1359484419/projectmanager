@@ -360,11 +360,16 @@ function EmptyHint({ text }: { text: string }) {
   )
 }
 
-/** 距 endDate 剩余天数（含当天，向上取整，最小 0） */
+/**
+ * 距 endDate 的剩余天数，与后端 Dashboard 口径一致：纯日期相减（DAYS.between），
+ * 不掺时刻，用 UTC 构造避免浏览器时区把日期算偏一天。
+ */
 function daysLeft(endDate: string): number {
-  const end = new Date(`${endDate}T23:59:59`)
-  const diff = end.getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / 86400000))
+  const now = new Date()
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const [y, m, d] = endDate.split('-').map(Number)
+  const endUtc = Date.UTC(y, m - 1, d)
+  return Math.max(0, Math.round((endUtc - todayUtc) / 86400000))
 }
 
 export default function Board() {
