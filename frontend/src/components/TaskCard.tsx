@@ -278,6 +278,21 @@ export default function TaskCard({
         <span style={{ flex: 1 }} />
         {showUnassigned && <UnassignedTag />}
         <Avatar name={task.assigneeName} size={20} />
+        {task.assigneeName && (
+          <span
+            style={{
+              fontSize: 11.5,
+              color: 'var(--dim)',
+              maxWidth: 88,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            {task.assigneeName}
+          </span>
+        )}
       </div>
     </div>
   )
