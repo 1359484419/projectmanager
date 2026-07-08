@@ -357,6 +357,13 @@ export default function Layout() {
 
   // ---- 数据（react-query 缓存与各页面共享，不产生重复请求） ----
   const { data: tenants } = useMyTenants()
+  // URL 的 slug 不在「我所属的租户」里 → 该租户所有 API 都会 404（正确的跨租户隔离），
+  // 别让用户卡在满屏「加载失败」，直接送回租户选择页。
+  useEffect(() => {
+    if (tenants && slug && !tenants.some((t) => t.slug === slug)) {
+      navigate('/tenants', { replace: true })
+    }
+  }, [tenants, slug, navigate])
   const tenantName = tenants?.find((t) => t.slug === slug)?.name ?? slug
   const { data: projects } = useProjects(slug)
   // 当前项目：URL ?project=（深链）→ 记忆的选中项目 → 第一个项目，全站联动
