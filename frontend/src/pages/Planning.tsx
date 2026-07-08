@@ -192,7 +192,10 @@ function SprintSection({
         ref={setNodeRef}
         style={{
           ...panelStyle,
-          flex: 1,
+          // 不用 flex:1：多成员时容量卡很高，会把任务面板压缩到 0（回归 bug）
+          flex: 'none',
+          minHeight: 150,
+          maxHeight: 360,
           background: isOver ? 'var(--accent-soft)' : 'var(--card)',
           borderColor: isOver ? 'var(--accent)' : 'var(--border)',
           transition: 'background .12s, border-color .12s',
@@ -418,8 +421,8 @@ export default function Planning() {
               </div>
             </section>
 
-            {/* 右：当前 / 下个 Sprint + 成员容量 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
+            {/* 右：当前 / 下个 Sprint + 成员容量（内容超高时整列滚动） */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
               {sprintsLoading ? (
                 <>
                   <div className="sk" style={{ flex: 1, borderRadius: 12 }} />

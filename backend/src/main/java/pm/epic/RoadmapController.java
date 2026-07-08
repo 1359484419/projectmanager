@@ -26,11 +26,14 @@ public class RoadmapController {
     private final EpicRepository epics;
     private final TaskRepository tasks;
     private final ProjectRepository projects;
+    private final pm.task.TaskBriefs taskBriefs;
 
-    public RoadmapController(EpicRepository epics, TaskRepository tasks, ProjectRepository projects) {
+    public RoadmapController(EpicRepository epics, TaskRepository tasks, ProjectRepository projects,
+                             pm.task.TaskBriefs taskBriefs) {
         this.epics = epics;
         this.tasks = tasks;
         this.projects = projects;
+        this.taskBriefs = taskBriefs;
     }
 
     public record EpicProgress(Long id, String name, String color, Epic.Status status,
@@ -69,6 +72,6 @@ public class RoadmapController {
                 .map(t -> t.getPoints() == null ? BigDecimal.ZERO : t.getPoints())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new EpicProgress(epic.getId(), epic.getName(), epic.getColor(), epic.getStatus(),
-                done, total, epicTasks.stream().map(TaskBrief::from).toList());
+                done, total, taskBriefs.of(epicTasks));
     }
 }

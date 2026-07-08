@@ -31,12 +31,14 @@ public class DashboardController {
     private final ProjectRepository projects;
     private final SprintRepository sprints;
     private final TaskRepository tasks;
+    private final pm.task.TaskBriefs taskBriefs;
 
     public DashboardController(ProjectRepository projects, SprintRepository sprints,
-                               TaskRepository tasks) {
+                               TaskRepository tasks, pm.task.TaskBriefs taskBriefs) {
         this.projects = projects;
         this.sprints = sprints;
         this.tasks = tasks;
+        this.taskBriefs = taskBriefs;
     }
 
     public record SprintInfo(Long id, String name, LocalDate endDate, long daysLeft) {
@@ -61,11 +63,12 @@ public class DashboardController {
         for (Task.Status s : Task.Status.values()) {
             byStatus.put(s, sprintTasks.stream().filter(t -> t.getStatus() == s).toList());
         }
+        var toBriefs = taskBriefs.batch(sprintTasks);
         Map<String, Integer> counts = new java.util.LinkedHashMap<>();
         Map<String, List<TaskBrief>> groups = new java.util.LinkedHashMap<>();
         for (Task.Status s : Task.Status.values()) {
             counts.put(s.name(), byStatus.get(s).size());
-            groups.put(s.name(), byStatus.get(s).stream().map(TaskBrief::from).toList());
+            groups.put(s.name(), toBriefs.apply(byStatus.get(s)));
         }
 
         BigDecimal totalPoints = sprintTasks.stream()

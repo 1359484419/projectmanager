@@ -25,13 +25,16 @@ public class SprintController {
     private final CapacityService capacityService;
     private final BurndownService burndownService;
     private final TaskRepository tasks;
+    private final pm.task.TaskBriefs taskBriefs;
 
     public SprintController(SprintService sprintService, CapacityService capacityService,
-                            BurndownService burndownService, TaskRepository tasks) {
+                            BurndownService burndownService, TaskRepository tasks,
+                            pm.task.TaskBriefs taskBriefs) {
         this.sprintService = sprintService;
         this.capacityService = capacityService;
         this.burndownService = burndownService;
         this.tasks = tasks;
+        this.taskBriefs = taskBriefs;
     }
 
     public record SprintWithTasks(Long id, Long projectId, String name, Project.SprintLength length,
@@ -72,8 +75,7 @@ public class SprintController {
                 .map(s -> new SprintWithTasks(s.getId(), s.getProjectId(), s.getName(),
                         s.getLength(), s.getStartDate(), s.getEndDate(), s.getStatus(),
                         withTasks
-                                ? tasks.findBySprintIdOrderByRankAsc(s.getId()).stream()
-                                        .map(TaskBrief::from).toList()
+                                ? taskBriefs.of(tasks.findBySprintIdOrderByRankAsc(s.getId()))
                                 : null))
                 .toList();
     }
@@ -84,10 +86,11 @@ public class SprintController {
     BoardView board(@PathVariable String slug, @PathVariable Long id) {
         Sprint sprint = sprintService.requireById(id);
         List<pm.task.Task> sprintTasks = tasks.findBySprintIdOrderByRankAsc(sprint.getId());
+        var toBriefs = taskBriefs.batch(sprintTasks);
         Map<String, List<TaskBrief>> columns = new LinkedHashMap<>();
         for (pm.task.Task.Status s : pm.task.Task.Status.values()) {
-            columns.put(s.name(), sprintTasks.stream()
-                    .filter(t -> t.getStatus() == s).map(TaskBrief::from).toList());
+            columns.put(s.name(), toBriefs.apply(sprintTasks.stream()
+                    .filter(t -> t.getStatus() == s).toList()));
         }
         return new BoardView(SprintService.SprintView.from(sprint), columns);
     }
