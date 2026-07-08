@@ -9,8 +9,10 @@ import {
   useCreateInvite,
   useCreateProject,
   useMembers,
+  useMyTenants,
   useProjects,
   useRemoveMember,
+  useRenameTenant,
   useUpdateProject,
 } from '../api/hooks'
 import { ApiError, currentUserId } from '../api/client'
@@ -517,12 +519,80 @@ function ProjectsCard({ slug }: { slug: string }) {
   )
 }
 
+/** 租户名设置卡（仅 ADMIN 可改；改后顶栏同步） */
+function TenantNameCard({ slug }: { slug: string }) {
+  const toast = useToast()
+  const tenants = useMyTenants()
+  const current = tenants.data?.find((t) => t.slug === slug)
+  const [name, setName] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const value = dirty ? name : (current?.name ?? '')
+  const rename = useRenameTenant(slug)
+
+  function save() {
+    const v = value.trim()
+    if (!v || v === current?.name || rename.isPending) return
+    rename.mutate(v, {
+      onSuccess: () => {
+        setDirty(false)
+        toast.show('租户名已保存')
+      },
+      onError: (err) => toast.show(`保存失败：${(err as Error).message}`, 'info'),
+    })
+  }
+
+  return (
+    <div style={{ ...cardStyle, marginBottom: 16, padding: '14px 16px' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 10 }}>租户名</span>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={value}
+          onChange={(e) => {
+            setDirty(true)
+            setName(e.target.value)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save()
+          }}
+          placeholder="团队/租户名"
+          maxLength={80}
+          style={{ ...inputStyle, maxWidth: 320 }}
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={!value.trim() || value.trim() === current?.name || rename.isPending}
+          className="btn-primary"
+          style={{
+            height: 32,
+            padding: '0 16px',
+            borderRadius: 7,
+            border: 'none',
+            background: 'var(--accent)',
+            color: '#fff',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            opacity: !value.trim() || value.trim() === current?.name || rename.isPending ? 0.5 : 1,
+          }}
+        >
+          {rename.isPending ? '保存中…' : '保存'}
+        </button>
+      </div>
+      <p style={{ fontSize: 11.5, color: 'var(--faint)', margin: '8px 0 0' }}>
+        仅管理员可修改；租户地址（slug「{slug}」）不可更改。
+      </p>
+    </div>
+  )
+}
+
 export default function TenantAdmin() {
   const { slug = '' } = useParams<{ slug: string }>()
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ maxWidth: 820 }}>
         <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>租户管理</h1>
+        <TenantNameCard slug={slug} />
         <MembersCard slug={slug} />
         <ProjectsCard slug={slug} />
       </div>

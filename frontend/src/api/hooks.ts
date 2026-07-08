@@ -352,6 +352,19 @@ export function useRemoveMember(slug: string) {
   })
 }
 
+/** 改租户名（仅 ADMIN）；成功后刷新 /api/me/tenants 让顶栏租户名同步 */
+export function useRenameTenant(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) =>
+      api<{ slug: string; name: string }>(`${t(slug)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.myTenants }),
+  })
+}
+
 // ---------- PAT ----------
 
 export function useTokens() {

@@ -27,13 +27,16 @@ public class TenantAdminController {
     private final MemberService memberService;
     private final MembershipRepository memberships;
     private final UserRepository users;
+    private final TenantRepository tenants;
 
     public TenantAdminController(InviteService inviteService, MemberService memberService,
-                                 MembershipRepository memberships, UserRepository users) {
+                                 MembershipRepository memberships, UserRepository users,
+                                 TenantRepository tenants) {
         this.inviteService = inviteService;
         this.memberService = memberService;
         this.memberships = memberships;
         this.users = users;
+        this.tenants = tenants;
     }
 
     public record CreateInviteRequest(@NotNull Membership.Role role) {
@@ -70,5 +73,31 @@ public class TenantAdminController {
     @DeleteMapping("/api/t/{slug}/members/{userId}")
     void removeMember(@PathVariable String slug, @PathVariable Long userId) {
         memberService.remove(userId, CurrentUser.id());
+    }
+
+    public record UpdateTenantRequest(String name) {
+    }
+
+    public record TenantView(String slug, String name) {
+    }
+
+    /** 改租户名：仅 ADMIN（MEMBER → 404，与其他管理动作一致）。slug 不可改。 */
+    @org.springframework.web.bind.annotation.PatchMapping("/api/t/{slug}")
+    @Transactional
+    TenantView updateTenant(@PathVariable String slug, @RequestBody UpdateTenantRequest req) {
+        if (TenantContext.requireRole() != Membership.Role.ADMIN) {
+            throw pm.common.ApiException.notFound();
+        }
+        Tenant tenant = tenants.findById(TenantContext.require())
+                .orElseThrow(pm.common.ApiException::notFound);
+        if (req.name() != null) {
+            String name = req.name().strip();
+            if (name.isBlank()) {
+                throw pm.common.ApiException.badRequest("VALIDATION", "租户名不能为空");
+            }
+            pm.common.FieldLimits.check(name, pm.common.FieldLimits.TENANT_NAME, "租户名");
+            tenant.setName(name);
+        }
+        return new TenantView(tenant.getSlug(), tenant.getName());
     }
 }

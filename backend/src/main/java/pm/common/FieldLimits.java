@@ -11,6 +11,8 @@ public final class FieldLimits {
     public static final int EPIC_NAME = 100;
     public static final int EPIC_DESCRIPTION = 2000;
     public static final int COMMENT_BODY = 5000;
+    public static final int DISPLAY_NAME = 60;
+    public static final int TENANT_NAME = 80;
 
     private FieldLimits() {
     }
