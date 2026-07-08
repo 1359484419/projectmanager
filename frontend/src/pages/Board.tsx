@@ -360,17 +360,6 @@ function EmptyHint({ text }: { text: string }) {
   )
 }
 
-/**
- * 距 endDate 的剩余天数，与后端 Dashboard 口径一致：纯日期相减（DAYS.between），
- * 不掺时刻，用 UTC 构造避免浏览器时区把日期算偏一天。
- */
-function daysLeft(endDate: string): number {
-  const now = new Date()
-  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-  const [y, m, d] = endDate.split('-').map(Number)
-  const endUtc = Date.UTC(y, m - 1, d)
-  return Math.max(0, Math.round((endUtc - todayUtc) / 86400000))
-}
 
 export default function Board() {
   const { slug = '' } = useParams<{ slug: string }>()
@@ -480,14 +469,21 @@ export default function Board() {
     )
   }
 
-  const left = daysLeft(activeSprint.endDate)
+  // 剩余天数用后端权威值（BizTime/Asia-Shanghai 口径，与 Dashboard 一致）；board 未到位时暂缺
+  const left = boardQuery.data?.daysLeft
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
       <BoardHeader
         sub={
           <span style={{ fontSize: 12, color: 'var(--dim)' }}>
-            {activeSprint.name} · 剩 <b style={{ color: 'var(--comp)' }}>{left}</b> 天
+            {activeSprint.name}
+            {left != null && (
+              <>
+                {' · 剩 '}
+                <b style={{ color: 'var(--comp)' }}>{left}</b> 天
+              </>
+            )}
           </span>
         }
       />

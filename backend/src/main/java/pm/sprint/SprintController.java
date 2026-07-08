@@ -45,8 +45,8 @@ public class SprintController {
     public record CapacityPut(int capacity) {
     }
 
-    /** Board 页四列数据：{sprint, columns:{TODO:[TaskBrief],...}}。 */
-    public record BoardView(SprintService.SprintView sprint,
+    /** Board 页四列数据：{sprint, daysLeft, columns:{TODO:[TaskBrief],...}}。 */
+    public record BoardView(SprintService.SprintView sprint, long daysLeft,
                             Map<String, List<TaskBrief>> columns) {
     }
 
@@ -92,7 +92,9 @@ public class SprintController {
             columns.put(s.name(), toBriefs.apply(sprintTasks.stream()
                     .filter(t -> t.getStatus() == s).toList()));
         }
-        return new BoardView(SprintService.SprintView.from(sprint), columns);
+        long daysLeft = Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(
+                pm.common.BizTime.today(), sprint.getEndDate()));
+        return new BoardView(SprintService.SprintView.from(sprint), daysLeft, columns);
     }
 
     @GetMapping("/api/t/{slug}/sprints/{id}/burndown")

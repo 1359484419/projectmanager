@@ -220,6 +220,8 @@ export interface Dashboard {
 
 export interface Board {
   sprint: Sprint | null
+  /** 后端算好的剩余天数（Asia/Shanghai 口径，与 Dashboard 一致） */
+  daysLeft: number
   columns: Record<TaskStatus, TaskBrief[]>
 }
 
