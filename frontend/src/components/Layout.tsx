@@ -5,10 +5,10 @@ import { NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-
 import { useQueryClient } from '@tanstack/react-query'
 import { clearTokens, getAccessToken } from '../api/client'
 import { useBacklog, useDashboard, useMyTenants, useProjects, useSearchTasks } from '../api/hooks'
+import CreateTaskDialog from './CreateTaskDialog'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import type { SearchHit } from '../api/types'
 import { Icon, type IconName } from './icons'
-import { useToast } from './ui'
 import { Avatar } from './TaskCard'
 import StatusBadge from './StatusBadge'
 import TypeIcon from './TypeIcon'
@@ -335,7 +335,6 @@ export default function Layout() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const toast = useToast()
 
   // ---- 主题（持久化到 localStorage） ----
   const [light, setLight] = useState(() => localStorage.getItem(THEME_KEY) === 'light')
@@ -411,9 +410,10 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+
   function handleCreate() {
-    navigate('backlog')
-    toast.show('在 Backlog 顶部快速创建', 'info')
+    setShowCreateDialog(true)
   }
 
   function handleRefresh() {
@@ -743,6 +743,14 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {showCreateDialog && projectKey && (
+        <CreateTaskDialog
+          slug={slug}
+          projectKey={projectKey}
+          onClose={() => setShowCreateDialog(false)}
+        />
+      )}
     </div>
   )
 }

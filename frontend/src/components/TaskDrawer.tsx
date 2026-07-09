@@ -7,6 +7,7 @@ import {
   useActivities,
   useComments,
   useCreateComment,
+  useDeleteTask,
   useEpics,
   useMembers,
   useTask,
@@ -293,8 +294,10 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
 export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: TaskDrawerProps) {
   const taskQuery = useTask(slug, seed.id)
   const updateTask = useUpdateTask(slug)
+  const deleteTask = useDeleteTask(slug)
   const members = useMembers(slug)
   const epics = useEpics(slug, projectKey)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // 全量数据：详情接口返回前先用 seed 渲染
   const task: Partial<Task> & TaskBrief = useMemo(
@@ -407,6 +410,73 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 ? '他人已修改，已回填最新值，请重试'
                 : `保存失败：${updateTask.error.message}`}
             </span>
+          )}
+          {deleteTask.isError && (
+            <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
+              {`删除失败：${deleteTask.error instanceof Error ? deleteTask.error.message : '未知错误'}`}
+            </span>
+          )}
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              aria-label="删除任务"
+              className="icon-btn"
+              title="删除任务"
+              style={{
+                border: 'none',
+                background: 'none',
+                padding: 0,
+                width: 16,
+                height: 16,
+                color: 'var(--dim)',
+                cursor: 'pointer',
+                display: 'flex',
+              }}
+            >
+              <Icon name="trash" size={16} />
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>确认删除？</span>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTask.mutate(seed.id, { onSuccess: onClose })
+                }}
+                disabled={deleteTask.isPending}
+                style={{
+                  height: 22,
+                  padding: '0 8px',
+                  borderRadius: 5,
+                  border: 'none',
+                  background: 'var(--type-bug)',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  opacity: deleteTask.isPending ? 0.55 : 1,
+                }}
+              >
+                {deleteTask.isPending ? '删除中…' : '删除'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                style={{
+                  height: 22,
+                  padding: '0 8px',
+                  borderRadius: 5,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--dim)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+            </div>
           )}
           <button
             type="button"

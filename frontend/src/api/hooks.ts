@@ -154,6 +154,15 @@ export function useUpdateTask(slug: string) {
   })
 }
 
+export function useDeleteTask(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      api(`${t(slug)}/tasks/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
 // ---------- 看板 ----------
 
 export function useBoard(slug: string, sprintId: number | null | undefined) {

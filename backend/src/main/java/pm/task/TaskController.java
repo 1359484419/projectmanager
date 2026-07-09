@@ -1,5 +1,6 @@
 package pm.task;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,11 @@ public class TaskController {
     TaskService.TaskView update(@PathVariable String slug, @PathVariable Long id,
                                 @RequestBody TaskService.UpdateTaskRequest req) {
         return taskService.update(id, req, CurrentUser.id(), Activity.Source.WEB);
+    }
+
+    @DeleteMapping("/api/t/{slug}/tasks/{id}")
+    void delete(@PathVariable String slug, @PathVariable Long id) {
+        taskService.delete(id, CurrentUser.id());
     }
 
     @GetMapping("/api/t/{slug}/projects/{key}/backlog")

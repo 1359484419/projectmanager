@@ -68,6 +68,9 @@ public class Task extends TenantEntity {
     @Column(nullable = false)
     private String rank;
 
+    @Column(name = "created_by")
+    private Long createdBy;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -167,6 +170,14 @@ public class Task extends TenantEntity {
 
     public void setRank(String rank) {
         this.rank = rank;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public Instant getCreatedAt() {

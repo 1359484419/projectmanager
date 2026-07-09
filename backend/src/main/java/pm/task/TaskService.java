@@ -17,6 +17,7 @@ public class TaskService {
     private final TaskRepository tasks;
     private final ProjectRepository projects;
     private final ActivityRepository activityRepo;
+    private final pm.comment.CommentRepository commentRepo;
     private final ActivityRecorder recorder;
     private final RankService rankService;
     private final pm.sprint.SprintRepository sprints;
@@ -24,12 +25,14 @@ public class TaskService {
     private final pm.tenantadmin.MembershipRepository memberships;
 
     public TaskService(TaskRepository tasks, ProjectRepository projects,
-                       ActivityRepository activityRepo, ActivityRecorder recorder,
+                       ActivityRepository activityRepo, pm.comment.CommentRepository commentRepo,
+                       ActivityRecorder recorder,
                        RankService rankService, pm.sprint.SprintRepository sprints,
                        pm.epic.EpicRepository epics, pm.tenantadmin.MembershipRepository memberships) {
         this.tasks = tasks;
         this.projects = projects;
         this.activityRepo = activityRepo;
+        this.commentRepo = commentRepo;
         this.recorder = recorder;
         this.rankService = rankService;
         this.sprints = sprints;
@@ -104,6 +107,7 @@ public class TaskService {
         task.setEpicId(req.epicId());
         task.setSprintId(req.sprintId());
         task.setAssigneeId(req.assigneeId());
+        task.setCreatedBy(actor);
         tasks.save(task);
         recorder.record(task, actor, "CREATED", null, project.getKey() + "-" + seq, source);
         return TaskView.from(task, project.getKey());
@@ -180,6 +184,20 @@ public class TaskService {
             task.setRank(computeRank(req.rank()));
         }
         return toView(task);
+    }
+
+    /** 删除任务：仅创建者或租户 ADMIN 可删；同时清除关联的 activity 和评论。 */
+    @Transactional
+    public void delete(Long taskId, Long actor) {
+        Task task = requireById(taskId);
+        boolean isCreator = actor.equals(task.getCreatedBy());
+        boolean isAdmin = pm.tenant.TenantContext.requireRole() == pm.tenantadmin.Membership.Role.ADMIN;
+        if (!isCreator && !isAdmin) {
+            throw ApiException.forbidden("FORBIDDEN", "只有任务创建者或管理员可以删除任务");
+        }
+        activityRepo.deleteByTaskId(taskId);
+        commentRepo.deleteByTaskId(taskId);
+        tasks.delete(task);
     }
 
     /** Sprint 归属变更（含移回 Backlog：sprintId=null），写 SPRINT_CHANGED。 */
