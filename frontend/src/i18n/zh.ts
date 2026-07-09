@@ -45,9 +45,9 @@ const zh = {
   unassignedTag: '未指派',
 
   // ---- 侧边栏 / 导航 ----
-  navDashboard: 'Dashboard',
+  navDashboard: '概览',
   navBacklog: 'Backlog',
-  navBoard: '看板 Board',
+  navBoard: '仪表盘',
   navAllSprints: '所有 Sprint',
   navPlanning: '规划 Planning',
   navReports: '报表 Reports',
@@ -142,7 +142,7 @@ const zh = {
   moveToSprintAria: (key: string) => `移入 Sprint（${key}）`,
 
   // ---- Board ----
-  board: '看板',
+  board: '仪表盘',
   boardDragHint: '拖拽卡片切换状态',
   dropHere: '拖拽到此处',
   noProjectBoard: '还没有项目，请先创建项目',

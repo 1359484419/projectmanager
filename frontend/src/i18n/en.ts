@@ -45,9 +45,9 @@ const en: typeof import('./zh').default = {
   unassignedTag: 'Unassigned',
 
   // ---- Sidebar / Nav ----
-  navDashboard: 'Dashboard',
+  navDashboard: 'Overview',
   navBacklog: 'Backlog',
-  navBoard: 'Board',
+  navBoard: 'Dashboard',
   navAllSprints: 'All Sprints',
   navPlanning: 'Planning',
   navReports: 'Reports',
@@ -142,7 +142,7 @@ const en: typeof import('./zh').default = {
   moveToSprintAria: (key: string) => `Move to Sprint (${key})`,
 
   // ---- Board ----
-  board: 'Board',
+  board: 'Dashboard',
   boardDragHint: 'Drag cards to change status',
   dropHere: 'Drop here',
   noProjectBoard: 'No projects yet. Create one first.',
