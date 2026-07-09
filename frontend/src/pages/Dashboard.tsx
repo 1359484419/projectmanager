@@ -11,7 +11,8 @@ import AssigneeFilterCompact from '../components/AssigneeFilterCompact'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
-import { STATUS_LABEL, btnPrimary, pageTitleStyle, statusColor } from '../components/ui'
+import { btnPrimary, pageTitleStyle, statusColor, statusLabel } from '../components/ui'
+import { useT } from '../i18n'
 import { taskMatchesFilter, useAssigneeFilter, type AssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 
@@ -34,6 +35,7 @@ function Dot({ status }: { status: TaskStatus }) {
 
 /** 完成度 donut（74px，R=30，stroke 7，算法同 logic.jsx donutSvg） */
 function Donut({ pct }: { pct: number }) {
+  const t = useT()
   const clamped = Math.max(0, Math.min(100, pct))
   const R = 30
   const C = 2 * Math.PI * R
@@ -74,7 +76,7 @@ function Donut({ pct }: { pct: number }) {
         }}
       >
         <b style={{ fontSize: 18 }}>{clamped}%</b>
-        <span style={{ fontSize: 9.5, color: 'var(--faint)', marginTop: 2 }}>完成</span>
+        <span style={{ fontSize: 9.5, color: 'var(--faint)', marginTop: 2 }}>{t.done}</span>
       </div>
     </div>
   )
@@ -82,6 +84,7 @@ function Donut({ pct }: { pct: number }) {
 
 /** 统计卡行：完成度 donut + Sprint 信息卡 + 四状态计数卡 */
 function StatsRow({ data }: { data: DashboardData }) {
+  const t = useT()
   const sprint = data.sprint
   return (
     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
@@ -100,15 +103,15 @@ function StatsRow({ data }: { data: DashboardData }) {
       >
         <Donut pct={data.donePct} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontSize: 12, color: 'var(--dim)' }}>当前 Sprint</span>
+          <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.currentSprintLabel}</span>
           <span style={{ fontSize: 16, fontWeight: 650 }}>{sprint?.name}</span>
           {sprint && (
             <span style={{ fontSize: 12, color: 'var(--dim)' }}>
-              剩余{' '}
+              {t.remaining}{' '}
               <b style={{ color: 'var(--comp)', fontFamily: 'var(--font-mono)' }}>
                 {sprint.daysLeft}
               </b>{' '}
-              天 · 截止 {sprint.endDate}
+              {t.daysUntil(sprint.endDate)}
             </span>
           )}
         </div>
@@ -129,7 +132,7 @@ function StatsRow({ data }: { data: DashboardData }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <Dot status={s} />
-            <span style={{ fontSize: 12, color: 'var(--dim)' }}>{STATUS_LABEL[s]}</span>
+            <span style={{ fontSize: 12, color: 'var(--dim)' }}>{statusLabel(t)[s]}</span>
           </div>
           <span
             style={{
@@ -174,6 +177,7 @@ function StatusGroups({
   unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
+  const t = useT()
   return (
     <div
       style={{
@@ -205,7 +209,7 @@ function StatusGroups({
               }}
             >
               <Dot status={s} />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{STATUS_LABEL[s]}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{statusLabel(t)[s]}</span>
               <span
                 style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}
               >
@@ -222,7 +226,7 @@ function StatusGroups({
                     color: 'var(--faint)',
                   }}
                 >
-                  暂无
+                  {t.noData}
                 </div>
               ) : (
                 tasks.map((task) => (
@@ -279,6 +283,7 @@ function Page({
   filterBar?: React.ReactNode
   children: React.ReactNode
 }) {
+  const t = useT()
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
@@ -289,7 +294,7 @@ function Page({
           <Icon
             name="refresh"
             size={15}
-            title="刷新"
+            title={t.refresh}
             onClick={onRefresh}
             style={{ color: 'var(--dim)', cursor: 'pointer' }}
           />
@@ -309,6 +314,7 @@ export default function Dashboard() {
   const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects.data)
   const dashboard = useDashboard(slug, projectKey)
   const [assigneeFilter] = useAssigneeFilter()
+  const t = useT()
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
 
   const filtered = useMemo(
@@ -327,7 +333,7 @@ export default function Dashboard() {
     return (
       <Page>
         <p style={{ fontSize: 13, color: 'var(--over)' }}>
-          项目列表加载失败：{projects.error.message}
+          {t.projectListLoadFailed(projects.error.message)}
         </p>
       </Page>
     )
@@ -345,7 +351,7 @@ export default function Dashboard() {
             color: 'var(--dim)',
           }}
         >
-          当前租户还没有项目，请先创建项目。
+          {t.noProjectsDashboard}
         </div>
       </Page>
     )
@@ -354,7 +360,7 @@ export default function Dashboard() {
     return (
       <Page>
         <p style={{ fontSize: 13, color: 'var(--over)' }}>
-          概览加载失败：{dashboard.error.message}
+          {t.dashboardLoadFailed(dashboard.error.message)}
         </p>
       </Page>
     )
@@ -376,9 +382,9 @@ export default function Dashboard() {
             color: 'var(--dim)',
           }}
         >
-          <p style={{ fontSize: 13, marginBottom: 14 }}>当前没有进行中的 Sprint。</p>
+          <p style={{ fontSize: 13, marginBottom: 14 }}>{t.noActiveSprint}</p>
           <Link to={`/t/${slug}/planning`} style={{ ...btnPrimary, textDecoration: 'none' }}>
-            去创建 Sprint
+            {t.goCreateSprint}
           </Link>
         </div>
       ) : (

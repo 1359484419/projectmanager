@@ -21,6 +21,7 @@ import {
   useToast,
 } from '../components/ui'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
+import { useT } from '../i18n'
 
 /** 当前及后续 3 个季度选项，如 "2026-Q3" */
 function quarterOptions(): string[] {
@@ -59,6 +60,7 @@ function CreateEpicDialog({
   projectKey: string
   onClose: () => void
 }) {
+  const t = useT()
   const createEpic = useCreateEpic(slug, projectKey)
   const toast = useToast()
   const [name, setName] = useState('')
@@ -78,11 +80,11 @@ function CreateEpicDialog({
       },
       {
         onSuccess: () => {
-          toast.show('Epic 已创建')
+          toast.show(t.epicCreated)
           onClose()
         },
         onError: (err) => {
-          toast.show(`创建失败：${err.message}`, 'info')
+          toast.show(t.createFailed(err.message), 'info')
         },
       },
     )
@@ -92,7 +94,7 @@ function CreateEpicDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="新建 Epic"
+      aria-label={t.createEpic}
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -118,23 +120,23 @@ function CreateEpicDialog({
           padding: 20,
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>新建 Epic</div>
+        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>{t.createEpic}</div>
 
         <label style={labelStyle} htmlFor="epic-name">
-          名称
+          {t.epicName}
         </label>
         <input
           id="epic-name"
           style={{ ...inputStyle, marginBottom: 14 }}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="如：搜索体验"
+          placeholder={t.epicNamePlaceholder}
           autoFocus
           required
         />
 
         <label style={labelStyle} htmlFor="epic-desc">
-          描述
+          {t.epicDescription}
         </label>
         <textarea
           id="epic-desc"
@@ -152,13 +154,13 @@ function CreateEpicDialog({
           onChange={(e) => setDescription(e.target.value)}
         />
 
-        <label style={{ ...labelStyle, marginBottom: 7 }}>颜色</label>
+        <label style={{ ...labelStyle, marginBottom: 7 }}>{t.epicColor}</label>
         <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
           {EPIC_COLORS.map((c) => (
             <button
               key={c}
               type="button"
-              aria-label={`颜色 ${c}`}
+              aria-label={t.epicColorAria(c)}
               aria-pressed={c === color}
               onClick={() => setColor(c)}
               style={{
@@ -191,13 +193,13 @@ function CreateEpicDialog({
                 {q}
               </option>
             ))}
-            <option value="">未指定</option>
+            <option value="">{t.unspecifiedQuarter}</option>
           </select>
         </SelectWrap>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
           <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
-            取消
+            {t.cancel}
           </button>
           <button
             type="submit"
@@ -211,7 +213,7 @@ function CreateEpicDialog({
               opacity: !name.trim() || createEpic.isPending ? 0.6 : 1,
             }}
           >
-            {createEpic.isPending ? '创建中…' : '创建'}
+            {createEpic.isPending ? t.creating : t.create}
           </button>
         </div>
       </form>
@@ -269,25 +271,26 @@ export default function Roadmap() {
   const roadmap = useRoadmap(slug, projectKey)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+  const t = useT()
 
   if (projects.isLoading || (projectKey && roadmap.isLoading)) {
     return <RoadmapSkeleton />
   }
   if (projects.isError) {
-    return <PageMessage error>项目列表加载失败：{projects.error.message}</PageMessage>
+    return <PageMessage error>{t.projectListLoadFailed(projects.error.message)}</PageMessage>
   }
   if (!projectKey) {
     return (
       <div style={pageStyle}>
-        <h1 style={{ ...pageTitleStyle, marginBottom: 8 }}>路线图</h1>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 8 }}>{t.roadmap}</h1>
         <p style={{ fontSize: 13, color: 'var(--dim)', margin: 0 }}>
-          当前租户还没有项目，请先创建项目。
+          {t.noProjectRoadmap}
         </p>
       </div>
     )
   }
   if (roadmap.isError) {
-    return <PageMessage error>路线图加载失败：{roadmap.error.message}</PageMessage>
+    return <PageMessage error>{t.roadmapLoadFailed(roadmap.error.message)}</PageMessage>
   }
 
   const groups = roadmap.data ?? []
@@ -295,7 +298,7 @@ export default function Roadmap() {
     <div style={pageStyle}>
       {/* 标题行 */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={pageTitleStyle}>路线图</h1>
+        <h1 style={pageTitleStyle}>{t.roadmap}</h1>
         <span style={{ flex: 1 }} />
         <button
           type="button"
@@ -304,7 +307,7 @@ export default function Roadmap() {
           style={{ ...btnSecondary, padding: '0 12px 0 9px' }}
         >
           <Icon name="plus" size={14} />
-          新建 Epic
+          {t.createEpic}
         </button>
       </div>
 
@@ -319,7 +322,7 @@ export default function Roadmap() {
             color: 'var(--dim)',
           }}
         >
-          还没有 Epic，点击右上角「新建 Epic」开始规划路线图。
+          {t.noEpicsYet}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -335,7 +338,7 @@ export default function Roadmap() {
                   marginBottom: 10,
                 }}
               >
-                {group.quarter ?? '未指定季度'}
+                {group.quarter ?? t.unspecifiedQuarterGroup}
               </div>
               <div
                 style={{

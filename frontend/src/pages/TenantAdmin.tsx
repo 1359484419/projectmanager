@@ -27,19 +27,21 @@ import {
   useToast,
 } from '../components/ui'
 import { Avatar } from '../components/TaskCard'
+import { useT } from '../i18n'
 import type { Invite, Member, Project, Role, SprintLength } from '../api/types'
 
-/** 移出成员 409 错误码 → 中文提示 */
-const REMOVE_MEMBER_ERR: Record<string, string> = {
-  CANNOT_REMOVE_SELF: '不能移出自己',
-  LAST_ADMIN: '不能移出最后一位管理员',
+/** 移出成员 409 错误码 → i18n 提示 */
+function removeMemberErr(t: { cannotRemoveSelf: string; cannotRemoveLastAdmin: string }): Record<string, string> {
+  return { CANNOT_REMOVE_SELF: t.cannotRemoveSelf, LAST_ADMIN: t.cannotRemoveLastAdmin }
 }
 
-const SPRINT_LENGTHS: { value: SprintLength; label: string }[] = [
-  { value: 'WEEK_1', label: '1 周' },
-  { value: 'WEEK_2', label: '2 周' },
-  { value: 'MONTH_1', label: '1 个月' },
-]
+function sprintLengths(t: { sprintLength1w: string; sprintLength2w: string; sprintLength1m: string }) {
+  return [
+    { value: 'WEEK_1' as SprintLength, label: t.sprintLength1w },
+    { value: 'WEEK_2' as SprintLength, label: t.sprintLength2w },
+    { value: 'MONTH_1' as SprintLength, label: t.sprintLength1m },
+  ]
+}
 
 /** 卡片内小节标题（13px/600） */
 const sectionTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600 }
@@ -121,6 +123,7 @@ function MemberSkeleton() {
 /** 成员卡片：标题栏 + 生成邀请链接 + 成员列表 */
 function MembersCard({ slug }: { slug: string }) {
   const toast = useToast()
+  const t = useT()
   const members = useMembers(slug)
   const createInvite = useCreateInvite(slug)
   const removeMember = useRemoveMember(slug)
@@ -135,14 +138,15 @@ function MembersCard({ slug }: { slug: string }) {
     removeMember.mutate(target.userId, {
       onSuccess: () => {
         setRemoveTarget(null)
-        toast.show(`已将 ${target.displayName} 移出租户`)
+        toast.show(t.memberRemoved(target.displayName))
       },
       onError: (err) => {
         setRemoveTarget(null)
+        const errMap = removeMemberErr(t)
         const msg =
-          err instanceof ApiError && err.status === 409 && REMOVE_MEMBER_ERR[err.code]
-            ? REMOVE_MEMBER_ERR[err.code]
-            : `移出失败：${err.message}`
+          err instanceof ApiError && err.status === 409 && errMap[err.code]
+            ? errMap[err.code]
+            : t.removeFailed(err.message)
         toast.show(msg, 'info')
       },
     })
@@ -159,7 +163,7 @@ function MembersCard({ slug }: { slug: string }) {
       { role },
       {
         onSuccess: (data) => setInvite(data),
-        onError: (err) => toast.show(`生成失败：${err.message}`, 'info'),
+        onError: (err) => toast.show(t.inviteGenerateFailed(err.message), 'info'),
       },
     )
   }
@@ -167,10 +171,10 @@ function MembersCard({ slug }: { slug: string }) {
   async function copyInvite() {
     try {
       await navigator.clipboard.writeText(inviteUrl)
-      toast.show('邀请链接已复制')
+      toast.show(t.inviteCopied)
     } catch {
       // clipboard API 不可用（如非 https）时退化为 prompt
-      window.prompt('手动复制：', inviteUrl)
+      window.prompt(t.manualCopy, inviteUrl)
     }
   }
 
@@ -188,14 +192,14 @@ function MembersCard({ slug }: { slug: string }) {
           gap: 10,
         }}
       >
-        <span style={sectionTitleStyle}>成员</span>
+        <span style={sectionTitleStyle}>{t.members}</span>
         <span style={{ flex: 1 }} />
         {/* 角色选择（真实 API 需要 role 参数，设计稿之外的最小补充） */}
         <SelectWrap chevronTop={8} style={{ width: 104 }}>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            aria-label="邀请角色"
+            aria-label={t.inviteRole}
             style={{ ...selStyle, height: 28, fontSize: 12 }}
           >
             <option value="MEMBER">MEMBER</option>
@@ -218,7 +222,7 @@ function MembersCard({ slug }: { slug: string }) {
             opacity: createInvite.isPending ? 0.6 : 1,
           }}
         >
-          {createInvite.isPending ? '生成中…' : '生成邀请链接'}
+          {createInvite.isPending ? t.generatingInvite : t.generateInvite}
         </button>
       </div>
 
@@ -251,7 +255,7 @@ function MembersCard({ slug }: { slug: string }) {
             {inviteUrl}
           </span>
           <span style={{ fontSize: 11, color: 'var(--faint)', flex: 'none' }}>
-            有效期至 {new Date(invite.expiresAt).toLocaleString()}
+            {t.inviteValidUntil(new Date(invite.expiresAt).toLocaleString())}
           </span>
           <button
             type="button"
@@ -273,7 +277,7 @@ function MembersCard({ slug }: { slug: string }) {
             }}
           >
             <Icon name="copy" size={12} />
-            复制
+            {t.copy}
           </button>
         </div>
       )}
@@ -282,11 +286,11 @@ function MembersCard({ slug }: { slug: string }) {
       {members.isLoading && <MemberSkeleton />}
       {members.isError && (
         <div style={{ padding: '18px 16px', fontSize: 12.5, color: denied ? 'var(--faint)' : 'var(--type-bug)' }}>
-          {denied ? '无权查看成员列表（仅 ADMIN 可访问本页）。' : `成员加载失败：${members.error.message}`}
+          {denied ? t.noPermissionMembers : t.projectsLoadFailed(members.error.message)}
         </div>
       )}
       {members.data && members.data.length === 0 && (
-        <div style={{ padding: '18px 16px', fontSize: 12.5, color: 'var(--faint)' }}>暂无成员。</div>
+        <div style={{ padding: '18px 16px', fontSize: 12.5, color: 'var(--faint)' }}>{t.noMembers}</div>
       )}
       {members.data && members.data.length > 0 && (
         <div style={{ padding: '6px 8px' }}>
@@ -316,7 +320,7 @@ function MembersCard({ slug }: { slug: string }) {
                   onClick={() => setRemoveTarget(m)}
                   disabled={removeMember.isPending}
                   className="hover-card"
-                  aria-label={`移出租户（${m.displayName}）`}
+                  aria-label={t.removeMemberAria(m.displayName)}
                   style={{
                     height: 26,
                     padding: '0 10px',
@@ -331,7 +335,7 @@ function MembersCard({ slug }: { slug: string }) {
                     opacity: removeMember.isPending ? 0.6 : 1,
                   }}
                 >
-                  移出租户
+                  {t.removeMember}
                 </button>
               )}
             </div>
@@ -340,14 +344,9 @@ function MembersCard({ slug }: { slug: string }) {
       )}
       <ConfirmDialog
         open={removeTarget != null}
-        title={`将 ${removeTarget?.displayName ?? ''} 移出租户？`}
-        message={
-          <>
-            移出后其未完成任务将转为<b>未指派</b>，其在本租户的 API 令牌将立即失效。
-            该成员将无法再访问本租户，此操作不可撤销。
-          </>
-        }
-        actionLabel="移出"
+        title={t.removeMemberConfirm(removeTarget?.displayName ?? '')}
+        message={<>{t.removeMemberHint1}<br/>{t.removeMemberHint2}</>}
+        actionLabel={t.removeMember}
         danger
         onConfirm={confirmRemove}
         onCancel={() => setRemoveTarget(null)}
@@ -359,12 +358,13 @@ function MembersCard({ slug }: { slug: string }) {
 /** 单个项目的 Sprint 设置块（每个项目独立 mutation，hooks 按 key 绑定） */
 function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; project: Project; showDivider: boolean }) {
   const toast = useToast()
+  const t = useT()
   const update = useUpdateProject(slug, project.key)
 
   function save(patch: { defaultSprintLength?: SprintLength; autoRotate?: boolean }) {
     update.mutate(patch, {
-      onSuccess: () => toast.show('项目设置已保存'),
-      onError: (err) => toast.show(`保存失败：${err.message}`, 'info'),
+      onSuccess: () => toast.show(t.projectSettingsSaved),
+      onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
     })
   }
 
@@ -380,18 +380,18 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
       {/* 默认 Sprint 周期 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 13, flex: 1 }}>
-          默认 Sprint 周期
-          <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>新建 Sprint 时的默认天数</div>
+          {t.defaultSprintLength}
+          <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{t.defaultSprintLengthHint}</div>
         </span>
         <SelectWrap chevronTop={9} style={{ width: 108 }}>
           <select
             value={project.defaultSprintLength}
             disabled={update.isPending}
             onChange={(e) => save({ defaultSprintLength: e.target.value as SprintLength })}
-            aria-label={`${project.key} 默认 Sprint 周期`}
+            aria-label={`${project.key} ${t.defaultSprintLength}`}
             style={{ ...selStyle, padding: '0 28px 0 11px' }}
           >
-            {SPRINT_LENGTHS.map((l) => (
+            {sprintLengths(t).map((l) => (
               <option key={l.value} value={l.value}>
                 {l.label}
               </option>
@@ -402,8 +402,8 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
       {/* Sprint 自动轮转 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ fontSize: 13, flex: 1 }}>
-          Sprint 自动轮转
-          <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>当前 Sprint 结束时自动创建下一个</div>
+          {t.sprintAutoRotate}
+          <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{t.sprintAutoRotateHint}</div>
         </span>
         <RotateToggle
           on={project.autoRotate}
@@ -418,6 +418,7 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
 /** 新建项目表单：key（2-6 大写字母）+ 名称 */
 function CreateProjectForm({ slug }: { slug: string }) {
   const toast = useToast()
+  const t = useT()
   const [key, setKey] = useState('')
   const [name, setName] = useState('')
   const createProject = useCreateProject(slug)
@@ -431,9 +432,9 @@ function CreateProjectForm({ slug }: { slug: string }) {
         onSuccess: () => {
           setKey('')
           setName('')
-          toast.show('项目已创建')
+          toast.show(t.projectCreated)
         },
-        onError: (err) => toast.show(`创建失败：${err.message}`, 'info'),
+        onError: (err) => toast.show(t.createFailed(err.message), 'info'),
       },
     )
   }
@@ -443,18 +444,18 @@ function CreateProjectForm({ slug }: { slug: string }) {
       <input
         value={key}
         onChange={(e) => setKey(e.target.value.toUpperCase())}
-        placeholder="Key（如 PM）"
-        aria-label="项目 Key"
+        placeholder={t.projectKeyPlaceholder}
+        aria-label={t.projectKeyAria}
         pattern="[A-Z]{2,6}"
-        title="2-6 个大写字母"
+        title={t.projectKeyHint}
         required
         style={{ ...inputStyle, width: 110, fontFamily: 'var(--font-mono)', fontSize: 12.5 }}
       />
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="项目名称"
-        aria-label="项目名称"
+        placeholder={t.projectNamePlaceholder}
+        aria-label={t.projectNameAria}
         required
         style={{ ...inputStyle, flex: 1, minWidth: 180 }}
       />
@@ -475,7 +476,7 @@ function CreateProjectForm({ slug }: { slug: string }) {
           opacity: createProject.isPending ? 0.6 : 1,
         }}
       >
-        {createProject.isPending ? '创建中…' : '新建项目'}
+        {createProject.isPending ? t.creating : t.newProject}
       </button>
     </form>
   )
@@ -483,10 +484,11 @@ function CreateProjectForm({ slug }: { slug: string }) {
 
 /** 项目设置卡片 */
 function ProjectsCard({ slug }: { slug: string }) {
+  const t = useT()
   const projects = useProjects(slug)
   return (
     <div style={{ ...cardStyle, padding: 16 }}>
-      <div style={{ ...sectionTitleStyle, marginBottom: 14 }}>项目设置</div>
+      <div style={{ ...sectionTitleStyle, marginBottom: 14 }}>{t.projectSettings}</div>
       <CreateProjectForm slug={slug} />
       {projects.isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -496,7 +498,7 @@ function ProjectsCard({ slug }: { slug: string }) {
         </div>
       )}
       {projects.isError && (
-        <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>项目加载失败：{projects.error.message}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>{t.projectsLoadFailed(projects.error.message)}</div>
       )}
       {projects.data && projects.data.length === 0 && (
         <div
@@ -509,7 +511,7 @@ function ProjectsCard({ slug }: { slug: string }) {
             color: 'var(--faint)',
           }}
         >
-          暂无项目
+          {t.noProjectsAdmin}
         </div>
       )}
       {projects.data?.map((p, i) => (
@@ -522,8 +524,9 @@ function ProjectsCard({ slug }: { slug: string }) {
 /** 租户名设置卡（仅 ADMIN 可改；改后顶栏同步） */
 function TenantNameCard({ slug }: { slug: string }) {
   const toast = useToast()
+  const t = useT()
   const tenants = useMyTenants()
-  const current = tenants.data?.find((t) => t.slug === slug)
+  const current = tenants.data?.find((tn) => tn.slug === slug)
   const [name, setName] = useState('')
   const [dirty, setDirty] = useState(false)
   const value = dirty ? name : (current?.name ?? '')
@@ -535,15 +538,15 @@ function TenantNameCard({ slug }: { slug: string }) {
     rename.mutate(v, {
       onSuccess: () => {
         setDirty(false)
-        toast.show('租户名已保存')
+        toast.show(t.tenantNameSaved)
       },
-      onError: (err) => toast.show(`保存失败：${(err as Error).message}`, 'info'),
+      onError: (err) => toast.show(t.saveFailed((err as Error).message), 'info'),
     })
   }
 
   return (
     <div style={{ ...cardStyle, marginBottom: 16, padding: '14px 16px' }}>
-      <span style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 10 }}>租户名</span>
+      <span style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 10 }}>{t.tenantNameLabel}</span>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           value={value}
@@ -554,7 +557,7 @@ function TenantNameCard({ slug }: { slug: string }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') save()
           }}
-          placeholder="团队/租户名"
+          placeholder={t.tenantNamePlaceholder}
           maxLength={80}
           style={{ ...inputStyle, maxWidth: 320 }}
         />
@@ -576,11 +579,11 @@ function TenantNameCard({ slug }: { slug: string }) {
             opacity: !value.trim() || value.trim() === current?.name || rename.isPending ? 0.5 : 1,
           }}
         >
-          {rename.isPending ? '保存中…' : '保存'}
+          {rename.isPending ? t.saving : t.save}
         </button>
       </div>
       <p style={{ fontSize: 11.5, color: 'var(--faint)', margin: '8px 0 0' }}>
-        仅管理员可修改；租户地址（slug「{slug}」）不可更改。
+        {t.tenantSlugNote(slug)}
       </p>
     </div>
   )
@@ -588,10 +591,11 @@ function TenantNameCard({ slug }: { slug: string }) {
 
 export default function TenantAdmin() {
   const { slug = '' } = useParams<{ slug: string }>()
+  const t = useT()
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ maxWidth: 820 }}>
-        <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>租户管理</h1>
+        <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>{t.tenantAdmin}</h1>
         <TenantNameCard slug={slug} />
         <MembersCard slug={slug} />
         <ProjectsCard slug={slug} />

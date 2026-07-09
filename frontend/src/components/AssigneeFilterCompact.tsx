@@ -4,16 +4,18 @@ import { currentUserId } from '../api/client'
 import { useMembers } from '../api/hooks'
 import { useAssigneeFilter } from '../state/assigneeFilter'
 import { SelectWrap } from './ui'
-
-const MODES = [
-  { value: 'me', label: '只看我的' },
-  { value: 'all', label: '全部' },
-] as const
+import { useT } from '../i18n'
 
 export default function AssigneeFilterCompact({ slug }: { slug: string }) {
+  const t = useT()
   const members = useMembers(slug)
   const [filter, setFilter] = useAssigneeFilter()
   const me = currentUserId()
+
+  const MODES = [
+    { value: 'me' as const, label: t.filterOnlyMe },
+    { value: 'all' as const, label: t.filterAllMembers },
+  ]
 
   const byUser = typeof filter === 'number'
 
@@ -67,7 +69,7 @@ export default function AssigneeFilterCompact({ slug }: { slug: string }) {
                 setFilter(id === me ? 'me' : id)
               }
             }}
-            aria-label="按成员筛选"
+            aria-label={t.filterByMember}
             style={{
               height: 28,
               borderRadius: 6,
@@ -80,11 +82,11 @@ export default function AssigneeFilterCompact({ slug }: { slug: string }) {
               appearance: 'none',
             }}
           >
-            <option value="">按人筛选…</option>
+            <option value="">{t.filterByPerson}</option>
             {(members.data ?? []).map((m) => (
               <option key={m.userId} value={m.userId}>
                 {m.displayName}
-                {m.userId === me ? '（我）' : ''}
+                {m.userId === me ? t.filterMeTag : ''}
               </option>
             ))}
           </select>

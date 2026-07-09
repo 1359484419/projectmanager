@@ -13,9 +13,11 @@ import { Avatar } from './TaskCard'
 import StatusBadge from './StatusBadge'
 import TypeIcon from './TypeIcon'
 import TaskDrawer from './TaskDrawer'
+import { useI18n, useT } from '../i18n'
 
 /** 顶栏全局搜索：防抖 250ms，全租户按关键词搜标题/描述，点结果开任务抽屉，⌘K 聚焦 */
 function GlobalSearch({ slug }: { slug: string }) {
+  const t = useT()
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
   const [focused, setFocused] = useState(false)
@@ -69,7 +71,7 @@ function GlobalSearch({ slug }: { slug: string }) {
           onKeyDown={(e) => {
             if (e.key === 'Escape') (e.target as HTMLInputElement).blur()
           }}
-          placeholder="搜索任务（标题/描述）…"
+          placeholder={t.searchPlaceholder}
           style={{
             flex: 1,
             border: 'none',
@@ -175,12 +177,12 @@ function GlobalSearch({ slug }: { slug: string }) {
           ))}
           {!isFetching && (hits ?? []).length === 0 && (
             <div style={{ padding: '14px 10px', fontSize: 12.5, color: 'var(--faint)', textAlign: 'center' }}>
-              没有匹配「{debounced}」的任务
+              {t.noSearchResults(debounced)}
             </div>
           )}
           {isFetching && (hits ?? []).length === 0 && (
             <div style={{ padding: '14px 10px', fontSize: 12.5, color: 'var(--faint)', textAlign: 'center' }}>
-              搜索中…
+              {t.searching}
             </div>
           )}
         </div>
@@ -223,7 +225,7 @@ function currentUser(): { name: string; email: string } {
   } catch {
     // 解析失败走回退
   }
-  return { name: '我', email: '' }
+  return { name: '', email: '' }
 }
 
 interface NavItem {
@@ -335,6 +337,7 @@ export default function Layout() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t, locale, setLocale } = useI18n()
 
   // ---- 主题（持久化到 localStorage） ----
   const [light, setLight] = useState(() => localStorage.getItem(THEME_KEY) === 'light')
@@ -390,17 +393,17 @@ export default function Layout() {
   const user = currentUser()
 
   const navMain: NavItem[] = [
-    { path: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { path: 'backlog', label: 'Backlog', icon: 'backlog', count: backlogTasks?.length },
-    { path: 'board', label: '看板 Board', icon: 'board', count: boardCount },
-    { path: 'sprints', label: '所有 Sprint', icon: 'sprints' },
-    { path: 'planning', label: '规划 Planning', icon: 'planning' },
-    { path: 'reports', label: '报表 Reports', icon: 'reports' },
-    { path: 'roadmap', label: '路线图 Roadmap', icon: 'roadmap' },
+    { path: 'dashboard', label: t.navDashboard, icon: 'dashboard' },
+    { path: 'backlog', label: t.navBacklog, icon: 'backlog', count: backlogTasks?.length },
+    { path: 'board', label: t.navBoard, icon: 'board', count: boardCount },
+    { path: 'sprints', label: t.navAllSprints, icon: 'sprints' },
+    { path: 'planning', label: t.navPlanning, icon: 'planning' },
+    { path: 'reports', label: t.navReports, icon: 'reports' },
+    { path: 'roadmap', label: t.navRoadmap, icon: 'roadmap' },
   ]
   const navAdmin: NavItem[] = [
-    { path: 'admin', label: '租户管理 Admin', icon: 'admin' },
-    { path: 'settings', label: '个人设置 Settings', icon: 'settings' },
+    { path: 'admin', label: t.navAdmin, icon: 'admin' },
+    { path: 'settings', label: t.navSettings, icon: 'settings' },
   ]
 
   function handleLogout() {
@@ -519,7 +522,7 @@ export default function Layout() {
             justifyContent: expanded ? undefined : 'center',
           }}
         >
-          <Avatar name={user.name} size={26} />
+          <Avatar name={user.name || t.me} size={26} />
           {expanded && (
             <>
               <div
@@ -531,7 +534,7 @@ export default function Layout() {
                   overflow: 'hidden',
                 }}
               >
-                <span style={{ fontSize: 12.5, fontWeight: 550, whiteSpace: 'nowrap' }}>{user.name}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 550, whiteSpace: 'nowrap' }}>{user.name || t.me}</span>
                 <span
                   style={{
                     fontSize: 11,
@@ -544,7 +547,7 @@ export default function Layout() {
                   {user.email || slug}
                 </span>
               </div>
-              <span className="icon-btn" title="折叠侧边栏" onClick={() => setCollapsed(true)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
+              <span className="icon-btn" title={t.collapseSidebar} onClick={() => setCollapsed(true)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
                 <Icon name="panel" size={16} />
               </span>
             </>
@@ -568,7 +571,7 @@ export default function Layout() {
           }}
         >
           {collapsed && (
-            <span className="icon-btn" title="展开侧边栏" onClick={() => setCollapsed(false)} style={{ display: 'flex', flex: 'none' }}>
+            <span className="icon-btn" title={t.expandSidebar} onClick={() => setCollapsed(false)} style={{ display: 'flex', flex: 'none' }}>
               <Icon name="panel" size={16} />
             </span>
           )}
@@ -597,7 +600,7 @@ export default function Layout() {
               }}
             >
               <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
-              {project?.name ?? '项目'}
+              {project?.name ?? t.project}
               <Icon name="chevron" size={13} style={{ color: 'var(--faint)' }} />
             </button>
             <Dropdown open={projMenu} onClose={() => setProjMenu(false)} style={{ left: 0, width: 220 }}>
@@ -610,7 +613,7 @@ export default function Layout() {
                   letterSpacing: '0.06em',
                 }}
               >
-                切换项目
+                {t.switchProject}
               </div>
               {(projects ?? []).map((p) => {
                 const active = p.key === projectKey
@@ -641,7 +644,7 @@ export default function Layout() {
                 }}
               >
                 <Icon name="plus" size={14} />
-                新建项目
+                {t.newProject}
               </div>
             </Dropdown>
           </div>
@@ -671,18 +674,18 @@ export default function Layout() {
             }}
           >
             <Icon name="plus" size={14} />
-            新建
+            {t.newTask}
           </button>
 
           {/* 刷新 */}
-          <span className="icon-btn" title="刷新数据" onClick={handleRefresh} style={{ display: 'flex', flex: 'none' }}>
+          <span className="icon-btn" title={t.refreshData} onClick={handleRefresh} style={{ display: 'flex', flex: 'none' }}>
             <Icon name="refresh" size={15} />
           </span>
 
           {/* 主题切换：dark 显示 sun（点击去 light），light 显示 moon */}
           <span
             className="icon-btn"
-            title="切换主题"
+            title={t.toggleTheme}
             onClick={() => setLight((v) => !v)}
             style={{ display: 'flex', flex: 'none' }}
           >
@@ -698,7 +701,7 @@ export default function Layout() {
               }}
               style={{ cursor: 'pointer', display: 'flex' }}
             >
-              <Avatar name={user.name} size={28} />
+              <Avatar name={user.name || t.me} size={28} />
             </span>
             <Dropdown open={userMenu} onClose={() => setUserMenu(false)} style={{ right: 0, width: 170 }}>
               <div
@@ -709,7 +712,7 @@ export default function Layout() {
                   navigate('settings')
                 }}
               >
-                个人设置
+                {t.personalSettings}
               </div>
               <div
                 className="menu-item"
@@ -719,11 +722,21 @@ export default function Layout() {
                   navigate('/tenants')
                 }}
               >
-                切换租户
+                {t.switchTenant}
+              </div>
+              <div
+                className="menu-item"
+                style={{ ...menuItemStyle, color: 'var(--text)' }}
+                onClick={() => {
+                  setUserMenu(false)
+                  setLocale(locale === 'zh' ? 'en' : 'zh')
+                }}
+              >
+                {t.language}：{locale === 'zh' ? '中文' : 'English'}
               </div>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 2px' }} />
               <div className="hover-card" style={{ ...menuItemStyle, color: 'var(--type-bug)' }} onClick={handleLogout}>
-                登出
+                {t.logout}
               </div>
             </Dropdown>
           </div>

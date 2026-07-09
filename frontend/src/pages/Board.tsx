@@ -19,16 +19,16 @@ import { qk, useBoard, useMembers, useProjects, useSprints } from '../api/hooks'
 import type { Board as BoardData, TaskBrief, TaskStatus } from '../api/types'
 import TaskCard, { Avatar } from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
-import { STATUS_LABEL, STATUS_VAR, useToast } from '../components/ui'
+import { STATUS_VAR, statusLabel, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
+import { useT } from '../i18n'
 
 // 设计稿列定义：色点用状态 CSS 变量（var(--todo)/--prog/--comp/--done）
-const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = (
+const COLUMNS: { status: TaskStatus; dot: string }[] = (
   ['TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE'] as TaskStatus[]
 ).map((status) => ({
   status,
-  label: STATUS_LABEL[status],
   dot: `var(--${STATUS_VAR[status]})`,
 }))
 
@@ -84,6 +84,7 @@ function AssigneeFilterRow({
   const members = useMembers(slug)
   const [filter, setFilter] = useAssigneeFilter()
   const me = currentUserId()
+  const t = useT()
 
   const all = useMemo(() => Object.values(columns).flat(), [columns])
   // 自己排最前：「只看我的」即点自己头像
@@ -125,7 +126,7 @@ function AssigneeFilterRow({
           transition: '.1s',
         }}
       >
-        全部
+        {t.allMembers}
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{all.length}</span>
       </span>
       {sorted.map((m) => {
@@ -137,7 +138,7 @@ function AssigneeFilterRow({
             key={m.userId}
             role="button"
             aria-pressed={on}
-            title={isMe ? `${m.displayName}（只看我的）` : m.displayName}
+            title={isMe ? t.onlyMe(m.displayName) : m.displayName}
             onClick={() => setFilter(isMe ? 'me' : m.userId)}
             style={{
               display: 'inline-flex',
@@ -174,7 +175,7 @@ function AssigneeFilterRow({
         )
       })}
       {filter === 'me' && (
-        <span style={{ fontSize: 11, color: 'var(--faint)' }}>只看我的（含未指派）</span>
+        <span style={{ fontSize: 11, color: 'var(--faint)' }}>{t.onlyMeWithUnassigned}</span>
       )}
     </div>
   )
@@ -197,6 +198,7 @@ function Column({
   unassignedTag?: boolean
   onOpen: (task: TaskBrief) => void
 }) {
+  const t = useT()
   const { setNodeRef, isOver } = useDroppable({ id: status })
   return (
     <div
@@ -272,7 +274,7 @@ function Column({
               color: 'var(--faint)',
             }}
           >
-            拖拽到此处
+            {t.dropHere}
           </div>
         )}
       </div>
@@ -320,6 +322,7 @@ function BoardSkeleton() {
 
 /** 页面头部：标题 + Sprint 信息 + 右侧提示（设计稿 BOARD 头） */
 function BoardHeader({ sub }: { sub?: React.ReactNode }) {
+  const t = useT()
   return (
     <div
       style={{
@@ -330,10 +333,10 @@ function BoardHeader({ sub }: { sub?: React.ReactNode }) {
         flex: 'none',
       }}
     >
-      <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>看板</h1>
+      <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>{t.board}</h1>
       {sub}
       <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 12, color: 'var(--faint)' }}>拖拽卡片切换状态</span>
+      <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t.boardDragHint}</span>
     </div>
   )
 }
@@ -366,6 +369,7 @@ export default function Board() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const t = useT()
 
   const projectsQuery = useProjects(slug)
   const projects = projectsQuery.data ?? []
@@ -434,12 +438,12 @@ export default function Board() {
       })
       // 成功后同步服务端真值（含 done_at 等衍生变化）
       queryClient.invalidateQueries({ queryKey: boardKey })
-      toast.show(`${displayId} → ${STATUS_LABEL[toStatus]}`)
+      toast.show(`${displayId} → ${statusLabel(t)[toStatus]}`)
     } catch {
       // 失败回滚
       if (previous) queryClient.setQueryData(boardKey, previous)
       else queryClient.invalidateQueries({ queryKey: boardKey })
-      toast.show(`${displayId} 状态更新失败，已回滚`, 'info')
+      toast.show(t.statusUpdateFailed(displayId), 'info')
     }
   }
 
@@ -456,7 +460,7 @@ export default function Board() {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <BoardHeader />
-        <EmptyHint text="还没有项目，请先创建项目" />
+        <EmptyHint text={t.noProjectBoard} />
       </div>
     )
   }
@@ -464,7 +468,7 @@ export default function Board() {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <BoardHeader />
-        <EmptyHint text={`项目 ${projectKey} 没有进行中的 Sprint，去规划页启动一个吧`} />
+        <EmptyHint text={t.noActiveSprintBoard(projectKey)} />
       </div>
     )
   }
@@ -480,8 +484,8 @@ export default function Board() {
             {activeSprint.name}
             {left != null && (
               <>
-                {' · 剩 '}
-                <b style={{ color: 'var(--comp)' }}>{left}</b> 天
+                {' · ' + t.daysLeft + ' '}
+                <b style={{ color: 'var(--comp)' }}>{left}</b>{' ' + t.days}
               </>
             )}
           </span>
@@ -490,7 +494,7 @@ export default function Board() {
       {boardQuery.isLoading ? (
         <BoardSkeleton />
       ) : boardQuery.isError ? (
-        <EmptyHint text="看板加载失败，请刷新重试" />
+        <EmptyHint text={t.boardLoadFailed} />
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <AssigneeFilterRow slug={slug} columns={columns} />
@@ -508,7 +512,7 @@ export default function Board() {
               <Column
                 key={col.status}
                 status={col.status}
-                label={col.label}
+                label={statusLabel(t)[col.status]}
                 dot={col.dot}
                 tasks={filteredColumns[col.status] ?? []}
                 projectKey={projectKey}

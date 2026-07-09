@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
+import { useT } from '../i18n'
 
 const fieldLabel: CSSProperties = {
   display: 'block',
@@ -30,6 +31,7 @@ export default function AcceptInvite() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const t = useT()
   const [searchParams] = useSearchParams()
   const [token, setToken] = useState(searchParams.get('token') ?? '')
   const [email, setEmail] = useState('')
@@ -50,7 +52,7 @@ export default function AcceptInvite() {
       queryClient.clear()
       navigate('/tenants')
     } catch (err) {
-      toast.show(err instanceof Error ? err.message : '请求失败，请稍后重试', 'info')
+      toast.show(err instanceof Error ? err.message : t.requestFailed, 'info')
     } finally {
       setSubmitting(false)
     }
@@ -95,7 +97,7 @@ export default function AcceptInvite() {
           >
             P
           </div>
-          <div style={{ fontSize: 16, fontWeight: 650 }}>接受邀请</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>{t.acceptInviteTitle}</div>
           <div
             style={{
               fontSize: 13,
@@ -105,9 +107,9 @@ export default function AcceptInvite() {
               lineHeight: 1.5,
             }}
           >
-            新用户填写全部信息完成注册并加入；
+            {t.acceptInviteHint1}
             <br />
-            已有账号填注册时的邮箱与密码即可。
+            {t.acceptInviteHint2}
           </div>
         </div>
         <div
@@ -120,15 +122,15 @@ export default function AcceptInvite() {
           }}
         >
           <form onSubmit={handleSubmit}>
-            <label style={fieldLabel}>邀请 token</label>
+            <label style={fieldLabel}>{t.inviteToken}</label>
             <input
               style={{ ...fieldInput, fontFamily: 'var(--font-mono)' }}
-              placeholder="粘贴邀请 token"
+              placeholder={t.inviteTokenPlaceholder}
               value={token}
               onChange={(e) => setToken(e.target.value)}
               required
             />
-            <label style={fieldLabel}>邮箱</label>
+            <label style={fieldLabel}>{t.email}</label>
             <input
               style={fieldInput}
               type="email"
@@ -137,7 +139,7 @@ export default function AcceptInvite() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <label style={fieldLabel}>密码</label>
+            <label style={fieldLabel}>{t.password}</label>
             <input
               style={fieldInput}
               type="password"
@@ -146,10 +148,10 @@ export default function AcceptInvite() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <label style={fieldLabel}>显示名（新用户必填）</label>
+            <label style={fieldLabel}>{t.displayNameNewUser}</label>
             <input
               style={{ ...fieldInput, marginBottom: 18 }}
-              placeholder="张三"
+              placeholder={t.displayNameRegPlaceholder}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
@@ -169,7 +171,7 @@ export default function AcceptInvite() {
                 opacity: submitting ? 0.65 : 1,
               }}
             >
-              {submitting ? '提交中…' : '加入团队'}
+              {submitting ? t.submitting : t.joinTeam}
             </button>
           </form>
         </div>
@@ -182,7 +184,7 @@ export default function AcceptInvite() {
           }}
         >
           <Link to="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-            返回登录
+            {t.backToLogin}
           </Link>
         </p>
       </div>

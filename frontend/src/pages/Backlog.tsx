@@ -11,12 +11,13 @@ import { Icon, SelectWrap, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { POINTS_MAX, POINTS_MIN, POINTS_RANGE_MSG, POINTS_STEP, parsePointsInput } from '../utils/points'
+import { useT } from '../i18n'
 
-const TYPE_FILTERS: Array<{ value: TaskType | 'ALL'; label: string }> = [
-  { value: 'ALL', label: '全部' },
-  { value: 'STORY', label: '故事' },
-  { value: 'BUG', label: '缺陷' },
-  { value: 'TASK', label: '任务' },
+const TYPE_FILTER_KEYS = [
+  { value: 'ALL' as const, key: 'filterAll' as const },
+  { value: 'STORY' as const, key: 'typeStory' as const },
+  { value: 'BUG' as const, key: 'typeBug' as const },
+  { value: 'TASK' as const, key: 'typeTask' as const },
 ]
 
 /** 当前（ACTIVE）与下个（startDate 最早的 PLANNED）Sprint */
@@ -40,6 +41,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
   const [points, setPoints] = useState('')
   const createTask = useCreateTask(slug, projectKey)
   const toast = useToast()
+  const t = useT()
 
   const submit = () => {
     const trimmed = title.trim()
@@ -60,10 +62,10 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
         onSuccess: (created) => {
           setTitle('')
           setPoints('')
-          toast.show(`已创建 ${projectKey}-${created.seq}`)
+          toast.show(t.taskCreated(projectKey + '-' + created.seq))
         },
         onError: (err) =>
-          toast.show(`创建失败：${err instanceof Error ? err.message : '未知错误'}`, 'info'),
+          toast.show(t.createFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
       },
     )
   }
@@ -88,7 +90,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
         <select
           value={type}
           onChange={(e) => setType(e.target.value as TaskType)}
-          aria-label="任务类型"
+          aria-label={t.taskType}
           style={{
             height: 28,
             borderRadius: 6,
@@ -101,16 +103,16 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
             appearance: 'none',
           }}
         >
-          <option value="STORY">故事</option>
-          <option value="BUG">缺陷</option>
-          <option value="TASK">任务</option>
+          <option value="STORY">{t.typeStory}</option>
+          <option value="BUG">{t.typeBug}</option>
+          <option value="TASK">{t.typeTask}</option>
         </select>
       </SelectWrap>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="快速创建任务，回车提交…"
-        aria-label="任务标题"
+        placeholder={t.quickCreatePlaceholder}
+        aria-label={t.taskTitle}
         style={{
           flex: 1,
           height: 28,
@@ -168,7 +170,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
           opacity: !title.trim() || createTask.isPending ? 0.55 : 1,
         }}
       >
-        添加
+        {t.add}
       </button>
     </form>
   )
@@ -194,6 +196,7 @@ function BacklogRow({
 }) {
   const updateTask = useUpdateTask(slug)
   const toast = useToast()
+  const t = useT()
   const target = current ?? next
 
   const moveToSprint = () => {
@@ -201,9 +204,9 @@ function BacklogRow({
     updateTask.mutate(
       { id: task.id, sprintId: target.id },
       {
-        onSuccess: () => toast.show(`${projectKey}-${task.seq} 已移入 ${target.name}`),
+        onSuccess: () => toast.show(t.movedToSprint(projectKey + '-' + task.seq, target.name)),
         onError: (err) =>
-          toast.show(`移入失败：${err instanceof Error ? err.message : '未知错误'}`, 'info'),
+          toast.show(t.moveFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
       },
     )
   }
@@ -223,8 +226,8 @@ function BacklogRow({
         onClick={moveToSprint}
         disabled={!target || updateTask.isPending}
         className={target ? 'hover-accent' : undefined}
-        title={target ? `移入 ${target.name}` : '没有可移入的 Sprint'}
-        aria-label={`移入 Sprint（${projectKey}-${task.seq}）`}
+        title={target ? t.moveToSprintTarget(target.name) : t.noSprintToMove}
+        aria-label={t.moveToSprintAria(projectKey + '-' + task.seq)}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -243,7 +246,7 @@ function BacklogRow({
           transition: '.1s',
         }}
       >
-        移入 Sprint
+        {t.moveToSprint}
         <Icon name="arrowRight" size={12} style={{ display: 'flex' }} />
       </button>
     </div>
@@ -293,6 +296,7 @@ function EmptyHint({ text }: { text: string }) {
 }
 
 export default function Backlog() {
+  const t = useT()
   const { slug = '' } = useParams<{ slug: string }>()
   const projectsQuery = useProjects(slug)
   const projects = projectsQuery.data
@@ -325,14 +329,14 @@ export default function Backlog() {
   if (projectsQuery.isError) {
     return (
       <div style={{ flex: 1, padding: '20px 24px', fontSize: 13, color: 'var(--dim)' }}>
-        项目加载失败，请刷新重试。
+        {t.projectLoadFailed}
       </div>
     )
   }
   if (!projects || projects.length === 0) {
     return (
       <div style={{ flex: 1, padding: '20px 24px', fontSize: 13, color: 'var(--faint)' }}>
-        还没有项目。请先在租户管理中创建项目。
+        {t.noProjectsYet}
       </div>
     )
   }
@@ -343,14 +347,14 @@ export default function Backlog() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>Backlog</h1>
         <span style={{ fontSize: 12, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
-          {backlogTotal} 项
+          {t.nItems(backlogTotal)}
         </span>
         {projects.length > 1 && (
           <SelectWrap chevronTop={8} style={{ flex: 'none' }}>
             <select
               value={activeKey}
               onChange={(e) => setSelectedProjectKey(slug, e.target.value)}
-              aria-label="选择项目"
+              aria-label={t.selectProject}
               style={{
                 height: 28,
                 borderRadius: 6,
@@ -383,7 +387,7 @@ export default function Backlog() {
             padding: 3,
           }}
         >
-          {TYPE_FILTERS.map((f) => {
+          {TYPE_FILTER_KEYS.map((f) => {
             const on = typeFilter === f.value
             return (
               <span
@@ -401,7 +405,7 @@ export default function Backlog() {
                     : { color: 'var(--dim)' }),
                 }}
               >
-                {f.label}
+                {t[f.key]}
               </span>
             )
           })}
@@ -426,13 +430,13 @@ export default function Backlog() {
               ))}
             </div>
           )}
-          {backlogQuery.isError && <EmptyHint text="Backlog 加载失败，请刷新重试" />}
+          {backlogQuery.isError && <EmptyHint text={t.backlogLoadFailed} />}
           {backlogQuery.isSuccess &&
             tasks.length === 0 &&
             (backlogTotal === 0 ? (
-              <EmptyHint text="Backlog 是空的，用上面的快速创建行添加第一个任务吧" />
+              <EmptyHint text={t.backlogEmpty} />
             ) : (
-              <EmptyHint text="该筛选下暂无任务" />
+              <EmptyHint text={t.noFilterResults} />
             ))}
           {tasks.map((task) => (
             <BacklogRow

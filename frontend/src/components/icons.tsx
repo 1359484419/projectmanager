@@ -2,6 +2,8 @@
 // 用法：<Icon name="board" size={16} />；类型图标：<TypeGlyph type="STORY" size={15} />
 import type { CSSProperties } from 'react'
 import type { TaskType } from '../api/types'
+import type { Translations } from '../i18n'
+import { useT } from '../i18n'
 
 /** lucide 风格 24x24 stroke path 集（真源：logic.jsx `ic`） */
 const IC = {
@@ -93,10 +95,8 @@ const TYPE_GLYPHS: Record<TaskType, { color: string; html: string }> = {
   },
 }
 
-export const TYPE_LABEL: Record<TaskType, string> = {
-  STORY: '故事',
-  BUG: '缺陷',
-  TASK: '任务',
+export function typeLabel(t: Translations): Record<TaskType, string> {
+  return { STORY: t.typeStory, BUG: t.typeBug, TASK: t.typeTask }
 }
 
 export interface TypeGlyphProps {
@@ -109,8 +109,9 @@ export interface TypeGlyphProps {
 
 /** 任务类型图标：带 var(--type-*) 语义色描边 */
 export function TypeGlyph({ type, size = 15, style, title }: TypeGlyphProps) {
+  const t = useT()
   const g = TYPE_GLYPHS[type]
-  const label = title ?? TYPE_LABEL[type]
+  const label = title ?? typeLabel(t)[type]
   return (
     <svg
       viewBox="0 0 24 24"

@@ -21,6 +21,7 @@ import {
   useToast,
 } from '../components/ui'
 import type { ApiToken, CreatedApiToken } from '../api/types'
+import { useT } from '../i18n'
 
 /** 卡片内小节标题（13px/600） */
 const sectionTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600 }
@@ -40,6 +41,7 @@ const accentBtnStyle: React.CSSProperties = {
 
 /** 复制按钮（设计稿 copyToken 形态：卡片底 + copy 图标） */
 function CopyButton({ text, doneMsg }: { text: string; doneMsg: string }) {
+  const t = useT()
   const toast = useToast()
   async function copy() {
     try {
@@ -47,7 +49,7 @@ function CopyButton({ text, doneMsg }: { text: string; doneMsg: string }) {
       toast.show(doneMsg)
     } catch {
       // clipboard API 不可用（如非 https）时退化为 prompt
-      window.prompt('手动复制：', text)
+      window.prompt(t.manualCopy, text)
     }
   }
   return (
@@ -71,13 +73,14 @@ function CopyButton({ text, doneMsg }: { text: string; doneMsg: string }) {
       }}
     >
       <Icon name="copy" size={12} />
-      复制
+      {t.copy}
     </button>
   )
 }
 
 /** 个人资料卡片：昵称 + 修改密码 */
 function ProfileCard() {
+  const t = useT()
   const toast = useToast()
   const [displayName, setDisplayName] = useState('')
   const [oldPassword, setOldPassword] = useState('')
@@ -88,8 +91,8 @@ function ProfileCard() {
   const rename = useMutation({
     mutationFn: (name: string) =>
       api<void>('/api/me', { method: 'PATCH', body: JSON.stringify({ displayName: name }) }),
-    onSuccess: () => toast.show('显示名已保存'),
-    onError: (err) => toast.show(`保存失败：${err.message}`, 'info'),
+    onSuccess: () => toast.show(t.displayNameSaved),
+    onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
   })
 
   const change = useMutation({
@@ -99,9 +102,9 @@ function ProfileCard() {
       setOldPassword('')
       setNewPassword('')
       setConfirm('')
-      toast.show('密码已修改')
+      toast.show(t.passwordChanged)
     },
-    onError: (err) => toast.show(`修改失败：${err.message}`, 'info'),
+    onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
   })
 
   function handleRename(e: FormEvent) {
@@ -118,19 +121,19 @@ function ProfileCard() {
 
   return (
     <div style={{ ...cardStyle, padding: 16, marginBottom: 16 }}>
-      <div style={{ ...sectionTitleStyle, marginBottom: 14 }}>个人资料</div>
+      <div style={{ ...sectionTitleStyle, marginBottom: 14 }}>{t.profile}</div>
 
       {/* 昵称 */}
       <form onSubmit={handleRename}>
         <label style={labelStyle} htmlFor="displayName">
-          昵称
+          {t.displayName}
         </label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input
             id="displayName"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="输入新的显示名"
+            placeholder={t.displayNamePlaceholder}
             style={{ ...inputStyle, flex: 1 }}
           />
           <button
@@ -144,7 +147,7 @@ function ProfileCard() {
               opacity: rename.isPending || !displayName.trim() ? 0.6 : 1,
             }}
           >
-            {rename.isPending ? '保存中…' : '保存'}
+            {rename.isPending ? t.saving : t.save}
           </button>
         </div>
       </form>
@@ -152,14 +155,14 @@ function ProfileCard() {
       {/* 修改密码 */}
       <form onSubmit={handlePassword}>
         <label style={labelStyle} htmlFor="oldPassword">
-          修改密码
+          {t.changePassword}
         </label>
         <input
           id="oldPassword"
           type="password"
           value={oldPassword}
           onChange={(e) => setOldPassword(e.target.value)}
-          placeholder="当前密码"
+          placeholder={t.currentPasswordPlaceholder}
           autoComplete="current-password"
           style={{ ...inputStyle, marginBottom: 8 }}
         />
@@ -168,9 +171,9 @@ function ProfileCard() {
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          placeholder="新密码"
+          placeholder={t.newPasswordPlaceholder}
           autoComplete="new-password"
-          aria-label="新密码"
+          aria-label={t.newPasswordAria}
           style={{ ...inputStyle, marginBottom: 8 }}
         />
         <input
@@ -178,9 +181,9 @@ function ProfileCard() {
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          placeholder="确认新密码"
+          placeholder={t.confirmPasswordPlaceholder}
           autoComplete="new-password"
-          aria-label="确认新密码"
+          aria-label={t.confirmPasswordAria}
           style={{
             ...inputStyle,
             marginBottom: 10,
@@ -189,7 +192,7 @@ function ProfileCard() {
         />
         {mismatch && (
           <div style={{ fontSize: 11.5, color: 'var(--type-bug)', marginBottom: 10 }}>
-            两次输入的新密码不一致
+            {t.passwordMismatch}
           </div>
         )}
         <button
@@ -209,7 +212,7 @@ function ProfileCard() {
             opacity: change.isPending || !oldPassword || !newPassword || mismatch ? 0.6 : 1,
           }}
         >
-          {change.isPending ? '提交中…' : '修改密码'}
+          {change.isPending ? t.submitting : t.changePassword}
         </button>
       </form>
     </div>
@@ -218,6 +221,7 @@ function ProfileCard() {
 
 /** PAT 卡片：生成（一次性明文 + 警示 + 复制）/ 列表 / 吊销（ConfirmDialog） */
 function TokensCard({ currentSlug }: { currentSlug: string }) {
+  const t = useT()
   const toast = useToast()
   const tokens = useTokens()
   const tenants = useMyTenants()
@@ -239,9 +243,9 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
         onSuccess: (data) => {
           setCreated(data)
           setName('')
-          toast.show('Token 已生成，请立即复制保存')
+          toast.show(t.tokenGenerated)
         },
-        onError: (err) => toast.show(`生成失败：${err.message}`, 'info'),
+        onError: (err) => toast.show(t.tokenGenerateFailed(err.message), 'info'),
       },
     )
   }
@@ -252,9 +256,9 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
     revokeToken.mutate(target.id, {
       onSuccess: () => {
         if (created?.id === target.id) setCreated(null)
-        toast.show(`令牌「${target.name}」已吊销`)
+        toast.show(t.revoked(target.name))
       },
-      onError: (err) => toast.show(`吊销失败：${err.message}`, 'info'),
+      onError: (err) => toast.show(t.revokeFailed(err.message), 'info'),
     })
     setRevoking(null)
   }
@@ -265,11 +269,11 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
     <div style={{ ...cardStyle, padding: 16 }}>
       {/* 标题栏 */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-        <span style={sectionTitleStyle}>个人访问令牌 (PAT)</span>
+        <span style={sectionTitleStyle}>{t.patTitle}</span>
         <span style={{ flex: 1 }} />
       </div>
       <div style={{ fontSize: 11.5, color: 'var(--faint)', marginBottom: 14 }}>
-        用于 API / MCP 集成访问。明文只在生成时展示一次，请立即复制保存。
+        {t.patDescription}
       </div>
 
       {/* 生成表单（真实 API 需要名称 + 绑定租户） */}
@@ -279,19 +283,19 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
       >
         <div style={{ flex: 1, minWidth: 160 }}>
           <label style={labelStyle} htmlFor="tokenName">
-            令牌名称
+            {t.tokenName}
           </label>
           <input
             id="tokenName"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="如 my-laptop-claude"
+            placeholder={t.tokenNamePlaceholder}
             style={inputStyle}
           />
         </div>
         <div style={{ width: 200 }}>
           <label style={labelStyle} htmlFor="tokenTenant">
-            绑定租户
+            {t.bindTenant}
           </label>
           <SelectWrap chevronTop={11}>
             <select
@@ -302,9 +306,9 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
             >
               {/* 租户列表加载前保留当前 slug 选项 */}
               {(tenants.data ??
-                (currentSlug ? [{ slug: currentSlug, name: currentSlug, role: 'MEMBER' as const }] : [])).map((t) => (
-                <option key={t.slug} value={t.slug}>
-                  {t.name} (/{t.slug})
+                (currentSlug ? [{ slug: currentSlug, name: currentSlug, role: 'MEMBER' as const }] : [])).map((tn) => (
+                <option key={tn.slug} value={tn.slug}>
+                  {tn.name} (/{tn.slug})
                 </option>
               ))}
             </select>
@@ -321,7 +325,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
             opacity: createToken.isPending || !name.trim() || !tenantSlug ? 0.6 : 1,
           }}
         >
-          {createToken.isPending ? '生成中…' : '生成 Token'}
+          {createToken.isPending ? t.generating : t.generateToken}
         </button>
       </form>
 
@@ -348,7 +352,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
             }}
           >
             <Icon name="alert" size={14} />
-            此 Token（{created.name}）只显示一次，请立即保存
+            {t.tokenOnceWarning(created.name)}
           </div>
           <div
             style={{
@@ -375,7 +379,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
             >
               {created.token}
             </span>
-            <CopyButton text={created.token} doneMsg="Token 已复制" />
+            <CopyButton text={created.token} doneMsg={t.tokenCopied} />
           </div>
         </div>
       )}
@@ -390,7 +394,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
       )}
       {tokens.isError && (
         <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>
-          令牌列表加载失败：{tokens.error.message}
+          {t.tokenListFailed(tokens.error.message)}
         </div>
       )}
       {tokens.data && list.length === 0 && !created && (
@@ -404,7 +408,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
             color: 'var(--faint)',
           }}
         >
-          尚未生成任何 Token
+          {t.noTokensYet}
         </div>
       )}
       {list.length > 0 && (
@@ -426,10 +430,10 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
               </span>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 11.5, color: 'var(--faint)', whiteSpace: 'nowrap' }}>
-                创建于 {new Date(tk.createdAt).toLocaleString()}
+                {t.createdAt(new Date(tk.createdAt).toLocaleString())}
               </span>
               <span style={{ fontSize: 11.5, color: 'var(--faint)', whiteSpace: 'nowrap' }}>
-                {tk.lastUsedAt ? `最近使用 ${new Date(tk.lastUsedAt).toLocaleString()}` : '从未使用'}
+                {tk.lastUsedAt ? t.lastUsed(new Date(tk.lastUsedAt).toLocaleString()) : t.neverUsed}
               </span>
               <button
                 type="button"
@@ -449,7 +453,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
                   opacity: revokeToken.isPending ? 0.6 : 1,
                 }}
               >
-                吊销
+                {t.revoke}
               </button>
             </div>
           ))}
@@ -458,13 +462,13 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
 
       <ConfirmDialog
         open={revoking !== null}
-        title="吊销该令牌？"
+        title={t.revokeTitle(revoking?.name ?? '')}
         message={
           revoking
-            ? `令牌「${revoking.name}」将立即失效，使用它的 MCP 客户端将无法继续访问。此操作不可撤销。`
+            ? t.revokeWarning(revoking.name)
             : undefined
         }
-        actionLabel="吊销"
+        actionLabel={t.revoke}
         onConfirm={confirmRevoke}
         onCancel={() => setRevoking(null)}
       />
@@ -473,11 +477,12 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
 }
 
 export default function Settings() {
+  const t = useT()
   const { slug = '' } = useParams<{ slug: string }>()
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ maxWidth: 720 }}>
-        <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>个人设置</h1>
+        <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>{t.settings}</h1>
         <ProfileCard />
         <TokensCard currentSlug={slug} />
       </div>

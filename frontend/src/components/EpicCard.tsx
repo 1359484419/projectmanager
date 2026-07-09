@@ -4,6 +4,7 @@
 import type { RoadmapEpic, TaskBrief } from '../api/types'
 import TaskCard from './TaskCard'
 import { Badge } from './ui'
+import { useT } from '../i18n'
 
 const DEFAULT_COLOR = '#6e79d6'
 
@@ -16,6 +17,7 @@ export interface EpicCardProps {
 }
 
 export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProps) {
+  const t = useT()
   const color = epic.color || DEFAULT_COLOR
   const pct =
     epic.totalPoints > 0
@@ -52,7 +54,7 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
           </span>
           {epic.status === 'DONE' && (
             <Badge color="var(--done)" soft="var(--done-soft)" style={{ flex: 'none' }}>
-              已完成
+              {t.epicDone}
             </Badge>
           )}
           <span style={{ flex: 1 }} />
@@ -97,7 +99,7 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
         {/* 任务列表（紧凑行） */}
         {epic.tasks.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--faint)', padding: '4px 0' }}>
-            该 Epic 下暂无任务
+            {t.noEpicTasks}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

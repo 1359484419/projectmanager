@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
+import { useT } from '../i18n'
 
 const fieldLabel: CSSProperties = {
   display: 'block',
@@ -51,6 +52,7 @@ export default function Login() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const t = useT()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -84,7 +86,7 @@ export default function Login() {
         navigate(`/t/${tenantSlug}`)
       }
     } catch (err) {
-      toast.show(err instanceof Error ? err.message : '请求失败，请稍后重试', 'info')
+      toast.show(err instanceof Error ? err.message : t.requestFailed, 'info')
     } finally {
       setSubmitting(false)
     }
@@ -131,9 +133,9 @@ export default function Login() {
           >
             P
           </div>
-          <div style={{ fontSize: 16, fontWeight: 650 }}>欢迎回到 PM</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>{t.welcomeBack}</div>
           <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
-            {isRegister ? '创建你的团队空间' : '登录以继续你的项目管理'}
+            {isRegister ? t.registerSubtitle : t.loginSubtitle}
           </div>
         </div>
         <div
@@ -156,24 +158,24 @@ export default function Login() {
             }}
           >
             <span style={tabStyle(mode === 'login')} onClick={() => setMode('login')}>
-              登录
+              {t.login}
             </span>
             <span style={tabStyle(mode === 'register')} onClick={() => setMode('register')}>
-              注册
+              {t.register}
             </span>
           </div>
           <form onSubmit={handleSubmit}>
             {isRegister && (
               <>
-                <label style={fieldLabel}>显示名</label>
+                <label style={fieldLabel}>{t.displayNameLabel}</label>
                 <input
                   style={fieldInput}
-                  placeholder="张三"
+                  placeholder={t.displayNameRegPlaceholder}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
                 />
-                <label style={fieldLabel}>团队名称</label>
+                <label style={fieldLabel}>{t.teamName}</label>
                 <input
                   style={fieldInput}
                   placeholder="Acme Inc."
@@ -181,7 +183,7 @@ export default function Login() {
                   onChange={(e) => setTenantName(e.target.value)}
                   required
                 />
-                <label style={fieldLabel}>团队 slug</label>
+                <label style={fieldLabel}>{t.teamSlug}</label>
                 <div
                   style={{
                     display: 'flex',
@@ -209,7 +211,7 @@ export default function Login() {
                     value={tenantSlug}
                     onChange={(e) => setTenantSlug(e.target.value)}
                     pattern="[a-z0-9-]{3,32}"
-                    title="3-32 位小写字母、数字或连字符"
+                    title={t.slugHint}
                     required
                     style={{
                       flex: 1,
@@ -225,7 +227,7 @@ export default function Login() {
                 </div>
               </>
             )}
-            <label style={fieldLabel}>邮箱</label>
+            <label style={fieldLabel}>{t.email}</label>
             <input
               style={fieldInput}
               type="email"
@@ -234,7 +236,7 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <label style={fieldLabel}>密码</label>
+            <label style={fieldLabel}>{t.password}</label>
             <input
               style={{ ...fieldInput, marginBottom: 18 }}
               type="password"
@@ -259,7 +261,7 @@ export default function Login() {
                 opacity: submitting ? 0.65 : 1,
               }}
             >
-              {submitting ? '提交中…' : isRegister ? '创建团队' : '登录'}
+              {submitting ? t.submitting : isRegister ? t.createTeam : t.login}
             </button>
           </form>
         </div>
@@ -271,9 +273,9 @@ export default function Login() {
             textAlign: 'center',
           }}
         >
-          收到邀请链接？
+          {t.invitePrompt}
           <Link to="/accept-invite" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-            接受邀请
+            {t.acceptInvite}
           </Link>
         </p>
       </div>

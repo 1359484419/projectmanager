@@ -3,15 +3,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMyTenants } from '../api/hooks'
 import { clearTokens } from '../api/client'
 import type { Role } from '../api/types'
-
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: '管理员',
-  MEMBER: '成员',
-}
+import { useT } from '../i18n'
 
 export default function TenantSelect() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const t = useT()
+  const ROLE_LABEL: Record<Role, string> = {
+    ADMIN: t.roleAdmin,
+    MEMBER: t.roleMember,
+  }
   const { data: tenants, isLoading, isError, error } = useMyTenants()
 
   function handleLogout() {
@@ -60,9 +61,9 @@ export default function TenantSelect() {
           >
             P
           </div>
-          <div style={{ fontSize: 16, fontWeight: 650 }}>选择团队</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>{t.selectTeam}</div>
           <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
-            选择要进入的团队空间
+            {t.selectTeamSubtitle}
           </div>
         </div>
 
@@ -92,7 +93,7 @@ export default function TenantSelect() {
                 textAlign: 'center',
               }}
             >
-              加载失败：{error instanceof Error ? error.message : '未知错误'}
+              {t.tenantsLoadFailed(error instanceof Error ? error.message : t.unknownError)}
             </div>
           )}
 
@@ -106,11 +107,11 @@ export default function TenantSelect() {
                 lineHeight: 1.6,
               }}
             >
-              你还不属于任何团队。可以
+              {t.noTeamsYet}
               <Link to="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-                注册
+                {t.createNewTeam}
               </Link>
-              创建一个新团队，或通过邀请链接加入。
+              {t.orJoinViaInvite}
             </div>
           )}
 
@@ -215,7 +216,7 @@ export default function TenantSelect() {
               padding: 0,
             }}
           >
-            退出登录
+            {t.logout}
           </button>
         </p>
       </div>

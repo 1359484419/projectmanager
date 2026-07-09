@@ -1,15 +1,25 @@
 // 状态徽标：四态语义色（soft 底 + 主色文字），文案与设计稿一致
 import type { TaskStatus } from '../api/types'
+import { useT } from '../i18n'
 
-const META: Record<TaskStatus, { label: string; v: string }> = {
-  TODO: { label: '待办', v: 'todo' },
-  IN_PROGRESS: { label: '进行中', v: 'prog' },
-  COMPLETED: { label: '待验收', v: 'comp' },
-  DONE: { label: '已完成', v: 'done' },
+const VAR_MAP: Record<TaskStatus, string> = {
+  TODO: 'todo',
+  IN_PROGRESS: 'prog',
+  COMPLETED: 'comp',
+  DONE: 'done',
+}
+
+const LABEL_KEY: Record<TaskStatus, 'statusTodo' | 'statusInProgress' | 'statusCompleted' | 'statusDone'> = {
+  TODO: 'statusTodo',
+  IN_PROGRESS: 'statusInProgress',
+  COMPLETED: 'statusCompleted',
+  DONE: 'statusDone',
 }
 
 export default function StatusBadge({ status, dot = false }: { status: TaskStatus; dot?: boolean }) {
-  const meta = META[status]
+  const t = useT()
+  const v = VAR_MAP[status]
+  const label = t[LABEL_KEY[status]]
   return (
     <span
       style={{
@@ -23,8 +33,8 @@ export default function StatusBadge({ status, dot = false }: { status: TaskStatu
         lineHeight: '16px',
         whiteSpace: 'nowrap',
         letterSpacing: '0.02em',
-        background: `var(--${meta.v}-soft)`,
-        color: `var(--${meta.v})`,
+        background: `var(--${v}-soft)`,
+        color: `var(--${v})`,
       }}
     >
       {dot && (
@@ -33,12 +43,12 @@ export default function StatusBadge({ status, dot = false }: { status: TaskStatu
             width: 6,
             height: 6,
             borderRadius: '50%',
-            background: `var(--${meta.v})`,
+            background: `var(--${v})`,
             flex: 'none',
           }}
         />
       )}
-      {meta.label}
+      {label}
     </span>
   )
 }

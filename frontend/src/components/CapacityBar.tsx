@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Avatar } from './TaskCard'
 import { fmtPoints } from '../utils/points'
+import { useT } from '../i18n'
 
 export interface CapacityBarProps {
   /** 成员显示名 */
@@ -26,6 +27,7 @@ const OVER_STRIPES =
  * - 右侧容量数字为常驻 number 输入框，Enter / 失焦提交 override。
  */
 export default function CapacityBar({ name, assigned, capacity, onCapacityChange }: CapacityBarProps) {
+  const t = useT()
   const [draft, setDraft] = useState(String(capacity))
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function CapacityBar({ name, assigned, capacity, onCapacityChange
           type="number"
           min={0}
           value={draft}
-          title="修改容量 override"
+          title={t.editCapacity}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {

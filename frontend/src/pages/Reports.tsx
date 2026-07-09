@@ -7,11 +7,14 @@ import type { BurndownDay, CapacityEntry, Sprint, SprintStatus } from '../api/ty
 import { SelectWrap, cardStyle, pageTitleStyle } from '../components/ui'
 import { fmtPoints } from '../utils/points'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
+import { useT, type Translations } from '../i18n'
 
-const SPRINT_STATUS_LABEL: Record<SprintStatus, string> = {
-  PLANNED: '未开始',
-  ACTIVE: '进行中',
-  CLOSED: '已结束',
+function sprintStatusLabel(t: Translations): Record<SprintStatus, string> {
+  return {
+    PLANNED: t.sprintNotStarted,
+    ACTIVE: t.sprintInProgress,
+    CLOSED: t.sprintEnded,
+  }
 }
 
 const MONO = "'JetBrains Mono',monospace"
@@ -89,7 +92,7 @@ function BurndownSvg({ days }: { days: BurndownDay[] }) {
   const area = `${x(0)},${pt + ph} ${remPts.join(' ')} ${x(n - 1)},${pt + ph}`
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Sprint 燃尽图">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Sprint burndown">
       {gridLines.map((g, k) => (
         <g key={k}>
           <line x1={pl} y1={g.yy} x2={W - pr} y2={g.yy} stroke="var(--grid)" />
@@ -115,27 +118,28 @@ function BurndownSvg({ days }: { days: BurndownDay[] }) {
 }
 
 function BurndownCard({ slug, sprintId }: { slug: string; sprintId: number }) {
+  const t = useT()
   const { data, isLoading, isError } = useBurndown(slug, sprintId)
 
   return (
     <div style={cardPad}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
-        <span style={cardTitleStyle}>燃尽图</span>
+        <span style={cardTitleStyle}>{t.burndown}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--dim)' }}>
           <span style={{ width: 16, height: 2, background: 'var(--accent)', borderRadius: 2 }} />
-          剩余
+          {t.remainingLabel}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--dim)' }}>
           <span style={{ width: 16, height: 0, borderTop: '2px dashed var(--faint)' }} />
-          理想
+          {t.idealLabel}
         </span>
       </div>
       {isLoading ? (
         <ChartSkeleton />
       ) : isError ? (
-        <Empty text="燃尽数据加载失败" />
+        <Empty text={t.burndownLoadFailed} />
       ) : !data || data.days.length === 0 ? (
-        <Empty text="该 Sprint 暂无燃尽数据" />
+        <Empty text={t.noBurndownData} />
       ) : (
         <BurndownSvg days={data.days} />
       )}
@@ -226,17 +230,18 @@ function LoadRow({ entry }: { entry: CapacityEntry }) {
 }
 
 function CapacityCard({ slug, sprintId }: { slug: string; sprintId: number }) {
+  const t = useT()
   const { data, isLoading, isError } = useCapacity(slug, sprintId)
 
   return (
     <div style={cardPad}>
-      <div style={{ ...cardTitleStyle, marginBottom: 16 }}>每人负载</div>
+      <div style={{ ...cardTitleStyle, marginBottom: 16 }}>{t.workload}</div>
       {isLoading ? (
         <LoadSkeleton />
       ) : isError ? (
-        <Empty text="负载数据加载失败" />
+        <Empty text={t.workloadLoadFailed} />
       ) : !data || data.length === 0 ? (
-        <Empty text="该 Sprint 暂无成员负载数据" />
+        <Empty text={t.noWorkloadData} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {data.map((entry) => (
@@ -251,6 +256,7 @@ function CapacityCard({ slug, sprintId }: { slug: string; sprintId: number }) {
 // ---------- 页面 ----------
 
 export default function Reports() {
+  const t = useT()
   const { slug = '' } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
 
@@ -271,12 +277,14 @@ export default function Reports() {
   const effectiveId =
     selectedId ?? ordered.find((s) => s.status === 'ACTIVE')?.id ?? ordered[0]?.id ?? null
 
-  if (!slug) return <Empty text="缺少租户信息" />
+  const statusLabels = sprintStatusLabel(t)
+
+  if (!slug) return <Empty text={t.missingTenantInfo} />
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-        <h1 style={pageTitleStyle}>报表</h1>
+        <h1 style={pageTitleStyle}>{t.reports}</h1>
         <SelectWrap chevronTop={9}>
           <select
             value={effectiveId ?? ''}
@@ -295,7 +303,7 @@ export default function Reports() {
           >
             {ordered.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}（{SPRINT_STATUS_LABEL[s.status]} {s.startDate} ~ {s.endDate}）
+                {s.name}（{statusLabels[s.status]} {s.startDate} ~ {s.endDate}）
               </option>
             ))}
           </select>
@@ -312,11 +320,11 @@ export default function Reports() {
           </div>
         </div>
       ) : !projectKey ? (
-        <Empty text="当前租户还没有项目，先创建一个项目吧" />
+        <Empty text={t.noProjectReports} />
       ) : ordered.length === 0 ? (
-        <Empty text="该项目还没有 Sprint，去规划页创建一个吧" />
+        <Empty text={t.noSprintReports} />
       ) : effectiveId == null ? (
-        <Empty text="请选择一个 Sprint" />
+        <Empty text={t.selectSprint} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
           <BurndownCard slug={slug} sprintId={effectiveId} />

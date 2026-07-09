@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useCreateTask, useEpics, useMembers, useSprints } from '../api/hooks'
 import type { Sprint, TaskType } from '../api/types'
+import { useT } from '../i18n'
 import { Icon } from './icons'
-import { SelectWrap, selStyle, TYPE_OPTIONS, useToast } from './ui'
+import { SelectWrap, selStyle, typeOptions, useToast } from './ui'
 import { POINTS_CHOICES, POINTS_RANGE_MSG, fmtPoints, parsePointsInput } from '../utils/points'
 
 export interface CreateTaskDialogProps {
@@ -29,6 +30,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
   const sprints = useSprints(slug, projectKey)
   const epics = useEpics(slug, projectKey)
   const toast = useToast()
+  const t = useT()
 
   const activeSprint = pickActiveSprint(sprints.data as Sprint[] | undefined)
 
@@ -62,11 +64,11 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
       },
       {
         onSuccess: (created) => {
-          toast.show(`已创建 ${projectKey}-${created.seq}`)
+          toast.show(t.taskCreated(`${projectKey}-${created.seq}`))
           onClose()
         },
         onError: (err) =>
-          toast.show(`创建失败：${err instanceof Error ? err.message : '未知错误'}`, 'info'),
+          toast.show(t.createFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
       },
     )
   }
@@ -88,7 +90,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="新建任务"
+        aria-label={t.createTaskTitle}
         style={{
           position: 'fixed',
           top: '50%',
@@ -115,11 +117,11 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
             padding: '14px 18px 0',
           }}
         >
-          <h2 style={{ fontSize: 15, fontWeight: 650, margin: 0, flex: 1 }}>新建任务</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 650, margin: 0, flex: 1 }}>{t.createTaskTitle}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={t.close}
             className="icon-btn"
             style={{ border: 'none', background: 'none', padding: 0, width: 16, height: 16, color: 'var(--dim)', cursor: 'pointer', display: 'flex' }}
           >
@@ -134,25 +136,25 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
           {/* 类型 + 标题 */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 'none' }}>
-              <label style={labelStyle}>类型</label>
+              <label style={labelStyle}>{t.type}</label>
               <SelectWrap>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as TaskType)}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  {TYPE_OPTIONS.map((o) => (
+                  {typeOptions(t).map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               </SelectWrap>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <label style={labelStyle}>标题 *</label>
+              <label style={labelStyle}>{t.titleRequired}</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="任务标题"
+                placeholder={t.taskTitlePlaceholder}
                 autoFocus
                 style={{
                   width: '100%',
@@ -172,11 +174,11 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
 
           {/* 描述 */}
           <div>
-            <label style={labelStyle}>描述</label>
+            <label style={labelStyle}>{t.description}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="补充描述（可选）"
+              placeholder={t.descriptionPlaceholder}
               rows={3}
               style={{
                 width: '100%',
@@ -204,7 +206,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                   onChange={(e) => setPoints(e.target.value)}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  <option value="">未估点</option>
+                  <option value="">{t.noPoints}</option>
                   {POINTS_CHOICES.map((p) => (
                     <option key={p} value={String(p)}>{fmtPoints(p)} pts</option>
                   ))}
@@ -212,14 +214,14 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
               </SelectWrap>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>负责人</label>
+              <label style={labelStyle}>{t.assignee}</label>
               <SelectWrap>
                 <select
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  <option value="">未分配</option>
+                  <option value="">{t.unassigned}</option>
                   {(members.data ?? []).map((m) => (
                     <option key={m.userId} value={m.userId}>{m.displayName}</option>
                   ))}
@@ -231,16 +233,16 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
           {/* 属性行：Sprint 目标 + Epic */}
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>挂载到</label>
+              <label style={labelStyle}>{t.target}</label>
               <SelectWrap>
                 <select
                   value={sprintTarget}
                   onChange={(e) => setSprintTarget(e.target.value as 'current' | 'backlog')}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  <option value="backlog">Backlog</option>
+                  <option value="backlog">{t.backlog}</option>
                   {activeSprint && (
-                    <option value="current">{activeSprint.name}（当前）</option>
+                    <option value="current">{t.currentSprint(activeSprint.name)}</option>
                   )}
                 </select>
               </SelectWrap>
@@ -253,7 +255,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                   onChange={(e) => setEpicId(e.target.value)}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  <option value="">无</option>
+                  <option value="">{t.none}</option>
                   {(epics.data ?? []).map((ep) => (
                     <option key={ep.id} value={ep.id}>{ep.name}</option>
                   ))}
@@ -278,7 +280,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                 cursor: 'pointer',
               }}
             >
-              取消
+              {t.cancel}
             </button>
             <button
               type="submit"
@@ -297,7 +299,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                 opacity: !title.trim() || createTask.isPending ? 0.55 : 1,
               }}
             >
-              {createTask.isPending ? '创建中…' : '创建'}
+              {createTask.isPending ? t.creating : t.create}
             </button>
           </div>
         </form>

@@ -22,10 +22,12 @@ import type {
   UpdateTaskInput,
 } from '../api/types'
 import { isConflictError } from '../api/client'
+import { useT } from '../i18n'
+import type { Translations } from '../i18n'
 import { Icon } from './icons'
 import { avatarColor } from './TaskCard'
 import TypeIcon from './TypeIcon'
-import { SelectWrap, selStyle, statusColor, STATUS_OPTIONS, TYPE_OPTIONS } from './ui'
+import { SelectWrap, selStyle, statusColor, statusOptions, typeOptions } from './ui'
 import { POINTS_CHOICES, fmtPoints } from '../utils/points'
 
 export interface TaskDrawerProps {
@@ -39,45 +41,39 @@ export interface TaskDrawerProps {
 
 // ---------- 变更历史文案（who 加粗 + text，同设计稿时间线） ----------
 
-const ACTIVITY_FIELD_LABEL: Record<string, string> = {
-  STATUS_CHANGED: '状态',
-  POINTS_CHANGED: 'Points',
-  ASSIGNEE_CHANGED: '负责人',
-  EPIC_CHANGED: 'Epic',
-  SPRINT_CHANGED: 'Sprint',
-  TITLE_CHANGED: '标题',
-  DESCRIPTION_CHANGED: '描述',
-  TYPE_CHANGED: '类型',
+function activityFieldLabel(t: Translations): Record<string, string> {
+  return {
+    STATUS_CHANGED: t.fieldStatus, POINTS_CHANGED: t.fieldPoints,
+    ASSIGNEE_CHANGED: t.fieldAssignee, EPIC_CHANGED: t.fieldEpic,
+    SPRINT_CHANGED: t.fieldSprint, TITLE_CHANGED: t.fieldTitle,
+    DESCRIPTION_CHANGED: t.fieldDescription, TYPE_CHANGED: t.fieldType,
+  }
 }
 
-function activityWho(a: Activity): string {
-  return a.actorName ?? `用户 #${a.actorId}`
+function activityWho(a: Activity, t: Translations): string {
+  return a.actorName ?? t.userN(a.actorId)
 }
 
 /** 枚举值转设计稿中文文案（状态/类型），映射不到的原样返回 */
-const ENUM_LABEL: Record<string, string> = {
-  TODO: '待办',
-  IN_PROGRESS: '进行中',
-  COMPLETED: '待验收',
-  DONE: '已完成',
-  STORY: '故事',
-  BUG: '缺陷',
-  TASK: '任务',
+function enumLabel(t: Translations): Record<string, string> {
+  return {
+    TODO: t.statusTodo, IN_PROGRESS: t.statusInProgress, COMPLETED: t.statusCompleted,
+    DONE: t.statusDone, STORY: t.typeStory, BUG: t.typeBug, TASK: t.typeTask,
+  }
 }
 
-function humanValue(v: string | null): string {
-  if (v == null || v === '') return '空'
-  return ENUM_LABEL[v] ?? v
+function humanValue(v: string | null, t: Translations): string {
+  if (v == null || v === '') return t.empty
+  return enumLabel(t)[v] ?? v
 }
 
-function activityText(a: Activity): string {
-  if (a.type === 'CREATED') return '创建了任务'
-  if (a.type === 'COMMENTED') return '发表了评论'
-  const field = ACTIVITY_FIELD_LABEL[a.type]
-  const oldV = humanValue(a.oldValue)
-  const newV = humanValue(a.newValue)
-  if (field) return `把${field}从 ${oldV} 改为 ${newV}`
-  // 未知类型兜底：直接展示原始 type 与新旧值
+function activityText(a: Activity, t: Translations): string {
+  if (a.type === 'CREATED') return t.createdTask
+  if (a.type === 'COMMENTED') return t.postedComment
+  const field = activityFieldLabel(t)[a.type]
+  const oldV = humanValue(a.oldValue, t)
+  const newV = humanValue(a.newValue, t)
+  if (field) return t.changedField(field, oldV, newV)
   return `${a.type}: ${oldV} → ${newV}`
 }
 
@@ -129,6 +125,7 @@ function SkeletonLines({ rows }: { rows: number }) {
 // ---------- 子块：评论 ----------
 
 function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
+  const t = useT()
   const comments = useComments(slug, taskId)
   const createComment = useCreateComment(slug, taskId)
   const [body, setBody] = useState('')
@@ -143,15 +140,15 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
     <div>
       {comments.isLoading && <SkeletonLines rows={2} />}
       {comments.isError && (
-        <div style={{ ...errorStyle, marginBottom: 14 }}>评论加载失败：{comments.error.message}</div>
+        <div style={{ ...errorStyle, marginBottom: 14 }}>{t.commentsLoadFailed(comments.error.message)}</div>
       )}
       {comments.data && comments.data.length === 0 && (
-        <div style={{ ...hintStyle, marginBottom: 14 }}>还没有评论。</div>
+        <div style={{ ...hintStyle, marginBottom: 14 }}>{t.noComments}</div>
       )}
       {comments.data && comments.data.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 14 }}>
           {comments.data.map((c) => {
-            const who = c.authorName ?? `用户 #${c.authorId}`
+            const who = c.authorName ?? t.userN(c.authorId)
             return (
               <div key={c.id} style={{ display: 'flex', gap: 10 }}>
                 <span
@@ -192,8 +189,8 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit()
           }}
-          placeholder="写下评论，回车发送…"
-          aria-label="评论内容"
+          placeholder={t.commentPlaceholder}
+          aria-label={t.commentBody}
           style={{
             flex: 1,
             height: 34,
@@ -224,11 +221,11 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
             opacity: !body.trim() || createComment.isPending ? 0.55 : 1,
           }}
         >
-          {createComment.isPending ? '发送中…' : '发送'}
+          {createComment.isPending ? t.sending : t.send}
         </button>
       </div>
       {createComment.isError && (
-        <div style={{ ...errorStyle, marginTop: 8 }}>发送失败：{createComment.error.message}</div>
+        <div style={{ ...errorStyle, marginTop: 8 }}>{t.sendFailed(createComment.error.message)}</div>
       )}
     </div>
   )
@@ -237,12 +234,13 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
 // ---------- 子块：变更历史（时间线 + via MCP 标记） ----------
 
 function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
+  const t = useT()
   const activities = useActivities(slug, taskId)
   if (activities.isLoading) return <SkeletonLines rows={3} />
   if (activities.isError)
-    return <div style={errorStyle}>历史加载失败：{activities.error.message}</div>
+    return <div style={errorStyle}>{t.historyLoadFailed(activities.error.message)}</div>
   const list = activities.data ?? []
-  if (list.length === 0) return <div style={hintStyle}>暂无变更历史。</div>
+  if (list.length === 0) return <div style={hintStyle}>{t.noHistory}</div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {list.map((a, i) => (
@@ -263,7 +261,7 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
           </div>
           <div style={{ flex: 1, fontSize: 12.5, lineHeight: 1.5 }}>
             <span style={{ color: 'var(--text)' }}>
-              <b style={{ fontWeight: 600 }}>{activityWho(a)}</b> {activityText(a)}
+              <b style={{ fontWeight: 600 }}>{activityWho(a, t)}</b> {activityText(a, t)}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 2 }}>
               <span style={{ fontSize: 11, color: 'var(--faint)' }}>{formatTime(a.at)}</span>
@@ -297,6 +295,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
   const deleteTask = useDeleteTask(slug)
   const members = useMembers(slug)
   const epics = useEpics(slug, projectKey)
+  const t = useT()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // 全量数据：详情接口返回前先用 seed 渲染
@@ -367,7 +366,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`任务详情 ${displayId}`}
+        aria-label={t.taskDetail(displayId)}
         style={{
           position: 'fixed',
           top: 0,
@@ -402,27 +401,27 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
           </span>
           <span style={{ flex: 1 }} />
           {updateTask.isPending && (
-            <span style={{ fontSize: 11, color: 'var(--faint)' }}>保存中…</span>
+            <span style={{ fontSize: 11, color: 'var(--faint)' }}>{t.savingTask}</span>
           )}
           {updateTask.isError && (
             <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
               {isConflictError(updateTask.error)
-                ? '他人已修改，已回填最新值，请重试'
-                : `保存失败：${updateTask.error.message}`}
+                ? t.conflictError
+                : t.saveFailed(updateTask.error.message)}
             </span>
           )}
           {deleteTask.isError && (
             <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
-              {`删除失败：${deleteTask.error instanceof Error ? deleteTask.error.message : '未知错误'}`}
+              {t.deleteFailed(deleteTask.error instanceof Error ? deleteTask.error.message : t.unknownError)}
             </span>
           )}
           {!confirmDelete ? (
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              aria-label="删除任务"
+              aria-label={t.deleteTask}
               className="icon-btn"
-              title="删除任务"
+              title={t.deleteTask}
               style={{
                 border: 'none',
                 background: 'none',
@@ -438,7 +437,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
             </button>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>确认删除？</span>
+              <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>{t.confirmDelete}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -458,7 +457,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                   opacity: deleteTask.isPending ? 0.55 : 1,
                 }}
               >
-                {deleteTask.isPending ? '删除中…' : '删除'}
+                {deleteTask.isPending ? t.deleting : t.delete}
               </button>
               <button
                 type="button"
@@ -474,14 +473,14 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                   cursor: 'pointer',
                 }}
               >
-                取消
+                {t.cancel}
               </button>
             </div>
           )}
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={t.close}
             className="icon-btn"
             style={{
               border: 'none',
@@ -512,7 +511,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               }
             }}
             rows={2}
-            aria-label="任务标题"
+            aria-label={t.taskTitle}
             style={{
               width: '100%',
               boxSizing: 'border-box',
@@ -540,15 +539,15 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               marginBottom: 20,
             }}
           >
-            <span style={dimLabelStyle}>状态</span>
+            <span style={dimLabelStyle}>{t.status}</span>
             <SelectWrap>
               <select
-                aria-label="状态"
+                aria-label={t.status}
                 value={task.status}
                 onChange={(e) => patch({ status: e.target.value as TaskStatus })}
                 style={{ ...selStyle, color: statusColor(task.status), fontWeight: 600 }}
               >
-                {STATUS_OPTIONS.map((o) => (
+                {statusOptions(t).map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -556,15 +555,15 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               </select>
             </SelectWrap>
 
-            <span style={dimLabelStyle}>类型</span>
+            <span style={dimLabelStyle}>{t.type}</span>
             <SelectWrap>
               <select
-                aria-label="类型"
+                aria-label={t.type}
                 value={task.type}
                 onChange={(e) => patch({ type: e.target.value as TaskType })}
                 style={selStyle}
               >
-                {TYPE_OPTIONS.map((o) => (
+                {typeOptions(t).map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -582,7 +581,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 }
                 style={selStyle}
               >
-                <option value="">未估点</option>
+                <option value="">{t.noPoints}</option>
                 {pointsChoices.map((p) => (
                   <option key={p} value={String(p)}>
                     {fmtPoints(p)} pts
@@ -591,17 +590,17 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               </select>
             </SelectWrap>
 
-            <span style={dimLabelStyle}>负责人</span>
+            <span style={dimLabelStyle}>{t.assignee}</span>
             <SelectWrap>
               <select
-                aria-label="负责人"
+                aria-label={t.assignee}
                 value={task.assigneeId != null ? String(task.assigneeId) : ''}
                 onChange={(e) =>
                   patch({ assigneeId: e.target.value ? Number(e.target.value) : null })
                 }
                 style={selStyle}
               >
-                <option value="">未分配</option>
+                <option value="">{t.unassigned}</option>
                 {(members.data ?? []).map((m) => (
                   <option key={m.userId} value={m.userId}>
                     {m.displayName}
@@ -618,7 +617,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 onChange={(e) => patch({ epicId: e.target.value ? Number(e.target.value) : null })}
                 style={selStyle}
               >
-                <option value="">无</option>
+                <option value="">{t.none}</option>
                 {(epics.data ?? []).map((ep) => (
                   <option key={ep.id} value={ep.id}>
                     {ep.name}
@@ -629,14 +628,14 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
           </div>
 
           {/* 描述 */}
-          <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 6 }}>描述</div>
+          <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 6 }}>{t.description}</div>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onBlur={saveDescription}
             rows={4}
-            placeholder="补充描述…"
-            aria-label="描述"
+            placeholder={t.descriptionPlaceholder2}
+            aria-label={t.description}
             style={{
               width: '100%',
               boxSizing: 'border-box',
@@ -666,19 +665,19 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
           >
             {(
               [
-                { key: 'comments', label: '评论' },
-                { key: 'activities', label: '变更历史' },
+                { key: 'comments', label: t.tabComments },
+                { key: 'activities', label: t.tabHistory },
               ] as const
-            ).map((t) => (
+            ).map((tb) => (
               <button
-                key={t.key}
+                key={tb.key}
                 role="tab"
-                aria-selected={tab === t.key}
+                aria-selected={tab === tb.key}
                 type="button"
-                onClick={() => setTab(t.key)}
-                style={tabStyle(tab === t.key)}
+                onClick={() => setTab(tb.key)}
+                style={tabStyle(tab === tb.key)}
               >
-                {t.label}
+                {tb.label}
               </button>
             ))}
           </div>

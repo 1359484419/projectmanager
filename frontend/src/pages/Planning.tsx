@@ -29,6 +29,7 @@ import { Icon } from '../components/icons'
 import { SelectWrap, cardStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { fmtPoints } from '../utils/points'
+import { useT } from '../i18n'
 
 const BACKLOG_ZONE = 'backlog'
 const sprintZone = (id: number) => `sprint-${id}`
@@ -113,6 +114,7 @@ function DraggableTask({
 
 /** 成员容量卡（每人 assigned/capacity，行内编辑 override） */
 function SprintCapacity({ slug, sprintId, title }: { slug: string; sprintId: number; title: string }) {
+  const t = useT()
   const { data: entries, isLoading, isError } = useCapacity(slug, sprintId)
   const setCapacity = useSetCapacity(slug, sprintId)
   const toast = useToast()
@@ -127,9 +129,9 @@ function SprintCapacity({ slug, sprintId, title }: { slug: string; sprintId: num
       </div>
     )
   } else if (isError) {
-    body = <div style={{ fontSize: 12.5, color: 'var(--over)' }}>容量加载失败</div>
+    body = <div style={{ fontSize: 12.5, color: 'var(--over)' }}>{t.capacityLoadFailed}</div>
   } else if (!entries || entries.length === 0) {
-    body = <div style={{ fontSize: 12.5, color: 'var(--faint)' }}>暂无成员容量数据</div>
+    body = <div style={{ fontSize: 12.5, color: 'var(--faint)' }}>{t.noCapacityData}</div>
   } else {
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -143,8 +145,8 @@ function SprintCapacity({ slug, sprintId, title }: { slug: string; sprintId: num
               setCapacity.mutate(
                 { userId: e.userId, capacity },
                 {
-                  onSuccess: () => toast.show('容量已更新'),
-                  onError: () => toast.show('容量更新失败，请重试', 'info'),
+                  onSuccess: () => toast.show(t.capacityUpdated),
+                  onError: () => toast.show(t.capacityUpdateFailed, 'info'),
                 },
               )
             }
@@ -158,7 +160,7 @@ function SprintCapacity({ slug, sprintId, title }: { slug: string; sprintId: num
     <div style={{ ...cardStyle, padding: '13px 15px', flex: 'none' }}>
       <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>{title}</div>
       <div style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 12 }}>
-        容量 = 本 Sprint 工作日数（1 point = 1 人天），点数字可按人调整（如请假）
+        {t.capacityHint}
       </div>
       {body}
     </div>
@@ -182,6 +184,7 @@ function SprintSection({
   onMoveToBacklog: (taskId: number) => void
   onOpenTask: (task: TaskBrief) => void
 }) {
+  const t = useT()
   const { setNodeRef, isOver } = useDroppable({ id: sprintZone(sprint.id) })
   const totalPoints = sprint.tasks.reduce((sum, t) => sum + (t.points ?? 0), 0)
   const active = sprint.status === 'ACTIVE'
@@ -223,7 +226,7 @@ function SprintSection({
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
           {sprint.tasks.length === 0 ? (
-            <div style={emptyHintStyle}>从左侧 Backlog 拖任务到这里</div>
+            <div style={emptyHintStyle}>{t.dragFromBacklog}</div>
           ) : (
             sprint.tasks.map((task) => (
               <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -238,8 +241,8 @@ function SprintSection({
                 </div>
                 <button
                   className="hover-accent"
-                  title="移回 Backlog"
-                  aria-label={`移回 Backlog（${projectKey}-${task.seq}）`}
+                  title={t.moveBackBacklog}
+                  aria-label={t.moveBackBacklogAria(`${projectKey}-${task.seq}`)}
                   onClick={() => onMoveToBacklog(task.id)}
                   style={{
                     display: 'flex',
@@ -260,7 +263,7 @@ function SprintSection({
                   }}
                 >
                   <Icon name="arrowRight" size={12} style={{ transform: 'rotate(180deg)', display: 'flex' }} />
-                  移回
+                  {t.moveBack}
                 </button>
               </div>
             ))
@@ -270,7 +273,7 @@ function SprintSection({
       <SprintCapacity
         slug={slug}
         sprintId={sprint.id}
-        title={showSprintName ? `成员容量 · ${sprint.name}` : '成员容量'}
+        title={showSprintName ? t.memberCapacity(sprint.name) : t.memberCapacityShort}
       />
     </>
   )
@@ -287,6 +290,7 @@ export default function Planning() {
   const { data: sprints, isLoading: sprintsLoading } = useSprints(slug, key, true)
   const updateTask = useUpdateTask(slug)
   const toast = useToast()
+  const t = useT()
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
@@ -320,8 +324,8 @@ export default function Planning() {
       updateTask.mutate(
         { id: taskId, sprintId },
         {
-          onSuccess: () => toast.show('已移入 Sprint'),
-          onError: () => toast.show('移动失败，请重试', 'info'),
+          onSuccess: () => toast.show(t.movedToSprintPlanning),
+          onError: () => toast.show(t.moveFailedPlanning, 'info'),
         },
       )
     }
@@ -331,8 +335,8 @@ export default function Planning() {
     updateTask.mutate(
       { id: taskId, sprintId: null },
       {
-        onSuccess: () => toast.show('已移回 Backlog'),
-        onError: () => toast.show('移动失败，请重试', 'info'),
+        onSuccess: () => toast.show(t.movedToBacklog),
+        onError: () => toast.show(t.moveFailedPlanning, 'info'),
       },
     )
   }
@@ -348,7 +352,7 @@ export default function Planning() {
           gap: 12,
         }}
       >
-        <h1 style={pageTitleStyle}>Sprint 规划</h1>
+        <h1 style={pageTitleStyle}>{t.sprintPlanning}</h1>
         {projects && projects.length > 0 && (
           <SelectWrap chevronTop={9} style={{ width: 200 }}>
             <select value={key} onChange={(e) => setSelectedProjectKey(slug, e.target.value)} style={selStyle}>
@@ -378,7 +382,7 @@ export default function Planning() {
         </div>
       ) : !projects || projects.length === 0 ? (
         <div style={{ padding: '24px 24px', fontSize: 13, color: 'var(--faint)' }}>
-          还没有项目，请先在 Backlog 页创建项目。
+          {t.noProjectPlanning}
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -405,14 +409,14 @@ export default function Planning() {
               <div style={{ ...panelHeadStyle, fontSize: 12.5, fontWeight: 600, color: 'var(--dim)' }}>
                 Backlog{' '}
                 <span style={{ color: 'var(--faint)', fontWeight: 400 }}>
-                  {backlog ? `· ${backlog.length} 项 · 拖入右侧` : '· 拖入右侧'}
+                  {backlog ? t.nItemsDragRight(backlog.length) : t.dragRight}
                 </span>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
                 {backlogLoading ? (
                   <RowSkeletons count={5} />
                 ) : backlogBriefs.length === 0 ? (
-                  <div style={emptyHintStyle}>Backlog 为空。</div>
+                  <div style={emptyHintStyle}>{t.backlogEmptyPlanning}</div>
                 ) : (
                   backlogBriefs.map((task) => (
                     <DraggableTask key={task.id} task={task} projectKey={key} onOpen={setDrawerTask} />
@@ -430,7 +434,7 @@ export default function Planning() {
                 </>
               ) : planSprints.length === 0 ? (
                 <div style={{ ...panelStyle, justifyContent: 'center', flex: 1 }}>
-                  <div style={emptyHintStyle}>没有进行中或计划中的 Sprint，请先在 All Sprints 页创建。</div>
+                  <div style={emptyHintStyle}>{t.noSprintPlanning}</div>
                 </div>
               ) : (
                 planSprints.map((s) => (

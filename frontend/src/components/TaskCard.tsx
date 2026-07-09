@@ -6,6 +6,7 @@ import StatusBadge from './StatusBadge'
 import TypeIcon from './TypeIcon'
 import { Icon } from './icons'
 import { fmtPoints } from '../utils/points'
+import { useT } from '../i18n'
 
 /** 成员头像色板（与设计稿成员色一致），按名字哈希取色保证稳定 */
 const AVATAR_COLORS = ['#6e79d6', '#3f9d6b', '#d6673f', '#c74d8a', '#4aa3c9']
@@ -17,10 +18,11 @@ export function avatarColor(name: string): string {
 }
 
 export function Avatar({ name, size = 20 }: { name?: string | null; size?: number }) {
+  const t = useT()
   const n = name?.trim()
   return (
     <span
-      title={n ?? '未分配'}
+      title={n ?? t.unassigned}
       style={{
         width: size,
         height: size,
@@ -82,9 +84,10 @@ export interface TaskCardProps {
 
 /** 「未指派」淡文字标记（11px var(--faint)） */
 function UnassignedTag() {
+  const t = useT()
   return (
     <span style={{ fontSize: 11, color: 'var(--faint)', flex: 'none', whiteSpace: 'nowrap' }}>
-      未指派
+      {t.unassignedTag}
     </span>
   )
 }
@@ -100,6 +103,7 @@ export default function TaskCard({
   unassignedTag = false,
   style,
 }: TaskCardProps) {
+  const t = useT()
   const showUnassigned = unassignedTag && task.assigneeId == null && task.assigneeName == null
   const displayId = projectKey ? `${projectKey}-${task.seq}` : `#${task.seq}`
   const clickable = !!onClick
@@ -170,7 +174,7 @@ export default function TaskCard({
           )}
         </span>
         {flagged && (
-          <span title="负责人容量超载" style={{ display: 'flex', color: 'var(--over)', flex: 'none' }}>
+          <span title={t.capacityOverload} style={{ display: 'flex', color: 'var(--over)', flex: 'none' }}>
             <Icon name="alert" size={12} />
           </span>
         )}
@@ -223,7 +227,7 @@ export default function TaskCard({
           {displayId}
         </span>
         {flagged && (
-          <span title="负责人容量超载" style={{ display: 'flex', color: 'var(--over)' }}>
+          <span title={t.capacityOverload} style={{ display: 'flex', color: 'var(--over)' }}>
             <Icon name="alert" size={12} />
           </span>
         )}

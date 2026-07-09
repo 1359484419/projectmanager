@@ -12,19 +12,18 @@ import {
   type ReactNode,
 } from 'react'
 import type { TaskStatus, TaskType } from '../api/types'
+import type { Translations } from '../i18n'
+import { useT } from '../i18n'
 import { Icon } from './icons'
 
-export { Icon, TypeGlyph, TYPE_LABEL, type IconName } from './icons'
+export { Icon, TypeGlyph, typeLabel, type IconName } from './icons'
 export { default as StatusBadge } from './StatusBadge'
 export { default as TypeIcon } from './TypeIcon'
 
 // ---------------- 状态四态映射 ----------------
 
-export const STATUS_LABEL: Record<TaskStatus, string> = {
-  TODO: '待办',
-  IN_PROGRESS: '进行中',
-  COMPLETED: '待验收',
-  DONE: '已完成',
+export function statusLabel(t: Translations): Record<TaskStatus, string> {
+  return { TODO: t.statusTodo, IN_PROGRESS: t.statusInProgress, COMPLETED: t.statusCompleted, DONE: t.statusDone }
 }
 
 /** 状态 → CSS 变量名后缀：var(--todo) / var(--prog) / var(--comp) / var(--done) */
@@ -45,18 +44,13 @@ export function statusSoft(status: TaskStatus): string {
   return `var(--${STATUS_VAR[status]}-soft)`
 }
 
-export const TYPE_OPTIONS: { value: TaskType; label: string }[] = [
-  { value: 'STORY', label: '故事' },
-  { value: 'BUG', label: '缺陷' },
-  { value: 'TASK', label: '任务' },
-]
+export function typeOptions(t: Translations): { value: TaskType; label: string }[] {
+  return [{ value: 'STORY', label: t.typeStory }, { value: 'BUG', label: t.typeBug }, { value: 'TASK', label: t.typeTask }]
+}
 
-export const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'TODO', label: '待办' },
-  { value: 'IN_PROGRESS', label: '进行中' },
-  { value: 'COMPLETED', label: '待验收' },
-  { value: 'DONE', label: '已完成' },
-]
+export function statusOptions(t: Translations): { value: TaskStatus; label: string }[] {
+  return [{ value: 'TODO', label: t.statusTodo }, { value: 'IN_PROGRESS', label: t.statusInProgress }, { value: 'COMPLETED', label: t.statusCompleted }, { value: 'DONE', label: t.statusDone }]
+}
 
 // ---------------- 通用样式常量 ----------------
 
@@ -368,11 +362,13 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  actionLabel = '确认',
+  actionLabel,
   danger = true,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT()
+  const resolvedActionLabel = actionLabel ?? t.confirm
   if (!open) return null
   return (
     <div
@@ -411,14 +407,14 @@ export function ConfirmDialog({
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
           <button onClick={onCancel} style={btnGhost} className="hover-card">
-            取消
+            {t.cancel}
           </button>
           <button
             onClick={onConfirm}
             style={danger ? btnDanger : { ...btnDanger, background: 'var(--accent)' }}
             className="btn-primary"
           >
-            {actionLabel}
+            {resolvedActionLabel}
           </button>
         </div>
       </div>

@@ -24,11 +24,12 @@ import {
   selStyle,
   useToast,
 } from '../components/ui'
+import { useT } from '../i18n'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { fmtPoints } from '../utils/points'
 
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : '未知错误'
+function errMsg(e: unknown, fallback = 'unknown error'): string {
+  return e instanceof Error ? e.message : fallback
 }
 
 /** Sprint 状态徽标（同 logic.jsx smap）：ACTIVE 带 pulse 呼吸点，PLANNED 灰，CLOSED 淡 */
@@ -77,7 +78,8 @@ function SprintCard({
   onClose: () => void
   busy: boolean
 }) {
-  const points = sprint.tasks.reduce((sum, t) => sum + (t.points ?? 0), 0)
+  const t = useT()
+  const points = sprint.tasks.reduce((sum, tk) => sum + (tk.points ?? 0), 0)
   return (
     <section style={{ ...cardStyle, overflow: 'hidden' }}>
       {/* 分组卡头：badge · 名称 · 日期 · 统计 ·（启动/关闭）——点击折叠/展开 */}
@@ -118,7 +120,7 @@ function SprintCard({
           {fmtDates(sprint.startDate, sprint.endDate)}
         </span>
         <span style={{ fontSize: 12, color: 'var(--dim)', whiteSpace: 'nowrap' }}>
-          {sprint.tasks.length} 任务 · {fmtPoints(points)} pts
+          {t.nTasks(sprint.tasks.length)} · {fmtPoints(points)} pts
         </span>
         <span style={{ flex: 1 }} />
         {sprint.status === 'PLANNED' && (
@@ -144,7 +146,7 @@ function SprintCard({
               flex: 'none',
             }}
           >
-            启动
+            {t.startSprint}
           </button>
         )}
         {sprint.status === 'ACTIVE' && (
@@ -170,7 +172,7 @@ function SprintCard({
               flex: 'none',
             }}
           >
-            关闭
+            {t.closeSprint}
           </button>
         )}
       </div>
@@ -179,7 +181,7 @@ function SprintCard({
         <div style={{ padding: '4px 6px' }}>
           {sprint.tasks.length === 0 ? (
             <div style={{ padding: '10px 9px', fontSize: 12.5, color: 'var(--faint)' }}>
-              该 Sprint 暂无任务
+              {t.noSprintTasks}
             </div>
           ) : (
             sprint.tasks.map((task) => (
@@ -233,6 +235,7 @@ type ConfirmState = { kind: 'start' | 'close'; sprint: SprintWithTasks } | null
 export default function AllSprints() {
   const { slug = '' } = useParams<{ slug: string }>()
   const toast = useToast()
+  const t = useT()
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
   // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
   const storedProjectKey = useSelectedProjectKey(slug)
@@ -267,8 +270,8 @@ export default function AllSprints() {
     createSprint.mutate(
       {},
       {
-        onSuccess: (s) => toast.show(`${s.name} 已创建`),
-        onError: (e) => toast.show(`创建失败：${errMsg(e)}`, 'info'),
+        onSuccess: (s) => toast.show(t.sprintCreated(s.name)),
+        onError: (e) => toast.show(t.createFailed(errMsg(e, t.unknownError)), 'info'),
       },
     )
 
@@ -278,15 +281,15 @@ export default function AllSprints() {
     setConfirm(null)
     if (kind === 'start') {
       startSprint.mutate(sprint.id, {
-        onSuccess: () => toast.show('Sprint 已启动'),
-        onError: (e) => toast.show(`启动失败：${errMsg(e)}`, 'info'),
+        onSuccess: () => toast.show(t.sprintStarted),
+        onError: (e) => toast.show(t.startFailed(errMsg(e, t.unknownError)), 'info'),
       })
     } else {
       closeSprint.mutate(
         { sprintId: sprint.id, unfinished: 'BACKLOG' },
         {
-          onSuccess: () => toast.show('Sprint 已关闭'),
-          onError: (e) => toast.show(`关闭失败：${errMsg(e)}`, 'info'),
+          onSuccess: () => toast.show(t.sprintClosed),
+          onError: (e) => toast.show(t.closeFailed(errMsg(e, t.unknownError)), 'info'),
         },
       )
     }
@@ -298,13 +301,13 @@ export default function AllSprints() {
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       {/* 页头：标题 · 项目切换 · 新建 Sprint */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h1 style={pageTitleStyle}>所有 Sprint</h1>
+        <h1 style={pageTitleStyle}>{t.allSprints}</h1>
         {projects && projects.length > 1 && (
           <SelectWrap chevronTop={9}>
             <select
               value={projectKey}
               onChange={(e) => setSelectedProjectKey(slug, e.target.value)}
-              aria-label="切换项目"
+              aria-label={t.switchProject}
               style={{ ...selStyle, width: 'auto', background: 'var(--card)' }}
             >
               {projects.map((p) => (
@@ -329,7 +332,7 @@ export default function AllSprints() {
             }}
           >
             <Icon name="plus" size={14} />
-            新建 Sprint
+            {t.createSprint}
           </button>
         )}
       </div>
@@ -338,19 +341,19 @@ export default function AllSprints() {
 
       {!projectsLoading && projects && projects.length === 0 && (
         <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--dim)' }}>
-          暂无项目，请先创建项目。
+          {t.noProjectsSprints}
         </div>
       )}
 
       {isError && (
         <div style={{ fontSize: 13, color: 'var(--type-bug)' }}>
-          加载失败：{errMsg(error)}
+          {t.sprintsLoadFailed(errMsg(error, t.unknownError))}
         </div>
       )}
 
       {!isLoading && !isError && projectKey && sorted.length === 0 && (
         <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--dim)' }}>
-          该项目还没有任何 Sprint。
+          {t.noSprintsYet}
         </div>
       )}
 
@@ -381,13 +384,13 @@ export default function AllSprints() {
 
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm?.kind === 'close' ? '关闭该 Sprint？' : '启动该 Sprint？'}
+        title={confirm?.kind === 'close' ? t.confirmCloseSprint : t.confirmStartSprint}
         message={
           confirm?.kind === 'close'
-            ? '未完成任务将退回 Backlog。'
-            : '启动后当前进行中的 Sprint 将被关闭。'
+            ? t.closeSprintHint
+            : t.startSprintHint
         }
-        actionLabel={confirm?.kind === 'close' ? '关闭' : '启动'}
+        actionLabel={confirm?.kind === 'close' ? t.closeSprint : t.startSprint}
         danger={confirm?.kind === 'close'}
         onConfirm={handleConfirm}
         onCancel={() => setConfirm(null)}
