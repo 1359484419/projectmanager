@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- capacity_overrides 租户表：所有语句显式带 tenant_id（替代 Hibernate tenantFilter） -->
+<mapper namespace="pm.sprint.CapacityOverrideRepository">
+
+    <sql id="columns">
+        id, tenant_id, sprint_id, user_id, capacity
+    </sql>
+
+    <select id="selectBySprintId" resultType="pm.sprint.CapacityOverride">
+        SELECT <include refid="columns"/>
+        FROM capacity_overrides
+        WHERE sprint_id = #{sprintId}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectBySprintIdAndUserId" resultType="pm.sprint.CapacityOverride">
+        SELECT <include refid="columns"/>
+        FROM capacity_overrides
+        WHERE sprint_id = #{sprintId}
+          AND user_id = #{userId}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="o.id">
+        INSERT INTO capacity_overrides (tenant_id, sprint_id, user_id, capacity)
+        VALUES (#{tenantId}, #{o.sprintId}, #{o.userId}, #{o.capacity})
+    </insert>
+
+    <update id="update">
+        UPDATE capacity_overrides
+        SET sprint_id = #{o.sprintId},
+            user_id   = #{o.userId},
+            capacity  = #{o.capacity}
+        WHERE id = #{o.id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

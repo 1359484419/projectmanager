@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- epics 租户表：全部语句显式带 tenant_id -->
+<mapper namespace="pm.epic.EpicRepository">
+
+    <sql id="columns">
+        id, tenant_id, project_id, name, description, quarter, color, status
+    </sql>
+
+    <select id="findByIdAndTenant" resultType="pm.epic.Epic">
+        SELECT <include refid="columns"/>
+        FROM epics
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findByIdAndProjectIdAndTenant" resultType="pm.epic.Epic">
+        SELECT <include refid="columns"/>
+        FROM epics
+        WHERE id = #{id} AND project_id = #{projectId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findByProjectIdAndTenantOrderByIdAsc" resultType="pm.epic.Epic">
+        SELECT <include refid="columns"/>
+        FROM epics
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="e.id">
+        INSERT INTO epics (tenant_id, project_id, name, description, quarter, color, status)
+        VALUES (#{tenantId}, #{e.projectId}, #{e.name}, #{e.description}, #{e.quarter},
+                #{e.color}, #{e.status})
+    </insert>
+
+    <update id="update">
+        UPDATE epics
+        SET name = #{e.name},
+            description = #{e.description},
+            quarter = #{e.quarter},
+            color = #{e.color},
+            status = #{e.status}
+        WHERE id = #{e.id} AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

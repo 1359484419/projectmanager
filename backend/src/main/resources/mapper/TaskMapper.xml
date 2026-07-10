@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- tasks 租户表：所有语句显式 tenant_id 条件（原 Hibernate tenantFilter）；UPDATE 带 version 乐观锁 -->
+<mapper namespace="pm.task.TaskRepository">
+
+    <sql id="columns">
+        id, tenant_id, version, project_id, sprint_id, epic_id, type, seq, title,
+        description, points, assignee_id, status, rank, created_by, created_at, done_at
+    </sql>
+
+    <select id="findOneByIdT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findByProjectIdAndSeqT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE project_id = #{projectId} AND seq = #{seq} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findBacklogT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE project_id = #{projectId} AND sprint_id IS NULL AND tenant_id = #{tenantId}
+        ORDER BY rank ASC
+    </select>
+
+    <select id="findBySprintIdT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE sprint_id = #{sprintId} AND tenant_id = #{tenantId}
+        ORDER BY rank ASC
+    </select>
+
+    <select id="findByEpicIdInT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE tenant_id = #{tenantId}
+          AND epic_id IN
+        <foreach collection="epicIds" item="eid" open="(" separator="," close=")">
+            #{eid}
+        </foreach>
+        ORDER BY rank ASC
+    </select>
+
+    <select id="findByAssigneeIdAndStatusNotT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE assignee_id = #{assigneeId}
+          AND status != #{status}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- pattern 已在接口 default 方法中做过 % _ \ 转义并加首尾 % -->
+    <select id="searchT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE tenant_id = #{tenantId}
+          AND (lower(title) LIKE lower(#{pattern}) ESCAPE '\'
+               OR lower(description) LIKE lower(#{pattern}) ESCAPE '\')
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="maxSeqT" resultType="int">
+        SELECT coalesce(max(seq), 0)
+        FROM tasks
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="maxRankT" resultType="string">
+        SELECT max(rank)
+        FROM tasks
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findAllByIdListT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="tid" open="(" separator="," close=")">
+            #{tid}
+        </foreach>
+    </select>
+
+    <!-- version 不写：DB DEFAULT 0，与实体字段初值 0 一致；created_at 写实体值（与 JPA 行为一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="t.id">
+        INSERT INTO tasks (tenant_id, project_id, sprint_id, epic_id, type, seq, title,
+                           description, points, assignee_id, status, rank, created_by,
+                           created_at, done_at)
+        VALUES (#{tenantId}, #{t.projectId}, #{t.sprintId}, #{t.epicId}, #{t.type}, #{t.seq},
+                #{t.title}, #{t.description}, #{t.points}, #{t.assigneeId}, #{t.status},
+                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.doneAt})
+    </insert>
+
+    <!-- 乐观锁：WHERE 带 version，命中 0 行由接口 default save 抛 409 CONFLICT -->
+    <update id="update">
+        UPDATE tasks
+        SET version     = version + 1,
+            project_id  = #{t.projectId},
+            sprint_id   = #{t.sprintId},
+            epic_id     = #{t.epicId},
+            type        = #{t.type},
+            seq         = #{t.seq},
+            title       = #{t.title},
+            description = #{t.description},
+            points      = #{t.points},
+            assignee_id = #{t.assigneeId},
+            status      = #{t.status},
+            rank        = #{t.rank},
+            created_by  = #{t.createdBy},
+            done_at     = #{t.doneAt}
+        WHERE id = #{t.id} AND version = #{t.version} AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteByIdT">
+        DELETE FROM tasks
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

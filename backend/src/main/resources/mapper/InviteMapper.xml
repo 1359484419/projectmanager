@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  invites 租户表：accept-invite 走 /api/auth/**（无 TenantContext），
+  findByToken 按全局唯一 token 查、不带租户条件（tenant-guard 豁免：与 JPA 现状一致，
+  Invite 无 Hibernate @Filter，token 32 字节随机、全局唯一）。
+-->
+<mapper namespace="pm.tenantadmin.InviteRepository">
+
+    <sql id="columns">
+        id, tenant_id, token, role, expires_at, created_by, used_at, used_by
+    </sql>
+
+    <!-- tenant-guard-exempt: accept-invite 走 /api/auth/** 无租户上下文，token 全局唯一即凭证 -->
+    <select id="findByToken" resultType="pm.tenantadmin.Invite">
+        SELECT <include refid="columns"/>
+        FROM invites
+        WHERE token = #{token}
+    </select>
+
+    <!-- tenant_id 取自实体（InviteService.create 里显式传 TenantContext.require()，与 JPA 现状一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO invites (tenant_id, token, role, expires_at, created_by, used_at, used_by)
+        VALUES (#{tenantId}, #{token}, #{role}, #{expiresAt}, #{createdBy}, #{usedAt}, #{usedBy})
+    </insert>
+
+    <update id="update">
+        UPDATE invites
+        SET token = #{token},
+            role = #{role},
+            expires_at = #{expiresAt},
+            created_by = #{createdBy},
+            used_at = #{usedAt},
+            used_by = #{usedBy}
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

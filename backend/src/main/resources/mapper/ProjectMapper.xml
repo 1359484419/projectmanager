@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- projects 租户表：除 findByAutoRotateTrue（自动轮转 job 跨租户，白名单）外全部带 tenant_id -->
+<mapper namespace="pm.project.ProjectRepository">
+
+    <sql id="columns">
+        id, tenant_id, key, name, default_sprint_length, auto_rotate, created_at
+    </sql>
+
+    <select id="findByKeyAndTenant" resultType="pm.project.Project">
+        SELECT <include refid="columns"/>
+        FROM projects
+        WHERE key = #{key} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findByIdAndTenant" resultType="pm.project.Project">
+        SELECT <include refid="columns"/>
+        FROM projects
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- 悲观锁：锁项目行以串行分配任务 seq / Sprint 序号 -->
+    <select id="findByKeyForUpdateAndTenant" resultType="pm.project.Project">
+        SELECT <include refid="columns"/>
+        FROM projects
+        WHERE key = #{key} AND tenant_id = #{tenantId}
+        FOR UPDATE
+    </select>
+
+    <select id="countByKeyAndTenant" resultType="int">
+        SELECT COUNT(*)
+        FROM projects
+        WHERE key = #{key} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="findAllByTenantOrderByIdAsc" resultType="pm.project.Project">
+        SELECT <include refid="columns"/>
+        FROM projects
+        WHERE tenant_id = #{tenantId}
+        ORDER BY id ASC
+    </select>
+
+    <!-- tenant-guard-exempt: 自动轮转 job 在调度线程跨租户遍历（原 JPA 语义相同，
+         调度线程未开 tenantFilter），拿到 tenantId 后逐项目 TenantContext.set -->
+    <select id="findByAutoRotateTrue" resultType="pm.project.Project">
+        SELECT <include refid="columns"/>
+        FROM projects
+        WHERE auto_rotate = TRUE
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="e.id">
+        INSERT INTO projects (tenant_id, key, name, default_sprint_length, auto_rotate)
+        VALUES (#{tenantId}, #{e.key}, #{e.name}, #{e.defaultSprintLength}, #{e.autoRotate})
+    </insert>
+
+    <update id="update">
+        UPDATE projects
+        SET name = #{e.name},
+            default_sprint_length = #{e.defaultSprintLength},
+            auto_rotate = #{e.autoRotate}
+        WHERE id = #{e.id} AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

@@ -75,6 +75,7 @@ public class ProjectService {
         if (autoRotate != null) {
             project.setAutoRotate(autoRotate);
         }
-        return ProjectView.from(project);
+        // MyBatis 无 JPA 脏检查：修改后显式落库
+        return ProjectView.from(projects.save(project));
     }
 }

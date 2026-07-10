@@ -1,29 +1,16 @@
 package pm.tenantadmin;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
 import java.time.Instant;
 
-@Entity
-@Table(name = "tenants")
+/** 租户。纯 POJO，由 MyBatis 映射（mapper/TenantMapper.xml）。tenants 全局表。 */
 public class Tenant {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
     private String slug;
 
-    @Column(nullable = false)
     private String name;
 
-    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
     protected Tenant() {

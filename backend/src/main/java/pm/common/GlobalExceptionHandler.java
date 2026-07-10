@@ -34,7 +34,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("code", "VALIDATION", "message", msg));
     }
 
-    /** 乐观锁冲突（@Version）：并发编辑同一资源，后提交者 409，客户端重取后重试。 */
+    /**
+     * 乐观锁冲突：并发编辑同一资源，后提交者 409，客户端重取后重试。
+     * MyBatis 迁移后主路径由 TaskRepository.save 直接抛 ApiException.conflict（报文相同）；
+     * 此 handler 保留作 Spring DAO 层（spring-jdbc/spring-tx）同类异常的兜底，409 报文不变。
+     */
     @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
     ResponseEntity<Map<String, String>> handleOptimisticLock(
             org.springframework.dao.OptimisticLockingFailureException e) {

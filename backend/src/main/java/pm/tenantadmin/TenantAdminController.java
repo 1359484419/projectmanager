@@ -97,6 +97,7 @@ public class TenantAdminController {
             }
             pm.common.FieldLimits.check(name, pm.common.FieldLimits.TENANT_NAME, "租户名");
             tenant.setName(name);
+            tenants.save(tenant); // MyBatis 无脏检查，显式保存
         }
         return new TenantView(tenant.getSlug(), tenant.getName());
     }

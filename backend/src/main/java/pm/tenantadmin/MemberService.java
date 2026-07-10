@@ -55,6 +55,7 @@ public class MemberService {
             recorder.record(task, actorUserId, "ASSIGNED",
                     String.valueOf(targetUserId), null, Activity.Source.WEB);
             task.setAssigneeId(null);
+            tasks.save(task); // MyBatis 无 JPA 脏检查，显式落库
         }
     }
 }

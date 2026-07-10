@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  memberships 租户表：租户条件全部由调用方显式传参（本表本身就是「用户属于哪个租户」的映射，
+  无法依赖 TenantContext——/api/me 与 PatAuthFilter 均在无租户上下文时查询）。
+  与 JPA 现状一致：Membership 无 Hibernate @Filter。
+-->
+<mapper namespace="pm.tenantadmin.MembershipRepository">
+
+    <sql id="columns">
+        id, user_id, tenant_id, role
+    </sql>
+
+    <!-- tenant-guard-exempt: /api/me 列出用户全部租户 membership，无租户上下文，语义即跨租户 -->
+    <select id="findByUserId" resultType="pm.tenantadmin.Membership">
+        SELECT <include refid="columns"/>
+        FROM memberships
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="findByTenantId" resultType="pm.tenantadmin.Membership">
+        SELECT <include refid="columns"/>
+        FROM memberships
+        WHERE tenant_id = #{tenantId}
+    </select>
+
+    <select id="findByUserIdAndTenantId" resultType="pm.tenantadmin.Membership">
+        SELECT <include refid="columns"/>
+        FROM memberships
+        WHERE user_id = #{userId}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="countByTenantIdAndRole" resultType="long">
+        SELECT COUNT(*)
+        FROM memberships
+        WHERE tenant_id = #{tenantId}
+          AND role = #{role}
+    </select>
+
+    <!-- tenant_id 取自实体（Membership 构造器显式赋值，与 JPA 现状一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO memberships (user_id, tenant_id, role)
+        VALUES (#{userId}, #{tenantId}, #{role})
+    </insert>
+
+    <update id="update">
+        UPDATE memberships
+        SET user_id = #{userId},
+            role = #{role}
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM memberships
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

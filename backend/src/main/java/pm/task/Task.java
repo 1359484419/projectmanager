@@ -1,80 +1,48 @@
 package pm.task;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
-import org.hibernate.annotations.Filter;
 import pm.tenant.TenantEntity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
-@Entity
-@Table(name = "tasks")
-@Filter(name = TenantEntity.TENANT_FILTER, condition = "tenant_id = :tenantId")
 public class Task extends TenantEntity {
 
     public enum Type { STORY, BUG, TASK }
 
     public enum Status { TODO, IN_PROGRESS, COMPLETED, DONE }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 乐观锁：并发编辑同一任务时后提交的旧快照事务冲突失败（→ 409），防丢更新。 */
-    @Version
-    @Column(nullable = false)
+    /** 乐观锁：并发编辑同一任务时后提交的旧快照 UPDATE 影响 0 行（→ 409），防丢更新。 */
     private long version;
 
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
 
-    @Column(name = "sprint_id")
     private Long sprintId;
 
-    @Column(name = "epic_id")
     private Long epicId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Type type;
 
-    @Column(nullable = false)
     private int seq;
 
-    @Column(nullable = false)
     private String title;
 
     private String description;
 
     /** 故事点：0.5-5，0.5 的倍数（numeric(2,1)）。 */
-    @Column(precision = 2, scale = 1)
     private BigDecimal points;
 
-    @Column(name = "assignee_id")
     private Long assigneeId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Status status = Status.TODO;
 
-    @Column(nullable = false)
     private String rank;
 
-    @Column(name = "created_by")
     private Long createdBy;
 
-    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    @Column(name = "done_at")
     private Instant doneAt;
 
     protected Task() {
@@ -90,6 +58,14 @@ public class Task extends TenantEntity {
 
     public Long getId() {
         return id;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
     }
 
     public Long getProjectId() {

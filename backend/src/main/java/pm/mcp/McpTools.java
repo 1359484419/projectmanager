@@ -1,7 +1,5 @@
 package pm.mcp;
 
-import jakarta.persistence.EntityManager;
-import org.hibernate.Session;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pm.auth.CurrentUser;
@@ -17,7 +15,6 @@ import pm.task.Task;
 import pm.task.TaskRepository;
 import pm.task.TaskService;
 import pm.tenant.TenantContext;
-import pm.tenant.TenantEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,10 +27,10 @@ import java.util.Objects;
 
 /**
  * MCP 工具的业务实现（service 层，协议层见 McpConfig）。
- * harness 说明：/mcp 由 SDK 的 Servlet 直接处理、不经 DispatcherServlet，
- * TenantInterceptor（OSIV session 上开 tenantFilter）不生效；
- * 因此每个工具方法自带 @Transactional 并在入口对当前事务 session 开启 tenantFilter，
- * 租户上下文来自 PatAuthFilter 设置的 TenantContext（PAT 天然绑租户）。
+ * harness 说明：/mcp 由 SDK 的 Servlet 直接处理、不经 DispatcherServlet（TenantInterceptor 不生效）；
+ * 每个工具方法自带 @Transactional 并在入口 requireTenant() 校验租户上下文（未设置 → 404），
+ * 租户上下文来自 PatAuthFilter 设置的 TenantContext（PAT 天然绑租户），
+ * 数据隔离由各 Mapper SQL 显式 tenant_id 条件保证。
  */
 @Service
 public class McpTools {
@@ -46,18 +43,15 @@ public class McpTools {
     private final TaskRepository tasks;
     private final TaskService taskService;
     private final SprintService sprintService;
-    private final EntityManager entityManager;
 
     public McpTools(ProjectRepository projects, SprintRepository sprints, EpicRepository epics,
-                    TaskRepository tasks, TaskService taskService, SprintService sprintService,
-                    EntityManager entityManager) {
+                    TaskRepository tasks, TaskService taskService, SprintService sprintService) {
         this.projects = projects;
         this.sprints = sprints;
         this.epics = epics;
         this.tasks = tasks;
         this.taskService = taskService;
         this.sprintService = sprintService;
-        this.entityManager = entityManager;
     }
 
     public record ProjectItem(String key, String name) {
@@ -73,7 +67,7 @@ public class McpTools {
 
     @Transactional(readOnly = true)
     public List<ProjectItem> listProjects() {
-        enableTenantFilter();
+        requireTenant();
         return projects.findAllByOrderByIdAsc().stream()
                 .map(p -> new ProjectItem(p.getKey(), p.getName()))
                 .toList();
@@ -81,7 +75,7 @@ public class McpTools {
 
     @Transactional(readOnly = true)
     public Map<String, Object> listSprints(String projectKey) {
-        enableTenantFilter();
+        requireTenant();
         Project project = requireProject(projectKey);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("active", sprints.findByProjectIdAndStatus(project.getId(), Sprint.Status.ACTIVE)
@@ -97,7 +91,7 @@ public class McpTools {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> listEpics(String projectKey) {
-        enableTenantFilter();
+        requireTenant();
         Project project = requireProject(projectKey);
         return epics.findByProjectIdOrderByIdAsc(project.getId()).stream()
                 .map(e -> {
@@ -114,7 +108,7 @@ public class McpTools {
     /** 我在当前/上个 Sprint 的任务（agent 生成日报/周报用）。无对应 Sprint 返回空列表。 */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> listMyTasks(String projectKey, String sprint) {
-        enableTenantFilter();
+        requireTenant();
         Project project = requireProject(projectKey);
         String which = sprint == null ? "current" : sprint.toLowerCase(Locale.ROOT);
         Sprint target = switch (which) {
@@ -152,7 +146,7 @@ public class McpTools {
      */
     @Transactional
     public List<CreatedTask> createTasks(String projectKey, String target, List<TaskInput> inputs) {
-        enableTenantFilter();
+        requireTenant();
         if (inputs == null || inputs.isEmpty()) {
             throw ApiException.badRequest("VALIDATION", "tasks must not be empty");
         }
@@ -177,7 +171,7 @@ public class McpTools {
     /** 按展示号（如 PM-42）推进任务状态。 */
     @Transactional
     public Map<String, Object> updateTaskStatus(String taskSeq, String status) {
-        enableTenantFilter();
+        requireTenant();
         if (taskSeq == null || !taskSeq.contains("-")) {
             throw ApiException.badRequest("VALIDATION", "taskSeq must look like PM-42");
         }
@@ -248,12 +242,11 @@ public class McpTools {
     }
 
     /**
-     * harness：在当前事务 session 上开启租户过滤（/mcp 不经 TenantInterceptor）。
-     * TenantContext 由 PatAuthFilter（或测试）设置；未设置 → 404 语义。
+     * harness：工具入口的租户上下文守卫（/mcp 不经 TenantInterceptor）。
+     * TenantContext 由 PatAuthFilter（或测试）设置；未设置 → 404 语义（先于参数校验）。
+     * 数据隔离由 Mapper SQL 显式 tenant_id 条件保证，此处仅做 fail-fast。
      */
-    private void enableTenantFilter() {
-        long tenantId = TenantContext.require();
-        Session session = entityManager.unwrap(Session.class);
-        session.enableFilter(TenantEntity.TENANT_FILTER).setParameter("tenantId", tenantId);
+    private void requireTenant() {
+        TenantContext.require();
     }
 }

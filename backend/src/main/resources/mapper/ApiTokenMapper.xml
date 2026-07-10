@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  api_tokens 租户绑定表，但 PAT 是个人资源（/api/me 下管理，无 TenantContext）：
+  - findByTokenHash 全局按 hash 查（hash 全局唯一），调用方（PatAuthFilter）查到后自行校验 membership；
+  - findByUserIdOrderByIdDesc / findByIdAndUserId 按 user_id 跨租户（个人 token 列表/删除）。
+  以上均为 tenant-guard 豁免项，与 JPA 现状一致（ApiToken 无 Hibernate @Filter）。
+-->
+<mapper namespace="pm.mcp.ApiTokenRepository">
+
+    <sql id="columns">
+        id, tenant_id, user_id, token_hash, name, created_at, last_used_at
+    </sql>
+
+    <!-- tenant-guard-exempt: PAT 认证入口全局按 hash 查，无租户上下文，hash 全局唯一，查到后 PatAuthFilter 自行校验 membership -->
+    <select id="findByTokenHash" resultType="pm.mcp.ApiToken">
+        SELECT <include refid="columns"/>
+        FROM api_tokens
+        WHERE token_hash = #{tokenHash}
+    </select>
+
+    <!-- tenant-guard-exempt: 个人资源按 user_id 跨租户列出（/api/me 无租户上下文，user_id 即属主） -->
+    <select id="findByUserIdOrderByIdDesc" resultType="pm.mcp.ApiToken">
+        SELECT <include refid="columns"/>
+        FROM api_tokens
+        WHERE user_id = #{userId}
+        ORDER BY id DESC
+    </select>
+
+    <!-- tenant-guard-exempt: 个人资源按 id+user_id 定位，user_id 即属主校验（/api/me 无租户上下文） -->
+    <select id="findByIdAndUserId" resultType="pm.mcp.ApiToken">
+        SELECT <include refid="columns"/>
+        FROM api_tokens
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </select>
+
+    <!-- tenant_id 取自实体（PatController 里显式传 tenant.getId()，与 JPA 现状一致）；
+         created_at 实体字段初始化为 Instant.now()，照 JPA 行为写入 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO api_tokens (tenant_id, user_id, token_hash, name, created_at, last_used_at)
+        VALUES (#{tenantId}, #{userId}, #{tokenHash}, #{name}, #{createdAt}, #{lastUsedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE api_tokens
+        SET user_id = #{userId},
+            token_hash = #{tokenHash},
+            name = #{name},
+            last_used_at = #{lastUsedAt}
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM api_tokens
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </delete>
+
+    <delete id="deleteByUserIdAndTenantId">
+        DELETE FROM api_tokens
+        WHERE user_id = #{userId}
+          AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

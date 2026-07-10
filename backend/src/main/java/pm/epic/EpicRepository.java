@@ -1,16 +1,56 @@
 package pm.epic;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import pm.tenant.TenantContext;
 
 import java.util.List;
 import java.util.Optional;
 
-/** 租户过滤靠 tenantFilter；用 findOneById 代替 findById（后者绕过 @Filter）。 */
-public interface EpicRepository extends JpaRepository<Epic, Long> {
+/**
+ * MyBatis Mapper（原 JpaRepository）。SQL 在 resources/mapper/EpicMapper.xml。
+ * 对 Service 层暴露的方法签名与原 JpaRepository 完全一致。
+ * epics 是租户表：所有语句显式带 tenant_id = TenantContext.require()。
+ */
+@Mapper
+public interface EpicRepository {
 
-    Optional<Epic> findOneById(Long id);
+    default Optional<Epic> findOneById(Long id) {
+        return findByIdAndTenant(id, TenantContext.require());
+    }
 
-    Optional<Epic> findByIdAndProjectId(Long id, Long projectId);
+    default Optional<Epic> findByIdAndProjectId(Long id, Long projectId) {
+        return findByIdAndProjectIdAndTenant(id, projectId, TenantContext.require());
+    }
 
-    List<Epic> findByProjectIdOrderByIdAsc(Long projectId);
+    default List<Epic> findByProjectIdOrderByIdAsc(Long projectId) {
+        return findByProjectIdAndTenantOrderByIdAsc(projectId, TenantContext.require());
+    }
+
+    /** 与 JpaRepository.save 语义一致：id 为 null 走 INSERT（回填 id），否则全字段 UPDATE。 */
+    default Epic save(Epic epic) {
+        if (epic.getId() == null) {
+            Long tenantId = epic.getTenantId() != null
+                    ? epic.getTenantId() : TenantContext.require();
+            insert(epic, tenantId);
+        } else {
+            update(epic, TenantContext.require());
+        }
+        return epic;
+    }
+
+    // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
+
+    Optional<Epic> findByIdAndTenant(@Param("id") Long id, @Param("tenantId") Long tenantId);
+
+    Optional<Epic> findByIdAndProjectIdAndTenant(@Param("id") Long id,
+                                                 @Param("projectId") Long projectId,
+                                                 @Param("tenantId") Long tenantId);
+
+    List<Epic> findByProjectIdAndTenantOrderByIdAsc(@Param("projectId") Long projectId,
+                                                    @Param("tenantId") Long tenantId);
+
+    void insert(@Param("e") Epic e, @Param("tenantId") Long tenantId);
+
+    int update(@Param("e") Epic e, @Param("tenantId") Long tenantId);
 }

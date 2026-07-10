@@ -127,6 +127,7 @@ public class TaskService {
             task.setDoneAt(null);
         }
         recorder.record(task, actor, "STATUS_CHANGED", old.name(), newStatus.name(), source);
+        tasks.save(task); // MyBatis 无 JPA 脏检查，显式落库
     }
 
     /** 通用 PATCH：每个可变字段变更都留 activity。 */
@@ -183,6 +184,7 @@ public class TaskService {
         if (req.rank() != null) {
             task.setRank(computeRank(req.rank()));
         }
+        tasks.save(task); // MyBatis 无 JPA 脏检查，显式落库
         return toView(task);
     }
 
@@ -210,6 +212,7 @@ public class TaskService {
         recorder.record(task, actor, "SPRINT_CHANGED",
                 toStr(task.getSprintId()), toStr(newSprintId), source);
         task.setSprintId(newSprintId);
+        tasks.save(task); // MyBatis 无 JPA 脏检查，显式落库
     }
 
     // ---------- 查询 ----------
@@ -236,7 +239,7 @@ public class TaskService {
         }
         var keyById = new java.util.HashMap<Long, String>();
         projects.findAllByOrderByIdAsc().forEach(p -> keyById.put(p.getId(), p.getKey()));
-        return tasks.search(q.strip(), org.springframework.data.domain.PageRequest.of(0, 20)).stream()
+        return tasks.search(q.strip(), 20, 0).stream()
                 .map(t -> {
                     String key = keyById.getOrDefault(t.getProjectId(), "?");
                     return new SearchHit(t.getId(), t.getSeq(), key + "-" + t.getSeq(), key,

@@ -80,6 +80,7 @@ public class InviteService {
             memberships.save(new Membership(user.getId(), invite.getTenantId(), invite.getRole()));
         }
         invite.markUsed(user.getId());
+        invites.save(invite); // MyBatis 无脏检查，显式保存
         return authService.issueTokens(user.getId());
     }
 }

@@ -1,31 +1,16 @@
 package pm.epic;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import org.hibernate.annotations.Filter;
 import pm.tenant.TenantEntity;
 
-@Entity
-@Table(name = "epics")
-@Filter(name = TenantEntity.TENANT_FILTER, condition = "tenant_id = :tenantId")
+/** 纯 POJO（MyBatis 映射，原 JPA 实体）。对应表 epics。 */
 public class Epic extends TenantEntity {
 
     public enum Status { OPEN, DONE }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
 
-    @Column(nullable = false)
     private String name;
 
     private String description;
@@ -35,8 +20,6 @@ public class Epic extends TenantEntity {
 
     private String color;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Status status = Status.OPEN;
 
     protected Epic() {

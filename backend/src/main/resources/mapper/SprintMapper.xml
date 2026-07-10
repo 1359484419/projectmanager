@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- sprints 租户表：所有语句显式带 tenant_id（替代 Hibernate tenantFilter） -->
+<mapper namespace="pm.sprint.SprintRepository">
+
+    <sql id="columns">
+        id, tenant_id, project_id, name, length, start_date, end_date, status
+    </sql>
+
+    <select id="selectById" resultType="pm.sprint.Sprint">
+        SELECT <include refid="columns"/>
+        FROM sprints
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectByProjectIdAndStatus" resultType="pm.sprint.Sprint">
+        SELECT <include refid="columns"/>
+        FROM sprints
+        WHERE project_id = #{projectId}
+          AND status = #{status}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectFirstByProjectIdAndStatusOrderByStartDate" resultType="pm.sprint.Sprint">
+        SELECT <include refid="columns"/>
+        FROM sprints
+        WHERE project_id = #{projectId}
+          AND status = #{status}
+          AND tenant_id = #{tenantId}
+        ORDER BY start_date ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectTop5ByProjectIdAndStatusOrderByEndDateDesc" resultType="pm.sprint.Sprint">
+        SELECT <include refid="columns"/>
+        FROM sprints
+        WHERE project_id = #{projectId}
+          AND status = #{status}
+          AND tenant_id = #{tenantId}
+        ORDER BY end_date DESC
+        LIMIT 5
+    </select>
+
+    <select id="selectByProjectIdOrderByIdDesc" resultType="pm.sprint.Sprint">
+        SELECT <include refid="columns"/>
+        FROM sprints
+        WHERE project_id = #{projectId}
+          AND tenant_id = #{tenantId}
+        ORDER BY id DESC
+    </select>
+
+    <select id="countByProjectIdAndTenant" resultType="long">
+        SELECT COUNT(*)
+        FROM sprints
+        WHERE project_id = #{projectId}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- created_at 走 DB DEFAULT，不写 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="s.id">
+        INSERT INTO sprints (tenant_id, project_id, name, length, start_date, end_date, status)
+        VALUES (#{tenantId}, #{s.projectId}, #{s.name}, #{s.length}, #{s.startDate}, #{s.endDate}, #{s.status})
+    </insert>
+
+    <update id="update">
+        UPDATE sprints
+        SET project_id = #{s.projectId},
+            name       = #{s.name},
+            length     = #{s.length},
+            start_date = #{s.startDate},
+            end_date   = #{s.endDate},
+            status     = #{s.status}
+        WHERE id = #{s.id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

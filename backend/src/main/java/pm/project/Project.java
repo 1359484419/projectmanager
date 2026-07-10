@@ -1,38 +1,20 @@
 package pm.project;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import org.hibernate.annotations.Filter;
 import pm.tenant.TenantEntity;
 
-@Entity
-@Table(name = "projects")
-@Filter(name = TenantEntity.TENANT_FILTER, condition = "tenant_id = :tenantId")
+/** 纯 POJO（MyBatis 映射，原 JPA 实体）。对应表 projects。 */
 public class Project extends TenantEntity {
 
     public enum SprintLength { WEEK_1, WEEK_2, MONTH_1 }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "key", nullable = false)
     private String key;
 
-    @Column(nullable = false)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "default_sprint_length", nullable = false)
     private SprintLength defaultSprintLength = SprintLength.WEEK_2;
 
-    @Column(name = "auto_rotate", nullable = false)
     private boolean autoRotate = true;
 
     protected Project() {

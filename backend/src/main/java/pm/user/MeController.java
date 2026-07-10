@@ -68,6 +68,7 @@ public class MeController {
             }
             FieldLimits.check(name, FieldLimits.DISPLAY_NAME, "显示名");
             user.setDisplayName(name);
+            users.save(user); // MyBatis 无脏检查，显式落库
         }
         return new ProfileView(user.getId(), user.getEmail(), user.getDisplayName());
     }
@@ -84,5 +85,6 @@ public class MeController {
             throw ApiException.badRequest("WRONG_PASSWORD", "原密码不正确");
         }
         user.setPasswordHash(auth.hashPassword(req.newPassword()));
+        users.save(user); // MyBatis 无脏检查，显式落库
     }
 }

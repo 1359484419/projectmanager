@@ -1,48 +1,27 @@
 package pm.sprint;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import org.hibernate.annotations.Filter;
 import pm.project.Project;
 import pm.tenant.TenantEntity;
 
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "sprints")
-@Filter(name = TenantEntity.TENANT_FILTER, condition = "tenant_id = :tenantId")
+/** 纯 POJO（MyBatis 映射，SQL 见 mapper/SprintMapper.xml），表 sprints。 */
 public class Sprint extends TenantEntity {
 
     public enum Status { PLANNED, ACTIVE, CLOSED }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
 
-    @Column(nullable = false)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Project.SprintLength length;
 
-    @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
-    @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Status status = Status.PLANNED;
 
     protected Sprint() {

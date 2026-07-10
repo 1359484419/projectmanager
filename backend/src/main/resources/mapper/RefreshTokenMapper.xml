@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- refresh_tokens 全局表：无租户条件 -->
+<mapper namespace="pm.auth.RefreshTokenRepository">
+
+    <sql id="columns">
+        id, user_id, token_hash, expires_at
+    </sql>
+
+    <select id="findByTokenHash" resultType="pm.auth.RefreshToken">
+        SELECT <include refid="columns"/>
+        FROM refresh_tokens
+        WHERE token_hash = #{tokenHash}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+        VALUES (#{userId}, #{tokenHash}, #{expiresAt})
+    </insert>
+
+    <update id="update">
+        UPDATE refresh_tokens
+        SET user_id = #{userId},
+            token_hash = #{tokenHash},
+            expires_at = #{expiresAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM refresh_tokens
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

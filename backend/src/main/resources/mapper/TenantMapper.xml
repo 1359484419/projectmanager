@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- tenants 全局表：无租户条件 -->
+<mapper namespace="pm.tenantadmin.TenantRepository">
+
+    <sql id="columns">
+        id, slug, name, created_at
+    </sql>
+
+    <select id="findById" resultType="pm.tenantadmin.Tenant">
+        SELECT <include refid="columns"/>
+        FROM tenants
+        WHERE id = #{id}
+    </select>
+
+    <select id="findBySlug" resultType="pm.tenantadmin.Tenant">
+        SELECT <include refid="columns"/>
+        FROM tenants
+        WHERE slug = #{slug}
+    </select>
+
+    <select id="existsBySlug" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM tenants WHERE slug = #{slug})
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tenants (slug, name)
+        VALUES (#{slug}, #{name})
+    </insert>
+
+    <update id="update">
+        UPDATE tenants
+        SET slug = #{slug},
+            name = #{name}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

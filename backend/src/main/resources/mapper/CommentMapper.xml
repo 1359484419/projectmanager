@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- comments 租户表：所有语句显式 tenant_id 条件 -->
+<mapper namespace="pm.comment.CommentRepository">
+
+    <sql id="columns">
+        id, tenant_id, task_id, author_id, body, created_at
+    </sql>
+
+    <select id="findByTaskIdT" resultType="pm.comment.Comment">
+        SELECT <include refid="columns"/>
+        FROM comments
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+        ORDER BY created_at ASC, id ASC
+    </select>
+
+    <!-- created_at 写实体值（Instant.now()，与 JPA 行为一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="c.id">
+        INSERT INTO comments (tenant_id, task_id, author_id, body, created_at)
+        VALUES (#{tenantId}, #{c.taskId}, #{c.authorId}, #{c.body}, #{c.createdAt})
+    </insert>
+
+    <update id="update">
+        UPDATE comments
+        SET task_id   = #{c.taskId},
+            author_id = #{c.authorId},
+            body      = #{c.body}
+        WHERE id = #{c.id} AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteByTaskIdT">
+        DELETE FROM comments
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

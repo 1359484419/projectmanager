@@ -75,6 +75,7 @@ public class SprintService {
                             "project already has an active sprint: " + active.getName());
                 });
         sprint.setStatus(Sprint.Status.ACTIVE);
+        sprints.save(sprint); // MyBatis 无 JPA 脏检查，显式落库
         return SprintView.from(sprint);
     }
 
@@ -99,6 +100,7 @@ public class SprintService {
         }
         moveUnfinished(sprint, target, actor);
         sprint.setStatus(Sprint.Status.CLOSED);
+        sprints.save(sprint); // MyBatis 无 JPA 脏检查，显式落库
         return SprintView.from(sprint);
     }
 
@@ -117,10 +119,12 @@ public class SprintService {
         Sprint old = activeOpt.get();
         old.setStatus(Sprint.Status.CLOSED);
         // 先落 CLOSED 再插新 ACTIVE，避免 one_active_sprint 部分唯一索引冲突
-        sprints.flush();
+        // （原 sprints.flush()；MyBatis 语句即时执行，save 即落库）
+        sprints.save(old);
         Sprint next = newSprint(project, null, project.getDefaultSprintLength(),
                 old.getEndDate().plusDays(1));
         next.setStatus(Sprint.Status.ACTIVE);
+        sprints.save(next); // newSprint 插入时是 PLANNED，置 ACTIVE 后显式落库（MyBatis 无脏检查）
         for (Task task : tasks.findBySprintIdOrderByRankAsc(old.getId())) {
             if (task.getStatus() != Task.Status.DONE) {
                 taskService.changeSprint(task, next.getId(), null, Activity.Source.WEB);

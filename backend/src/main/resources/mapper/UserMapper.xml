@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- users 全局表：无租户条件 -->
+<mapper namespace="pm.user.UserRepository">
+
+    <sql id="columns">
+        id, email, password_hash, display_name, created_at
+    </sql>
+
+    <select id="findById" resultType="pm.user.User">
+        SELECT <include refid="columns"/>
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByEmail" resultType="pm.user.User">
+        SELECT <include refid="columns"/>
+        FROM users
+        WHERE email = #{email}
+    </select>
+
+    <select id="findAllByIdList" resultType="pm.user.User">
+        SELECT <include refid="columns"/>
+        FROM users
+        WHERE id IN
+        <foreach collection="ids" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (email, password_hash, display_name)
+        VALUES (#{email}, #{passwordHash}, #{displayName})
+    </insert>
+
+    <update id="update">
+        UPDATE users
+        SET email = #{email},
+            password_hash = #{passwordHash},
+            display_name = #{displayName}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

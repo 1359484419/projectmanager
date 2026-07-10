@@ -22,8 +22,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // 必须排在 OSIV（OpenEntityManagerInViewInterceptor，order=0）之后，
-        // 否则 preHandle 时请求级 EntityManager 尚未绑定，tenantFilter 会开在临时 session 上而失效。
+        // 保持最低优先级：先让其他 interceptor（若有）跑完，再做租户解析与 TenantContext 注入。
+        // （JPA 时代此顺序是为排在 OSIV 之后；MyBatis 迁移后无 OSIV，顺序保留无副作用。）
         registry.addInterceptor(tenantInterceptor)
                 .addPathPatterns("/api/t/**")
                 .order(Ordered.LOWEST_PRECEDENCE);

@@ -1,49 +1,29 @@
 package pm.tenantadmin;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
 import java.time.Instant;
 
 /**
  * 邀请：accept-invite 走 /api/auth/**（无租户上下文），故不继承 TenantEntity，
  * tenant_id 显式赋值、按 token 全局查找。
+ * 纯 POJO，由 MyBatis 映射（mapper/InviteMapper.xml）。
  */
-@Entity
-@Table(name = "invites")
 public class Invite {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @Column(nullable = false, unique = true)
     private String token;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Membership.Role role;
 
-    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(name = "created_by", nullable = false)
     private Long createdBy;
 
     /** 一次性消费：accept 成功即写入；非空的 token 不可再用（410 INVITE_USED）。 */
-    @Column(name = "used_at")
     private Instant usedAt;
 
-    @Column(name = "used_by")
     private Long usedBy;
 
     protected Invite() {

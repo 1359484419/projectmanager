@@ -33,11 +33,13 @@
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-data-jpa</artifactId>
+      <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-security</artifactId>
+      <!-- 持久层：MyBatis（2026-07 自 Spring Data JPA 迁移；带来 spring-boot-starter-jdbc/HikariCP） -->
+      <groupId>org.mybatis.spring.boot</groupId>
+      <artifactId>mybatis-spring-boot-starter</artifactId>
+      <version>3.0.5</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

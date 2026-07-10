@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- activities 租户表：所有语句显式 tenant_id 条件 -->
+<mapper namespace="pm.task.ActivityRepository">
+
+    <sql id="columns">
+        id, tenant_id, task_id, actor_id, type, old_value, new_value, source, at
+    </sql>
+
+    <select id="findByTaskIdT" resultType="pm.task.Activity">
+        SELECT <include refid="columns"/>
+        FROM activities
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+        ORDER BY at DESC, id DESC
+    </select>
+
+    <select id="sprintChangesTouchingT" resultType="pm.task.Activity">
+        SELECT <include refid="columns"/>
+        FROM activities
+        WHERE tenant_id = #{tenantId}
+          AND type = 'SPRINT_CHANGED'
+          AND (old_value = #{sid} OR new_value = #{sid})
+        ORDER BY at ASC, id ASC
+    </select>
+
+    <select id="sprintChangesOfTasksT" resultType="pm.task.Activity">
+        SELECT <include refid="columns"/>
+        FROM activities
+        WHERE tenant_id = #{tenantId}
+          AND type = 'SPRINT_CHANGED'
+          AND task_id IN
+        <foreach collection="taskIds" item="tid" open="(" separator="," close=")">
+            #{tid}
+        </foreach>
+        ORDER BY at ASC, id ASC
+    </select>
+
+    <!-- at 写实体值（Instant.now()，与 JPA 行为一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="a.id">
+        INSERT INTO activities (tenant_id, task_id, actor_id, type, old_value, new_value, source, at)
+        VALUES (#{tenantId}, #{a.taskId}, #{a.actorId}, #{a.type}, #{a.oldValue}, #{a.newValue},
+                #{a.source}, #{a.at})
+    </insert>
+
+    <update id="update">
+        UPDATE activities
+        SET task_id   = #{a.taskId},
+            actor_id  = #{a.actorId},
+            type      = #{a.type},
+            old_value = #{a.oldValue},
+            new_value = #{a.newValue},
+            source    = #{a.source},
+            at        = #{a.at}
+        WHERE id = #{a.id} AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteByTaskIdT">
+        DELETE FROM activities
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

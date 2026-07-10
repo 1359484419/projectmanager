@@ -1,5 +1,6 @@
 package pm.sprint;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,9 @@ import pm.task.Activity;
 import pm.task.ActivityRepository;
 import pm.task.Task;
 import pm.task.TaskRepository;
+import pm.tenant.TenantContext;
+import pm.tenantadmin.Membership;
+import pm.tenantadmin.TenantRepository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -37,10 +41,13 @@ class SprintRotationJobTest extends IntegrationTest {
     TaskRepository tasks;
     @Autowired
     ActivityRepository activities;
+    @Autowired
+    TenantRepository tenants;
 
     TwoTenantsFixture fx;
     String base;
     Long projectId;
+    long tenantIdA;
 
     @BeforeEach
     void setUp() {
@@ -50,6 +57,20 @@ class SprintRotationJobTest extends IntegrationTest {
                 base + "/projects", Map.of("key", "PM", "name", "demo"));
         assertThat(p.getStatusCode().value()).isEqualTo(200);
         projectId = ((Number) p.getBody().get("id")).longValue();
+        tenantIdA = tenants.findBySlug(fx.slugA).orElseThrow().getId();
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
+    /**
+     * MyBatis 迁移后测试线程直查 repository 需要租户上下文（SQL 显式 tenant_id）；
+     * job.run() 内部会逐项目 set/clear TenantContext，故每次 run 后断言前重新进入租户 A。
+     */
+    private void asTenantA() {
+        TenantContext.set(tenantIdA, Membership.Role.ADMIN);
     }
 
     /** 建一个已过期的 ACTIVE Sprint（WEEK_2，end = today - daysOverdue）。 */
@@ -86,6 +107,7 @@ class SprintRotationJobTest extends IntegrationTest {
         long todoTaskId = createTaskInSprint("未完成", oldSprintId, "TODO");
 
         job.run();
+        asTenantA();
 
         Sprint old = sprints.findById(oldSprintId).orElseThrow();
         assertThat(old.getStatus()).isEqualTo(Sprint.Status.CLOSED);
@@ -114,11 +136,13 @@ class SprintRotationJobTest extends IntegrationTest {
         createTaskInSprint("未完成", oldSprintId, "TODO");
 
         job.run();
+        asTenantA();
         long countAfterFirst = sprints.countByProjectId(projectId);
         Sprint activeAfterFirst =
                 sprints.findByProjectIdAndStatus(projectId, Sprint.Status.ACTIVE).orElseThrow();
 
         job.run();
+        asTenantA();
 
         assertThat(sprints.countByProjectId(projectId)).isEqualTo(countAfterFirst);
         Sprint activeAfterSecond =
@@ -132,6 +156,7 @@ class SprintRotationJobTest extends IntegrationTest {
         long todoTaskId = createTaskInSprint("跨停机未完成", oldSprintId, "TODO");
 
         job.run();
+        asTenantA();
 
         List<Sprint> all = sprints.findByProjectIdOrderByIdDesc(projectId);
         List<Sprint> actives = all.stream().filter(s -> s.getStatus() == Sprint.Status.ACTIVE).toList();
@@ -163,6 +188,7 @@ class SprintRotationJobTest extends IntegrationTest {
 
         // 补跑到位后再 run 一次仍是 no-op
         job.run();
+        asTenantA();
         assertThat(sprints.countByProjectId(projectId)).isEqualTo(all.size());
     }
 }
