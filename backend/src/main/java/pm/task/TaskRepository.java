@@ -103,6 +103,16 @@ public interface TaskRepository {
         deleteByIdT(task.getId(), TenantContext.require());
     }
 
+    /** 项目级联删除用：项目下全部任务 id。 */
+    default List<Long> findIdsByProjectId(Long projectId) {
+        return findIdsByProjectIdT(projectId, TenantContext.require());
+    }
+
+    /** 项目级联删除用：删项目下全部任务。 */
+    default void deleteByProjectId(Long projectId) {
+        deleteByProjectIdT(projectId, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Task> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
@@ -134,4 +144,8 @@ public interface TaskRepository {
     int update(@Param("t") Task task, @Param("tenantId") long tenantId);
 
     void deleteByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
+
+    List<Long> findIdsByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
+
+    void deleteByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
 }

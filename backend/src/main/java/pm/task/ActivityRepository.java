@@ -23,6 +23,15 @@ public interface ActivityRepository {
         deleteByTaskIdT(taskId, TenantContext.require());
     }
 
+    /** 项目级联删除用：按任务 id 批量删 activity；空集合直接返回，避免 SQL IN ()。 */
+    default void deleteByTaskIdIn(Collection<Long> taskIds) {
+        List<Long> list = new ArrayList<>(taskIds);
+        if (list.isEmpty()) {
+            return;
+        }
+        deleteByTaskIdInT(list, TenantContext.require());
+    }
+
     /** 燃尽图回放：涉及某 Sprint 的全部进出记录（old 或 new 为该 sprint id）。 */
     default List<Activity> sprintChangesTouching(String sprintId) {
         return sprintChangesTouchingT(sprintId, TenantContext.require());
@@ -53,6 +62,8 @@ public interface ActivityRepository {
     List<Activity> findByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
 
     void deleteByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
+
+    void deleteByTaskIdInT(@Param("taskIds") List<Long> taskIds, @Param("tenantId") long tenantId);
 
     List<Activity> sprintChangesTouchingT(@Param("sid") String sprintId, @Param("tenantId") long tenantId);
 

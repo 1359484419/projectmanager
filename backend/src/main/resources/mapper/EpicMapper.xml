@@ -43,4 +43,10 @@
         WHERE id = #{e.id} AND tenant_id = #{tenantId}
     </update>
 
+    <!-- 项目级联删除：删项目下全部 Epic（任务已先删，无悬挂 epic_id 引用） -->
+    <delete id="deleteByProjectIdT">
+        DELETE FROM epics
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

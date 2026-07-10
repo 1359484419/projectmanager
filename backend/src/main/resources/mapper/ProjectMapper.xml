@@ -63,4 +63,10 @@
         WHERE id = #{e.id} AND tenant_id = #{tenantId}
     </update>
 
+    <!-- 项目级联删除的最后一步：子数据（任务/Sprint/Epic 等）已在同事务先清 -->
+    <delete id="deleteByIdT">
+        DELETE FROM projects
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

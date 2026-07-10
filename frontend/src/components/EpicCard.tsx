@@ -14,9 +14,11 @@ export interface EpicCardProps {
   projectKey?: string
   /** 点击列表中的任务行（开 TaskDrawer） */
   onTaskClick?: (task: TaskBrief) => void
+  /** 点击卡片头部名称（打开编辑 Epic 对话框）；不传则名称不可点 */
+  onEdit?: () => void
 }
 
-export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProps) {
+export default function EpicCard({ epic, projectKey, onTaskClick, onEdit }: EpicCardProps) {
   const t = useT()
   const color = epic.color || DEFAULT_COLOR
   const pct =
@@ -38,20 +40,48 @@ export default function EpicCard({ epic, projectKey, onTaskClick }: EpicCardProp
       {/* 左侧颜色条 */}
       <span aria-hidden style={{ width: 4, background: color, flex: 'none' }} />
       <div style={{ padding: '13px 15px', flex: 1, minWidth: 0 }}>
-        {/* 头部：名称 + done/total */}
+        {/* 头部：名称（可点开编辑）+ done/total */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span
-            style={{
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: 'var(--text)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {epic.name}
-          </span>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              title={t.editEpic}
+              className="hover-accent"
+              style={{
+                fontSize: 13.5,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                color: 'var(--text)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 6,
+                padding: '1px 5px',
+                margin: '-1px -5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                minWidth: 0,
+              }}
+            >
+              {epic.name}
+            </button>
+          ) : (
+            <span
+              style={{
+                fontSize: 13.5,
+                fontWeight: 600,
+                color: 'var(--text)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {epic.name}
+            </span>
+          )}
           {epic.status === 'DONE' && (
             <Badge color="var(--done)" soft="var(--done-soft)" style={{ flex: 'none' }}>
               {t.epicDone}

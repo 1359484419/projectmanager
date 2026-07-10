@@ -4,8 +4,8 @@
 // 项目选择：?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个（与 Dashboard 一致）。
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useCreateEpic, useProjects, useRoadmap } from '../api/hooks'
-import type { TaskBrief } from '../api/types'
+import { useCreateEpic, useEpics, useProjects, useRoadmap, useUpdateEpic } from '../api/hooks'
+import type { Epic, RoadmapEpic, TaskBrief } from '../api/types'
 import EpicCard from '../components/EpicCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
@@ -50,27 +50,61 @@ const pageStyle: CSSProperties = {
   padding: '20px 24px 40px',
 }
 
-/** 新建 Epic 模态（设计稿 EPIC MODAL 节） */
-function CreateEpicDialog({
+/** Epic 模态（设计稿 EPIC MODAL 节）：不传 epic 为新建，传 epic 为编辑（多状态下拉） */
+function EpicDialog({
   slug,
   projectKey,
+  epic,
   onClose,
 }: {
   slug: string
   projectKey: string
+  /** 编辑模式：回填该 Epic 并走 PATCH */
+  epic?: Epic
   onClose: () => void
 }) {
   const t = useT()
   const createEpic = useCreateEpic(slug, projectKey)
+  const updateEpic = useUpdateEpic(slug, projectKey)
   const toast = useToast()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [quarter, setQuarter] = useState('')
-  const [color, setColor] = useState(EPIC_COLORS[0])
+  const [name, setName] = useState(epic?.name ?? '')
+  const [description, setDescription] = useState(epic?.description ?? '')
+  const [quarter, setQuarter] = useState(epic?.quarter ?? '')
+  const [color, setColor] = useState(epic?.color || EPIC_COLORS[0])
+  const [status, setStatus] = useState(epic?.status ?? 'OPEN')
+  const isEdit = !!epic
+  const isPending = isEdit ? updateEpic.isPending : createEpic.isPending
+  // 编辑时：旧 Epic 的季度/颜色可能不在当前候选里，补进去以便正确回显
+  const quarters = quarterOptions()
+  if (epic?.quarter && !quarters.includes(epic.quarter)) quarters.unshift(epic.quarter)
+  const colors =
+    epic?.color && !EPIC_COLORS.includes(epic.color) ? [epic.color, ...EPIC_COLORS] : EPIC_COLORS
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || createEpic.isPending) return
+    if (!name.trim() || isPending) return
+    if (isEdit) {
+      updateEpic.mutate(
+        {
+          id: epic.id,
+          name: name.trim(),
+          description: description.trim() || null,
+          quarter: quarter || null,
+          color,
+          status,
+        },
+        {
+          onSuccess: () => {
+            toast.show(t.epicUpdated)
+            onClose()
+          },
+          onError: (err) => {
+            toast.show(t.epicUpdateFailed(err.message), 'info')
+          },
+        },
+      )
+      return
+    }
     createEpic.mutate(
       {
         name: name.trim(),
@@ -94,7 +128,7 @@ function CreateEpicDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t.createEpic}
+      aria-label={isEdit ? t.editEpic : t.createEpic}
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -120,7 +154,9 @@ function CreateEpicDialog({
           padding: 20,
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>{t.createEpic}</div>
+        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>
+          {isEdit ? t.editEpic : t.createEpic}
+        </div>
 
         <label style={labelStyle} htmlFor="epic-name">
           {t.epicName}
@@ -156,7 +192,7 @@ function CreateEpicDialog({
 
         <label style={{ ...labelStyle, marginBottom: 7 }}>{t.epicColor}</label>
         <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
-          {EPIC_COLORS.map((c) => (
+          {colors.map((c) => (
             <button
               key={c}
               type="button"
@@ -179,7 +215,7 @@ function CreateEpicDialog({
         </div>
 
         <label style={labelStyle} htmlFor="epic-quarter">
-          季度
+          {t.epicQuarter}
         </label>
         <SelectWrap style={{ marginBottom: 20 }}>
           <select
@@ -188,7 +224,7 @@ function CreateEpicDialog({
             value={quarter}
             onChange={(e) => setQuarter(e.target.value)}
           >
-            {quarterOptions().map((q) => (
+            {quarters.map((q) => (
               <option key={q} value={q}>
                 {q}
               </option>
@@ -197,23 +233,42 @@ function CreateEpicDialog({
           </select>
         </SelectWrap>
 
+        {isEdit && (
+          <>
+            <label style={labelStyle} htmlFor="epic-status">
+              {t.status}
+            </label>
+            <SelectWrap style={{ marginBottom: 20 }}>
+              <select
+                id="epic-status"
+                style={selStyle}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as Epic['status'])}
+              >
+                <option value="OPEN">{t.epicStatusOpen}</option>
+                <option value="DONE">{t.epicStatusDone}</option>
+              </select>
+            </SelectWrap>
+          </>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
           <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
             {t.cancel}
           </button>
           <button
             type="submit"
-            disabled={!name.trim() || createEpic.isPending}
+            disabled={!name.trim() || isPending}
             className="btn-primary"
             style={{
               ...btnPrimary,
               height: 32,
               padding: '0 16px',
               borderRadius: 8,
-              opacity: !name.trim() || createEpic.isPending ? 0.6 : 1,
+              opacity: !name.trim() || isPending ? 0.6 : 1,
             }}
           >
-            {createEpic.isPending ? t.creating : t.create}
+            {isPending ? (isEdit ? t.saving : t.creating) : isEdit ? t.save : t.create}
           </button>
         </div>
       </form>
@@ -269,7 +324,9 @@ export default function Roadmap() {
   const storedProjectKey = useSelectedProjectKey(slug)
   const projectKey = resolveProjectKey(searchParams.get('project'), storedProjectKey, projects.data)
   const roadmap = useRoadmap(slug, projectKey)
+  const epics = useEpics(slug, projectKey)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingEpic, setEditingEpic] = useState<RoadmapEpic | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
   const t = useT()
 
@@ -354,6 +411,7 @@ export default function Roadmap() {
                     epic={epic}
                     projectKey={projectKey}
                     onTaskClick={setDrawerTask}
+                    onEdit={() => setEditingEpic(epic)}
                   />
                 ))}
               </div>
@@ -363,7 +421,26 @@ export default function Roadmap() {
       )}
 
       {dialogOpen && (
-        <CreateEpicDialog slug={slug} projectKey={projectKey} onClose={() => setDialogOpen(false)} />
+        <EpicDialog slug={slug} projectKey={projectKey} onClose={() => setDialogOpen(false)} />
+      )}
+      {editingEpic && !epics.isLoading && (
+        <EpicDialog
+          key={editingEpic.id}
+          slug={slug}
+          projectKey={projectKey}
+          // RoadmapEpic 无 description/quarter：用 useEpics 列表按 id 找全量数据回填，找不到时降级
+          epic={
+            epics.data?.find((e) => e.id === editingEpic.id) ?? {
+              id: editingEpic.id,
+              name: editingEpic.name,
+              description: null,
+              quarter: null,
+              color: editingEpic.color,
+              status: editingEpic.status,
+            }
+          }
+          onClose={() => setEditingEpic(null)}
+        />
       )}
       {drawerTask && (
         <TaskDrawer

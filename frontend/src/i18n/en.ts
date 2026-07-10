@@ -108,6 +108,30 @@ const en: typeof import('./zh').default = {
   fieldType: 'Type',
   empty: 'empty',
 
+  // ---- Subtasks ----
+  subtasks: 'Subtasks',
+  addSubtaskPlaceholder: 'Add subtask, press Enter…',
+  subtaskMarkDone: 'Mark done',
+  subtaskMarkUndone: 'Mark not started',
+  subtaskDelete: 'Delete subtask',
+  subtaskProgress: (done: number, total: number) => `${done}/${total} done`,
+  subtaskAddFailed: (msg: string) => `Add failed: ${msg}`,
+  noSubtasks: 'No subtasks.',
+
+  // ---- Epic edit ----
+  editEpic: 'Edit Epic',
+  epicUpdated: 'Epic updated',
+  epicUpdateFailed: (msg: string) => `Update failed: ${msg}`,
+  epicStatusOpen: 'Open',
+  epicStatusDone: 'Done',
+
+  // ---- Project delete ----
+  deleteProject: 'Delete project',
+  deleteProjectConfirm: (key: string) => `Delete project ${key}?`,
+  deleteProjectWarning: 'This permanently deletes all tasks, sprints, epics, comments and history of this project. This cannot be undone.',
+  projectDeleted: 'Project deleted',
+  deleteProjectFailed: (msg: string) => `Delete failed: ${msg}`,
+
   // ---- Comments ----
   commentsLoadFailed: (msg: string) => `Comments load failed: ${msg}`,
   noComments: 'No comments yet.',

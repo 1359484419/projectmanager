@@ -107,6 +107,17 @@ export interface UpdateTaskInput {
   rank?: { afterTaskId?: number; beforeTaskId?: number }
 }
 
+// ---------- 子任务 ----------
+
+/** 子任务：仅挂在主任务编辑页内，不在列表/看板单独显示 */
+export interface Subtask {
+  id: number
+  taskId: number
+  title: string
+  done: boolean
+  createdAt: string
+}
+
 // ---------- Epic / 路线图 ----------
 
 export interface Epic {

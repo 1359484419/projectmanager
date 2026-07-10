@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom'
 import {
   useCreateInvite,
   useCreateProject,
+  useDeleteProject,
   useMembers,
   useMyTenants,
   useProjects,
@@ -360,6 +361,8 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
   const toast = useToast()
   const t = useT()
   const update = useUpdateProject(slug, project.key)
+  const deleteProject = useDeleteProject(slug)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   function save(patch: { defaultSprintLength?: SprintLength; autoRotate?: boolean }) {
     update.mutate(patch, {
@@ -368,15 +371,61 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
     })
   }
 
+  function confirmDeleteProject() {
+    if (deleteProject.isPending) return
+    deleteProject.mutate(project.key, {
+      onSuccess: () => {
+        setConfirmDelete(false)
+        toast.show(t.projectDeleted)
+      },
+      onError: (err) => {
+        setConfirmDelete(false)
+        toast.show(t.deleteProjectFailed(err.message), 'info')
+      },
+    })
+  }
+
   return (
     <div style={{ borderTop: showDivider ? '1px solid var(--border-soft)' : 'none', paddingTop: showDivider ? 14 : 0, marginTop: showDivider ? 14 : 0 }}>
-      {/* 项目名行 */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+      {/* 项目名行（右侧：删除项目，红色 ghost，参考「移出租户」按钮） */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
           {project.key}
         </span>
         <span style={{ fontSize: 13, fontWeight: 600 }}>{project.name}</span>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          disabled={deleteProject.isPending}
+          className="hover-card"
+          aria-label={`${t.deleteProject} ${project.key}`}
+          style={{
+            height: 26,
+            padding: '0 10px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--type-bug)',
+            fontSize: 11.5,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            flex: 'none',
+            opacity: deleteProject.isPending ? 0.6 : 1,
+          }}
+        >
+          {t.deleteProject}
+        </button>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={t.deleteProjectConfirm(project.key)}
+        message={t.deleteProjectWarning}
+        actionLabel={t.deleteProject}
+        danger
+        onConfirm={confirmDeleteProject}
+        onCancel={() => setConfirmDelete(false)}
+      />
       {/* 默认 Sprint 周期 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 13, flex: 1 }}>

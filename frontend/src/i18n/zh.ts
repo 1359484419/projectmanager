@@ -108,6 +108,30 @@ const zh = {
   fieldType: '类型',
   empty: '空',
 
+  // ---- 子任务 ----
+  subtasks: '子任务',
+  addSubtaskPlaceholder: '添加子任务，回车提交…',
+  subtaskMarkDone: '标记完成',
+  subtaskMarkUndone: '标记未开始',
+  subtaskDelete: '删除子任务',
+  subtaskProgress: (done: number, total: number) => `${done}/${total} 完成`,
+  subtaskAddFailed: (msg: string) => `添加失败：${msg}`,
+  noSubtasks: '暂无子任务。',
+
+  // ---- Epic 编辑 ----
+  editEpic: '编辑 Epic',
+  epicUpdated: 'Epic 已更新',
+  epicUpdateFailed: (msg: string) => `更新失败：${msg}`,
+  epicStatusOpen: '进行中',
+  epicStatusDone: '已完成',
+
+  // ---- 项目删除 ----
+  deleteProject: '删除项目',
+  deleteProjectConfirm: (key: string) => `删除项目 ${key}？`,
+  deleteProjectWarning: '将永久删除该项目的全部任务、Sprint、Epic、评论与变更历史。此操作不可撤销。',
+  projectDeleted: '项目已删除',
+  deleteProjectFailed: (msg: string) => `删除失败：${msg}`,
+
   // ---- 评论 ----
   commentsLoadFailed: (msg: string) => `评论加载失败：${msg}`,
   noComments: '还没有评论。',

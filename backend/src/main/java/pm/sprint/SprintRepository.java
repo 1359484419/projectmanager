@@ -62,9 +62,16 @@ public interface SprintRepository {
         return sprint;
     }
 
+    /** 项目级联删除用：删项目下全部 Sprint。 */
+    default void deleteByProjectId(Long projectId) {
+        deleteByProjectIdT(projectId, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Sprint> selectById(@Param("id") Long id, @Param("tenantId") long tenantId);
+
+    void deleteByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
 
     Optional<Sprint> selectByProjectIdAndStatus(@Param("projectId") Long projectId,
                                                 @Param("status") Sprint.Status status,

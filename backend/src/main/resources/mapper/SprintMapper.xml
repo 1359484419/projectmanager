@@ -76,4 +76,11 @@
           AND tenant_id = #{tenantId}
     </update>
 
+    <!-- 项目级联删除：删项目下全部 Sprint（capacity_overrides 已先按 sprint 清掉） -->
+    <delete id="deleteByProjectIdT">
+        DELETE FROM sprints
+        WHERE project_id = #{projectId}
+          AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

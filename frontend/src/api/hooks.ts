@@ -26,6 +26,7 @@ import type {
   Roadmap,
   Sprint,
   SprintWithTasks,
+  Subtask,
   Task,
   UpdateEpicInput,
   UpdateProjectInput,
@@ -50,6 +51,7 @@ export const qk = {
   capacity: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'capacity'] as const,
   burndown: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'burndown'] as const,
   comments: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'comments'] as const,
+  subtasks: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'subtasks'] as const,
   activities: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'activities'] as const,
   members: (slug: string) => [slug, 'members'] as const,
   search: (slug: string, q: string) => [slug, 'search', q] as const,
@@ -325,6 +327,56 @@ export function useCreateComment(slug: string, taskId: number) {
         body: JSON.stringify({ body }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.comments(slug, taskId) }),
+  })
+}
+
+// ---------- 子任务 ----------
+
+export function useSubtasks(slug: string, taskId: number | null | undefined) {
+  return useQuery({
+    queryKey: qk.subtasks(slug, taskId ?? -1),
+    queryFn: () => api<Subtask[]>(`${t(slug)}/tasks/${taskId}/subtasks`),
+    enabled: !!slug && taskId != null,
+  })
+}
+
+export function useCreateSubtask(slug: string, taskId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (title: string) =>
+      api<Subtask>(`${t(slug)}/tasks/${taskId}/subtasks`, {
+        method: 'POST',
+        body: JSON.stringify({ title }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+  })
+}
+
+export function useUpdateSubtask(slug: string, taskId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: number; done?: boolean; title?: string }) =>
+      api<Subtask>(`${t(slug)}/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+  })
+}
+
+export function useDeleteSubtask(slug: string, taskId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api(`${t(slug)}/subtasks/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+  })
+}
+
+// ---------- 项目删除 ----------
+
+/** 删除项目（仅 ADMIN）：级联删除项目下全部任务/Sprint/Epic/评论/历史。 */
+export function useDeleteProject(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (key: string) => api(`${t(slug)}/projects/${key}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
   })
 }
 

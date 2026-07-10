@@ -60,4 +60,14 @@
         WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- 项目级联删除：按任务 id 批量删（接口 default 方法已保证集合非空） -->
+    <delete id="deleteByTaskIdInT">
+        DELETE FROM activities
+        WHERE tenant_id = #{tenantId}
+          AND task_id IN
+        <foreach collection="taskIds" item="tid" open="(" separator="," close=")">
+            #{tid}
+        </foreach>
+    </delete>
+
 </mapper>

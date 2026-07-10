@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- subtasks 租户表：所有语句显式 tenant_id 条件 -->
+<mapper namespace="pm.task.SubtaskRepository">
+
+    <sql id="columns">
+        id, tenant_id, task_id, title, done, created_at
+    </sql>
+
+    <select id="findByTaskIdT" resultType="pm.task.Subtask">
+        SELECT <include refid="columns"/>
+        FROM subtasks
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findOneByIdT" resultType="pm.task.Subtask">
+        SELECT <include refid="columns"/>
+        FROM subtasks
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- created_at 写实体值（Instant.now()，与 JPA 行为一致） -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="s.id">
+        INSERT INTO subtasks (tenant_id, task_id, title, done, created_at)
+        VALUES (#{tenantId}, #{s.taskId}, #{s.title}, #{s.done}, #{s.createdAt})
+    </insert>
+
+    <update id="update">
+        UPDATE subtasks
+        SET task_id = #{s.taskId},
+            title   = #{s.title},
+            done    = #{s.done}
+        WHERE id = #{s.id} AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteByTaskIdT">
+        DELETE FROM subtasks
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+    </delete>
+
+    <delete id="deleteByIdT">
+        DELETE FROM subtasks
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

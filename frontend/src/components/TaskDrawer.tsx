@@ -7,10 +7,14 @@ import {
   useActivities,
   useComments,
   useCreateComment,
+  useCreateSubtask,
+  useDeleteSubtask,
   useDeleteTask,
   useEpics,
   useMembers,
+  useSubtasks,
   useTask,
+  useUpdateSubtask,
   useUpdateTask,
 } from '../api/hooks'
 import type {
@@ -226,6 +230,150 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
       </div>
       {createComment.isError && (
         <div style={{ ...errorStyle, marginTop: 8 }}>{t.sendFailed(createComment.error.message)}</div>
+      )}
+    </div>
+  )
+}
+
+// ---------- 子块：子任务（两态勾选 + 添加/删除，不进列表/看板） ----------
+
+function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
+  const t = useT()
+  const subtasks = useSubtasks(slug, taskId)
+  const createSubtask = useCreateSubtask(slug, taskId)
+  const updateSubtask = useUpdateSubtask(slug, taskId)
+  const deleteSubtask = useDeleteSubtask(slug, taskId)
+  const [title, setTitle] = useState('')
+  const [hoveredId, setHoveredId] = useState<number | null>(null)
+
+  const list = subtasks.data ?? []
+  const doneCount = list.filter((s) => s.done).length
+
+  const submit = () => {
+    const trimmed = title.trim()
+    if (!trimmed || createSubtask.isPending) return
+    createSubtask.mutate(trimmed, { onSuccess: () => setTitle('') })
+  }
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {/* 标题行 + 进度 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.subtasks}</span>
+        {list.length > 0 && (
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--faint)' }}>
+            {t.subtaskProgress(doneCount, list.length)}
+          </span>
+        )}
+      </div>
+
+      {subtasks.isError && (
+        <div style={{ ...errorStyle, marginBottom: 8 }}>{subtasks.error.message}</div>
+      )}
+      {subtasks.data && list.length === 0 && (
+        <div style={{ ...hintStyle, fontSize: 12.5, marginBottom: 8 }}>{t.noSubtasks}</div>
+      )}
+      {list.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 8 }}>
+          {list.map((s) => (
+            <div
+              key={s.id}
+              onMouseEnter={() => setHoveredId(s.id)}
+              onMouseLeave={() => setHoveredId((cur) => (cur === s.id ? null : cur))}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: '5px 7px',
+                borderRadius: 7,
+                background: hoveredId === s.id ? 'var(--card)' : 'transparent',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => updateSubtask.mutate({ id: s.id, done: !s.done })}
+                aria-label={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
+                title={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
+                style={{
+                  width: 16,
+                  height: 16,
+                  flex: 'none',
+                  borderRadius: '50%',
+                  border: `1.5px solid ${s.done ? 'var(--accent)' : 'var(--border)'}`,
+                  background: s.done ? 'var(--accent)' : 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {s.done && <Icon name="check" size={10} />}
+              </button>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  color: s.done ? 'var(--faint)' : 'var(--text)',
+                  textDecoration: s.done ? 'line-through' : 'none',
+                }}
+              >
+                {s.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => deleteSubtask.mutate(s.id)}
+                aria-label={t.subtaskDelete}
+                title={t.subtaskDelete}
+                className="icon-btn"
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  width: 16,
+                  height: 16,
+                  flex: 'none',
+                  color: 'var(--dim)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  opacity: hoveredId === s.id ? 1 : 0,
+                }}
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 添加：输入框回车提交（同评论输入框风格） */}
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit()
+        }}
+        placeholder={t.addSubtaskPlaceholder}
+        aria-label={t.subtasks}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          height: 34,
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--card)',
+          color: 'var(--text)',
+          fontSize: 13,
+          padding: '0 11px',
+          outline: 'none',
+        }}
+      />
+      {createSubtask.isError && (
+        <div style={{ ...errorStyle, marginTop: 6 }}>
+          {t.subtaskAddFailed(createSubtask.error.message)}
+        </div>
       )}
     </div>
   )
@@ -658,6 +806,9 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               fontFamily: 'inherit',
             }}
           />
+
+          {/* 子任务 */}
+          <SubtasksBlock slug={slug} taskId={seed.id} />
 
           {/* Tab：评论 / 变更历史 */}
           <div

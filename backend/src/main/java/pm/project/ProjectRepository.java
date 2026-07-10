@@ -52,9 +52,16 @@ public interface ProjectRepository {
         return project;
     }
 
+    /** 项目级联删除用：删项目本身（子数据已先清）。 */
+    default void deleteById(Long id) {
+        deleteByIdT(id, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Project> findByKeyAndTenant(@Param("key") String key, @Param("tenantId") Long tenantId);
+
+    void deleteByIdT(@Param("id") Long id, @Param("tenantId") Long tenantId);
 
     Optional<Project> findByIdAndTenant(@Param("id") Long id, @Param("tenantId") Long tenantId);
 

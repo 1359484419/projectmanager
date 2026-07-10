@@ -37,9 +37,20 @@ public interface CapacityOverrideRepository {
         return override;
     }
 
+    /** 项目级联删除用：按 sprint id 批量删容量覆盖；空集合直接返回，避免 SQL IN ()。 */
+    default void deleteBySprintIdIn(java.util.Collection<Long> sprintIds) {
+        List<Long> list = new java.util.ArrayList<>(sprintIds);
+        if (list.isEmpty()) {
+            return;
+        }
+        deleteBySprintIdInT(list, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     List<CapacityOverride> selectBySprintId(@Param("sprintId") Long sprintId, @Param("tenantId") long tenantId);
+
+    void deleteBySprintIdInT(@Param("sprintIds") List<Long> sprintIds, @Param("tenantId") long tenantId);
 
     Optional<CapacityOverride> selectBySprintIdAndUserId(@Param("sprintId") Long sprintId,
                                                          @Param("userId") Long userId,

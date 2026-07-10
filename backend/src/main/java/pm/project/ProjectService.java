@@ -15,6 +15,13 @@ public class ProjectService {
     private static final Pattern KEY_PATTERN = Pattern.compile("^[A-Z]{2,6}$");
 
     private final ProjectRepository projects;
+    private final pm.task.TaskRepository tasks;
+    private final pm.task.ActivityRepository activityRepo;
+    private final pm.comment.CommentRepository commentRepo;
+    private final pm.task.SubtaskRepository subtaskRepo;
+    private final pm.sprint.SprintRepository sprints;
+    private final pm.sprint.CapacityOverrideRepository capacityOverrides;
+    private final pm.epic.EpicRepository epics;
 
     public record ProjectView(Long id, String key, String name,
                               Project.SprintLength defaultSprintLength, boolean autoRotate) {
@@ -24,8 +31,21 @@ public class ProjectService {
         }
     }
 
-    public ProjectService(ProjectRepository projects) {
+    public ProjectService(ProjectRepository projects, pm.task.TaskRepository tasks,
+                          pm.task.ActivityRepository activityRepo,
+                          pm.comment.CommentRepository commentRepo,
+                          pm.task.SubtaskRepository subtaskRepo,
+                          pm.sprint.SprintRepository sprints,
+                          pm.sprint.CapacityOverrideRepository capacityOverrides,
+                          pm.epic.EpicRepository epics) {
         this.projects = projects;
+        this.tasks = tasks;
+        this.activityRepo = activityRepo;
+        this.commentRepo = commentRepo;
+        this.subtaskRepo = subtaskRepo;
+        this.sprints = sprints;
+        this.capacityOverrides = capacityOverrides;
+        this.epics = epics;
     }
 
     /** 仅 ADMIN；MEMBER 视为管理操作不存在 → 404（与 PATCH 一致）。 */
@@ -77,5 +97,34 @@ public class ProjectService {
         }
         // MyBatis 无 JPA 脏检查：修改后显式落库
         return ProjectView.from(projects.save(project));
+    }
+
+    /**
+     * 删除项目（仅租户 ADMIN，MEMBER → 403）：级联清理项目下全部数据。
+     * 顺序（先子后父，避免悬挂引用）：
+     * activities/comments/subtasks（按任务批量）→ tasks → capacity_overrides（按 sprint）
+     * → sprints → epics → project。整体一个事务，一起成一起败。
+     */
+    @Transactional
+    public void delete(String key) {
+        if (TenantContext.requireRole() != Membership.Role.ADMIN) {
+            throw ApiException.forbidden("FORBIDDEN", "仅管理员可以删除项目");
+        }
+        Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
+        List<Long> taskIds = tasks.findIdsByProjectId(project.getId());
+        if (!taskIds.isEmpty()) {
+            activityRepo.deleteByTaskIdIn(taskIds);
+            commentRepo.deleteByTaskIdIn(taskIds);
+            taskIds.forEach(subtaskRepo::deleteByTaskId);
+        }
+        tasks.deleteByProjectId(project.getId());
+        List<Long> sprintIds = sprints.findByProjectIdOrderByIdDesc(project.getId()).stream()
+                .map(pm.sprint.Sprint::getId).toList();
+        if (!sprintIds.isEmpty()) {
+            capacityOverrides.deleteBySprintIdIn(sprintIds);
+        }
+        sprints.deleteByProjectId(project.getId());
+        epics.deleteByProjectId(project.getId());
+        projects.deleteById(project.getId());
     }
 }

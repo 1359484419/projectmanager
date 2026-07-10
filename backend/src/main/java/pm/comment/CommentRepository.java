@@ -21,6 +21,15 @@ public interface CommentRepository {
         deleteByTaskIdT(taskId, TenantContext.require());
     }
 
+    /** 项目级联删除用：按任务 id 批量删评论；空集合直接返回，避免 SQL IN ()。 */
+    default void deleteByTaskIdIn(java.util.Collection<Long> taskIds) {
+        List<Long> list = new java.util.ArrayList<>(taskIds);
+        if (list.isEmpty()) {
+            return;
+        }
+        deleteByTaskIdInT(list, TenantContext.require());
+    }
+
     /** 与 JpaRepository.save 语义一致：id 为 null 走 INSERT（回填 id），否则全字段 UPDATE。 */
     default Comment save(Comment comment) {
         Long tenantId = comment.getTenantId() != null ? comment.getTenantId() : TenantContext.require();
@@ -37,6 +46,8 @@ public interface CommentRepository {
     List<Comment> findByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
 
     void deleteByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
+
+    void deleteByTaskIdInT(@Param("taskIds") List<Long> taskIds, @Param("tenantId") long tenantId);
 
     void insert(@Param("c") Comment comment, @Param("tenantId") long tenantId);
 

@@ -18,6 +18,7 @@ public class TaskService {
     private final ProjectRepository projects;
     private final ActivityRepository activityRepo;
     private final pm.comment.CommentRepository commentRepo;
+    private final SubtaskRepository subtaskRepo;
     private final ActivityRecorder recorder;
     private final RankService rankService;
     private final pm.sprint.SprintRepository sprints;
@@ -26,6 +27,7 @@ public class TaskService {
 
     public TaskService(TaskRepository tasks, ProjectRepository projects,
                        ActivityRepository activityRepo, pm.comment.CommentRepository commentRepo,
+                       SubtaskRepository subtaskRepo,
                        ActivityRecorder recorder,
                        RankService rankService, pm.sprint.SprintRepository sprints,
                        pm.epic.EpicRepository epics, pm.tenantadmin.MembershipRepository memberships) {
@@ -33,6 +35,7 @@ public class TaskService {
         this.projects = projects;
         this.activityRepo = activityRepo;
         this.commentRepo = commentRepo;
+        this.subtaskRepo = subtaskRepo;
         this.recorder = recorder;
         this.rankService = rankService;
         this.sprints = sprints;
@@ -188,7 +191,7 @@ public class TaskService {
         return toView(task);
     }
 
-    /** 删除任务：仅创建者或租户 ADMIN 可删；同时清除关联的 activity 和评论。 */
+    /** 删除任务：仅创建者或租户 ADMIN 可删；同时清除关联的 activity、评论和子任务。 */
     @Transactional
     public void delete(Long taskId, Long actor) {
         Task task = requireById(taskId);
@@ -199,6 +202,7 @@ public class TaskService {
         }
         activityRepo.deleteByTaskId(taskId);
         commentRepo.deleteByTaskId(taskId);
+        subtaskRepo.deleteByTaskId(taskId);
         tasks.delete(task);
     }
 

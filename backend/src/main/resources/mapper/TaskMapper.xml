@@ -122,4 +122,16 @@
         WHERE id = #{id} AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- 项目级联删除：项目下全部任务 id（先取 id 再按任务批删 activity/comment/subtask） -->
+    <select id="findIdsByProjectIdT" resultType="long">
+        SELECT id
+        FROM tasks
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+    </select>
+
+    <delete id="deleteByProjectIdT">
+        DELETE FROM tasks
+        WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>
