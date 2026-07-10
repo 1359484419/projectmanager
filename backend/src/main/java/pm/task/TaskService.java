@@ -45,12 +45,12 @@ public class TaskService {
     public record TaskView(Long id, Long projectId, int seq, String displayKey, Task.Type type,
                            String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
-                           Instant createdAt, Instant doneAt) {
+                           Instant createdAt, Instant doneAt, Long createdBy) {
         public static TaskView from(Task t, String projectKey) {
             return new TaskView(t.getId(), t.getProjectId(), t.getSeq(),
                     projectKey + "-" + t.getSeq(), t.getType(), t.getTitle(), t.getDescription(),
                     t.getPoints(), t.getEpicId(), t.getSprintId(), t.getAssigneeId(),
-                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getDoneAt());
+                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getDoneAt(), t.getCreatedBy());
         }
     }
 
@@ -190,7 +190,7 @@ public class TaskService {
     @Transactional
     public void delete(Long taskId, Long actor) {
         Task task = requireById(taskId);
-        boolean isCreator = actor.equals(task.getCreatedBy());
+        boolean isCreator = task.getCreatedBy() != null && actor.equals(task.getCreatedBy());
         boolean isAdmin = pm.tenant.TenantContext.requireRole() == pm.tenantadmin.Membership.Role.ADMIN;
         if (!isCreator && !isAdmin) {
             throw ApiException.forbidden("FORBIDDEN", "只有任务创建者或管理员可以删除任务");

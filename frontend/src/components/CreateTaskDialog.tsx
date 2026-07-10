@@ -4,7 +4,7 @@ import type { Sprint, TaskType } from '../api/types'
 import { useT } from '../i18n'
 import { Icon } from './icons'
 import { SelectWrap, selStyle, typeOptions, useToast } from './ui'
-import { POINTS_CHOICES, POINTS_RANGE_MSG, fmtPoints, parsePointsInput } from '../utils/points'
+import { POINTS_CHOICES, fmtPoints, parsePointsInput } from '../utils/points'
 
 export interface CreateTaskDialogProps {
   slug: string
@@ -48,7 +48,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
 
     const parsedPoints = parsePointsInput(points)
     if (parsedPoints === undefined) {
-      toast.show(POINTS_RANGE_MSG, 'info')
+      toast.show(t.pointsRangeMsg, 'info')
       return
     }
 
@@ -199,7 +199,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
           {/* 属性行：Points + 负责人 */}
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Points</label>
+              <label style={labelStyle}>{t.points}</label>
               <SelectWrap>
                 <select
                   value={points}
@@ -248,7 +248,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
               </SelectWrap>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Epic</label>
+              <label style={labelStyle}>{t.epic}</label>
               <SelectWrap>
                 <select
                   value={epicId}

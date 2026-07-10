@@ -317,10 +317,16 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
     setDescription(task.description ?? '')
   }, [task.description])
 
-  // Esc 关闭
+  // Esc 关闭（编辑中先 blur，第二次 Esc 才关闭，避免丢未保存内容）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      const active = document.activeElement
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+        ;(active as HTMLElement).blur()
+        return
+      }
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -571,10 +577,10 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               </select>
             </SelectWrap>
 
-            <span style={dimLabelStyle}>Points</span>
+            <span style={dimLabelStyle}>{t.points}</span>
             <SelectWrap>
               <select
-                aria-label="Points"
+                aria-label={t.points}
                 value={pointsValue}
                 onChange={(e) =>
                   patch({ points: e.target.value ? Number(e.target.value) : null })
@@ -609,10 +615,10 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               </select>
             </SelectWrap>
 
-            <span style={dimLabelStyle}>Epic</span>
+            <span style={dimLabelStyle}>{t.epic}</span>
             <SelectWrap>
               <select
-                aria-label="Epic"
+                aria-label={t.epic}
                 value={task.epicId != null ? String(task.epicId) : ''}
                 onChange={(e) => patch({ epicId: e.target.value ? Number(e.target.value) : null })}
                 style={selStyle}

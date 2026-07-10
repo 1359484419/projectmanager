@@ -48,7 +48,7 @@ function Donut({ pct }: { pct: number }) {
         height={74}
         style={{ display: 'block' }}
         role="img"
-        aria-label={`完成度 ${clamped}%`}
+        aria-label={t.completionPct(clamped)}
       >
         <circle cx="37" cy="37" r={R} fill="none" stroke="var(--card-2)" strokeWidth={7} />
         <circle
@@ -287,7 +287,7 @@ function Page({
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-        <h1 style={pageTitleStyle}>Dashboard</h1>
+        <h1 style={pageTitleStyle}>{t.dashboardTitle}</h1>
         <span style={{ flex: 1 }} />
         {filterBar}
         {onRefresh && (

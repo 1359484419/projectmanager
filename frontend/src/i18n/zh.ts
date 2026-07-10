@@ -377,6 +377,16 @@ const zh = {
   // ---- client ----
   sessionExpired: '登录已过期，请重新登录',
   conflictToast: '该任务刚被他人修改，已刷新最新数据，请重试',
+
+  // ---- dashboard ----
+  dashboardTitle: '概览',
+  completionPct: (pct: number) => `完成度 ${pct}%`,
+
+  // ---- login ----
+  confirmPassword: '确认密码',
+  confirmPasswordRegPlaceholder: '再次输入密码',
+  passwordMinHint: '至少 8 个字符',
+  passwordRegMismatch: '两次输入的密码不一致',
 }
 
 export default zh

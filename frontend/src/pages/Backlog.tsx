@@ -10,7 +10,7 @@ import TaskDrawer from '../components/TaskDrawer'
 import { Icon, SelectWrap, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
-import { POINTS_MAX, POINTS_MIN, POINTS_RANGE_MSG, POINTS_STEP, parsePointsInput } from '../utils/points'
+import { POINTS_MAX, POINTS_MIN, POINTS_STEP, parsePointsInput } from '../utils/points'
 import { useT } from '../i18n'
 
 const TYPE_FILTER_KEYS = [
@@ -49,7 +49,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
     // 估点 0.5-5（0.5 步进）：非法输入即时拒绝，不发请求
     const parsedPoints = parsePointsInput(points)
     if (parsedPoints === undefined) {
-      toast.show(POINTS_RANGE_MSG, 'info')
+      toast.show(t.pointsRangeMsg, 'info')
       return
     }
     createTask.mutate(
@@ -134,7 +134,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
         onBlur={() => {
           // 输入完成即时校验：非法值立刻提示（提交前的第一道拦截）
           if (points !== '' && parsePointsInput(points) === undefined) {
-            toast.show(POINTS_RANGE_MSG, 'info')
+            toast.show(t.pointsRangeMsg, 'info')
           }
         }}
         placeholder="pts"

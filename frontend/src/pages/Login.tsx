@@ -59,6 +59,7 @@ export default function Login() {
   const [displayName, setDisplayName] = useState('')
   const [tenantName, setTenantName] = useState('')
   const [tenantSlug, setTenantSlug] = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -238,16 +239,45 @@ export default function Login() {
             />
             <label style={fieldLabel}>{t.password}</label>
             <input
-              style={{ ...fieldInput, marginBottom: 18 }}
+              style={{ ...fieldInput, marginBottom: isRegister ? 4 : 18 }}
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              minLength={isRegister ? 8 : undefined}
               required
             />
+            {isRegister && (
+              <div style={{ fontSize: 11, color: 'var(--faint)', marginBottom: 8 }}>
+                {t.passwordMinHint}
+              </div>
+            )}
+            {isRegister && (
+              <>
+                <label style={fieldLabel}>{t.confirmPassword}</label>
+                <input
+                  style={{
+                    ...fieldInput,
+                    marginBottom: 4,
+                    borderColor: confirmPwd && password !== confirmPwd ? 'var(--type-bug)' : 'var(--border)',
+                  }}
+                  type="password"
+                  placeholder={t.confirmPasswordRegPlaceholder}
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  required
+                />
+                {confirmPwd && password !== confirmPwd && (
+                  <div style={{ fontSize: 11, color: 'var(--type-bug)', marginBottom: 8 }}>
+                    {t.passwordRegMismatch}
+                  </div>
+                )}
+                <div style={{ marginBottom: 10 }} />
+              </>
+            )}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (isRegister && (password !== confirmPwd || password.length < 8))}
               style={{
                 width: '100%',
                 height: 38,
@@ -257,8 +287,8 @@ export default function Login() {
                 color: '#fff',
                 fontSize: 13.5,
                 fontWeight: 600,
-                cursor: submitting ? 'default' : 'pointer',
-                opacity: submitting ? 0.65 : 1,
+                cursor: submitting || (isRegister && (password !== confirmPwd || password.length < 8)) ? 'default' : 'pointer',
+                opacity: submitting || (isRegister && (password !== confirmPwd || password.length < 8)) ? 0.65 : 1,
               }}
             >
               {submitting ? t.submitting : isRegister ? t.createTeam : t.login}

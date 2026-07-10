@@ -377,6 +377,16 @@ const en: typeof import('./zh').default = {
   // ---- client ----
   sessionExpired: 'Session expired. Please log in again.',
   conflictToast: 'This task was modified by someone else. Latest data loaded — please retry.',
+
+  // ---- dashboard ----
+  dashboardTitle: 'Overview',
+  completionPct: (pct: number) => `Completion ${pct}%`,
+
+  // ---- login ----
+  confirmPassword: 'Confirm password',
+  confirmPasswordRegPlaceholder: 'Re-enter password',
+  passwordMinHint: 'At least 8 characters',
+  passwordRegMismatch: 'Passwords do not match',
 }
 
 export default en

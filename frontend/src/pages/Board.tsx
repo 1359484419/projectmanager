@@ -6,6 +6,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -401,7 +402,10 @@ export default function Board() {
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  )
 
   function handleDragStart(event: DragStartEvent) {
     const task = event.active.data.current?.task as TaskBrief | undefined
