@@ -107,6 +107,30 @@ class RoadmapTest extends IntegrationTest {
     }
 
     @Test
+    void deleteEpic_tasksKeptAndUnlinked() {
+        Map epic = createEpic(Map.of("name", "要删的"));
+        Map task = createTask(epic.get("id"), 2);
+        // 删除 Epic → 204
+        assertThat(fx.exchange(fx.adminTokenA, HttpMethod.DELETE,
+                base + "/projects/PM/epics/" + epic.get("id"), null)
+                .getStatusCode().value()).isEqualTo(204);
+        // Epic 消失
+        ResponseEntity<List> epicsResp = fx.getList(fx.adminTokenA, base + "/projects/PM/epics");
+        assertThat((List<Map>) epicsResp.getBody())
+                .noneMatch(e -> e.get("name").equals("要删的"));
+        // 任务保留且 epicId 置空
+        ResponseEntity<Map> taskResp = fx.exchange(fx.adminTokenA, HttpMethod.GET,
+                base + "/tasks/" + task.get("id"), null);
+        assertThat(taskResp.getStatusCode().value()).isEqualTo(200);
+        assertThat(taskResp.getBody().get("epicId")).isNull();
+        // 跨租户删除 → 404
+        Map epic2 = createEpic(Map.of("name", "隔离删"));
+        assertThat(fx.exchange(fx.adminTokenB, HttpMethod.DELETE,
+                base + "/projects/PM/epics/" + epic2.get("id"), null)
+                .getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
     void crossTenant_epicAndRoadmap_404() {
         Map epic = createEpic(Map.of("name", "隔离"));
         assertThat(fx.exchange(fx.adminTokenB, HttpMethod.GET,

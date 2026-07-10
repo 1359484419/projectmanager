@@ -44,11 +44,17 @@ public interface EpicRepository {
         deleteByProjectIdT(projectId, TenantContext.require());
     }
 
+    default void delete(Epic epic) {
+        deleteByIdT(epic.getId(), TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Epic> findByIdAndTenant(@Param("id") Long id, @Param("tenantId") Long tenantId);
 
     void deleteByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") Long tenantId);
+
+    void deleteByIdT(@Param("id") Long id, @Param("tenantId") Long tenantId);
 
     Optional<Epic> findByIdAndProjectIdAndTenant(@Param("id") Long id,
                                                  @Param("projectId") Long projectId,

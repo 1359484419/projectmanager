@@ -113,6 +113,11 @@ public interface TaskRepository {
         deleteByProjectIdT(projectId, TenantContext.require());
     }
 
+    /** Epic 删除用：把挂在该 Epic 下的任务全部解除关联（epic_id 置空，任务保留）。 */
+    default void clearEpic(Long epicId) {
+        clearEpicT(epicId, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Task> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
@@ -148,4 +153,6 @@ public interface TaskRepository {
     List<Long> findIdsByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
 
     void deleteByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
+
+    void clearEpicT(@Param("epicId") Long epicId, @Param("tenantId") long tenantId);
 }

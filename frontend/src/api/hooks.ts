@@ -308,6 +308,16 @@ export function useUpdateEpic(slug: string, key: string) {
   })
 }
 
+/** 删除 Epic：其下任务不删除，仅解除关联。 */
+export function useDeleteEpic(slug: string, key: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      api(`${t(slug)}/projects/${key}/epics/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
 // ---------- 评论 / 变更历史 ----------
 
 export function useComments(slug: string, taskId: number | null | undefined) {

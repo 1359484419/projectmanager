@@ -124,6 +124,11 @@ const zh = {
   epicUpdateFailed: (msg: string) => `更新失败：${msg}`,
   epicStatusOpen: '进行中',
   epicStatusDone: '已完成',
+  deleteEpic: '删除 Epic',
+  deleteEpicConfirm: (name: string) => `删除 Epic「${name}」？`,
+  deleteEpicWarning: '其下任务不会被删除，只会解除与该 Epic 的关联。此操作不可撤销。',
+  epicDeleted: 'Epic 已删除',
+  deleteEpicFailed: (msg: string) => `删除失败：${msg}`,
 
   // ---- 项目删除 ----
   deleteProject: '删除项目',

@@ -124,6 +124,11 @@ const en: typeof import('./zh').default = {
   epicUpdateFailed: (msg: string) => `Update failed: ${msg}`,
   epicStatusOpen: 'Open',
   epicStatusDone: 'Done',
+  deleteEpic: 'Delete Epic',
+  deleteEpicConfirm: (name: string) => `Delete epic "${name}"?`,
+  deleteEpicWarning: 'Its tasks will not be deleted, only unlinked from this epic. This cannot be undone.',
+  epicDeleted: 'Epic deleted',
+  deleteEpicFailed: (msg: string) => `Delete failed: ${msg}`,
 
   // ---- Project delete ----
   deleteProject: 'Delete project',

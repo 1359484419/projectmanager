@@ -4,12 +4,13 @@
 // 项目选择：?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个（与 Dashboard 一致）。
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useCreateEpic, useEpics, useProjects, useRoadmap, useUpdateEpic } from '../api/hooks'
+import { useCreateEpic, useDeleteEpic, useEpics, useProjects, useRoadmap, useUpdateEpic } from '../api/hooks'
 import type { Epic, RoadmapEpic, TaskBrief } from '../api/types'
 import EpicCard from '../components/EpicCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
 import {
+  ConfirmDialog,
   SelectWrap,
   btnGhost,
   btnPrimary,
@@ -66,7 +67,9 @@ function EpicDialog({
   const t = useT()
   const createEpic = useCreateEpic(slug, projectKey)
   const updateEpic = useUpdateEpic(slug, projectKey)
+  const deleteEpic = useDeleteEpic(slug, projectKey)
   const toast = useToast()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [name, setName] = useState(epic?.name ?? '')
   const [description, setDescription] = useState(epic?.description ?? '')
   const [quarter, setQuarter] = useState(epic?.quarter ?? '')
@@ -253,6 +256,17 @@ function EpicDialog({
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
+          {isEdit && (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleteEpic.isPending}
+              style={{ ...btnGhost, color: 'var(--type-bug)', marginRight: 'auto' }}
+              className="hover-card"
+            >
+              {t.deleteEpic}
+            </button>
+          )}
           <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
             {t.cancel}
           </button>
@@ -272,6 +286,33 @@ function EpicDialog({
           </button>
         </div>
       </form>
+
+      {isEdit && (
+        // 阻止冒泡：确认框的点击不能触发外层遮罩的 onClose
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+        <div onClick={(e) => e.stopPropagation()}>
+        <ConfirmDialog
+          open={confirmDelete}
+          title={t.deleteEpicConfirm(epic.name)}
+          message={t.deleteEpicWarning}
+          actionLabel={t.deleteEpic}
+          onConfirm={() => {
+            deleteEpic.mutate(epic.id, {
+              onSuccess: () => {
+                toast.show(t.epicDeleted)
+                setConfirmDelete(false)
+                onClose()
+              },
+              onError: (err) => {
+                setConfirmDelete(false)
+                toast.show(t.deleteEpicFailed(err.message), 'info')
+              },
+            })
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+        </div>
+      )}
     </div>
   )
 }

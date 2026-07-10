@@ -1,15 +1,19 @@
 package pm.epic;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pm.common.ApiException;
 import pm.project.Project;
 import pm.project.ProjectRepository;
+import pm.task.TaskRepository;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -21,10 +25,12 @@ public class EpicController {
 
     private final EpicRepository epics;
     private final ProjectRepository projects;
+    private final TaskRepository tasks;
 
-    public EpicController(EpicRepository epics, ProjectRepository projects) {
+    public EpicController(EpicRepository epics, ProjectRepository projects, TaskRepository tasks) {
         this.epics = epics;
         this.projects = projects;
+        this.tasks = tasks;
     }
 
     public record EpicView(Long id, Long projectId, String name, String description,
@@ -94,6 +100,17 @@ public class EpicController {
             epic.setStatus(req.status());
         }
         return EpicView.from(epics.save(epic));
+    }
+
+    /** 删除 Epic：其下任务不删除，仅解除关联（epic_id 置空）。 */
+    @DeleteMapping("/api/t/{slug}/projects/{key}/epics/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    public void delete(@PathVariable String slug, @PathVariable String key, @PathVariable Long id) {
+        Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
+        Epic epic = epics.findByIdAndProjectId(id, project.getId()).orElseThrow(ApiException::notFound);
+        tasks.clearEpic(epic.getId());
+        epics.delete(epic);
     }
 
     static void validateQuarter(String quarter) {

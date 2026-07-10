@@ -49,4 +49,10 @@
         WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- 单个 Epic 删除（任务的 epic_id 由 TaskRepository.clearEpic 先置空） -->
+    <delete id="deleteByIdT">
+        DELETE FROM epics
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

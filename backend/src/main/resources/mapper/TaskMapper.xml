@@ -134,4 +134,11 @@
         WHERE project_id = #{projectId} AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- Epic 删除：解除任务与该 Epic 的关联（任务保留） -->
+    <update id="clearEpicT">
+        UPDATE tasks
+        SET epic_id = NULL
+        WHERE epic_id = #{epicId} AND tenant_id = #{tenantId}
+    </update>
+
 </mapper>
