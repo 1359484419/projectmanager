@@ -1,16 +1,17 @@
 // All Sprints 页：所有 Sprint 倒序列表（ACTIVE/CLOSED/PLANNED），每个 Sprint 一个分组卡，
 // 默认全部展开，点标题折叠。数据来自 GET /projects/{key}/sprints?withTasks=true。
 // 视觉真源：docs/design/mock/markup.html「SPRINTS」节 + logic.jsx sprintGroups 徽标算法。
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   useCloseSprint,
   useCreateSprint,
+  useDeleteSprint,
   useProjects,
   useSprints,
   useStartSprint,
 } from '../api/hooks'
-import type { SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
+import type { Project, SprintLength, SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import { Icon } from '../components/icons'
@@ -18,8 +19,12 @@ import {
   Badge,
   ConfirmDialog,
   SelectWrap,
+  btnGhost,
+  btnPrimary,
   btnSecondary,
   cardStyle,
+  inputStyle,
+  labelStyle,
   pageTitleStyle,
   selStyle,
   useToast,
@@ -59,6 +64,162 @@ function fmtDates(start: string, end: string): string {
   return `${start.slice(5)} → ${end.slice(5)}`
 }
 
+function sprintLengths(t: { sprintLength1w: string; sprintLength2w: string; sprintLength1m: string }) {
+  return [
+    { value: 'WEEK_1' as SprintLength, label: t.sprintLength1w },
+    { value: 'WEEK_2' as SprintLength, label: t.sprintLength2w },
+    { value: 'MONTH_1' as SprintLength, label: t.sprintLength1m },
+  ]
+}
+
+/** 新建 Sprint 弹窗：名称（留空自动编号）、周期（默认项目周期）、开始日期（默认为最晚现有 Sprint 结束日+1，否则今天）。 */
+function CreateSprintDialog({
+  slug,
+  projectKey,
+  project,
+  sprints,
+  onClose,
+}: {
+  slug: string
+  projectKey: string
+  project?: Project
+  sprints: SprintWithTasks[]
+  onClose: () => void
+}) {
+  const t = useT()
+  const toast = useToast()
+  const createSprint = useCreateSprint(slug, projectKey)
+  const defaultStart = useMemo(() => {
+    const latestEnd = sprints.reduce<string | null>(
+      (max, s) => (max === null || s.endDate > max ? s.endDate : max),
+      null,
+    )
+    if (!latestEnd) return new Date().toISOString().slice(0, 10)
+    const d = new Date(latestEnd)
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().slice(0, 10)
+  }, [sprints])
+  const [name, setName] = useState('')
+  const [length, setLength] = useState<SprintLength>(project?.defaultSprintLength ?? 'WEEK_2')
+  const [startDate, setStartDate] = useState(defaultStart)
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (createSprint.isPending) return
+    createSprint.mutate(
+      { name: name.trim() || undefined, length, startDate },
+      {
+        onSuccess: (s) => {
+          toast.show(t.sprintCreated(s.name))
+          onClose()
+        },
+        onError: (err) => {
+          toast.show(t.createFailed(err.message), 'info')
+        },
+      },
+    )
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t.createSprintDialogTitle}
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,.5)',
+        zIndex: 70,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        animation: 'fadeIn .12s',
+      }}
+    >
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 400,
+          maxWidth: '92vw',
+          background: 'var(--bg)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          boxShadow: 'var(--shadow)',
+          padding: 20,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>
+          {t.createSprintDialogTitle}
+        </div>
+
+        <label style={labelStyle} htmlFor="sprint-name">
+          {t.sprintNameLabel}
+        </label>
+        <input
+          id="sprint-name"
+          style={{ ...inputStyle, marginBottom: 14 }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t.sprintNamePlaceholder}
+          autoFocus
+        />
+
+        <label style={labelStyle} htmlFor="sprint-length">
+          {t.sprintLengthLabel}
+        </label>
+        <SelectWrap style={{ marginBottom: 14 }}>
+          <select
+            id="sprint-length"
+            style={selStyle}
+            value={length}
+            onChange={(e) => setLength(e.target.value as SprintLength)}
+          >
+            {sprintLengths(t).map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </SelectWrap>
+
+        <label style={labelStyle} htmlFor="sprint-start">
+          {t.sprintStartDateLabel}
+        </label>
+        <input
+          id="sprint-start"
+          type="date"
+          style={{ ...inputStyle, marginBottom: 20 }}
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          required
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
+          <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
+            {t.cancel}
+          </button>
+          <button
+            type="submit"
+            disabled={createSprint.isPending}
+            className="btn-primary"
+            style={{
+              ...btnPrimary,
+              height: 32,
+              padding: '0 16px',
+              borderRadius: 8,
+              opacity: createSprint.isPending ? 0.6 : 1,
+            }}
+          >
+            {createSprint.isPending ? t.creating : t.create}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 function SprintCard({
   sprint,
   projectKey,
@@ -67,6 +228,7 @@ function SprintCard({
   onOpenTask,
   onStart,
   onClose,
+  onDelete,
   busy,
 }: {
   sprint: SprintWithTasks
@@ -76,6 +238,7 @@ function SprintCard({
   onOpenTask: (task: TaskBrief) => void
   onStart: () => void
   onClose: () => void
+  onDelete: () => void
   busy: boolean
 }) {
   const t = useT()
@@ -175,6 +338,35 @@ function SprintCard({
             {t.closeSprint}
           </button>
         )}
+        {sprint.status !== 'ACTIVE' && (
+          <button
+            type="button"
+            className="hover-card"
+            aria-label={t.deleteSprint}
+            title={t.deleteSprint}
+            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+            style={{
+              height: 27,
+              width: 27,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 6,
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--faint)',
+              cursor: 'pointer',
+              opacity: busy ? 0.6 : 1,
+              flex: 'none',
+            }}
+          >
+            <Icon name="trash" size={14} />
+          </button>
+        )}
       </div>
       {/* 任务行列表（TaskCard row 形态，~38px/行） */}
       {!collapsed && (
@@ -230,7 +422,7 @@ function SprintsSkeleton() {
   )
 }
 
-type ConfirmState = { kind: 'start' | 'close'; sprint: SprintWithTasks } | null
+type ConfirmState = { kind: 'start' | 'close' | 'delete'; sprint: SprintWithTasks } | null
 
 export default function AllSprints() {
   const { slug = '' } = useParams<{ slug: string }>()
@@ -240,16 +432,18 @@ export default function AllSprints() {
   // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
   const storedProjectKey = useSelectedProjectKey(slug)
   const projectKey = resolveProjectKey(null, storedProjectKey, projects)
+  const project = projects?.find((p) => p.key === projectKey)
 
   const { data: sprints, isLoading, isError, error } = useSprints(slug, projectKey, true)
-  const createSprint = useCreateSprint(slug, projectKey)
   const startSprint = useStartSprint(slug)
   const closeSprint = useCloseSprint(slug)
+  const deleteSprint = useDeleteSprint(slug)
 
   // 默认全部展开：记录被折叠的 sprint id
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(new Set())
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const toggle = (id: number) =>
     setCollapsedIds((prev) => {
       const next = new Set(prev)
@@ -266,15 +460,6 @@ export default function AllSprints() {
     )
   }, [sprints])
 
-  const handleCreate = () =>
-    createSprint.mutate(
-      {},
-      {
-        onSuccess: (s) => toast.show(t.sprintCreated(s.name)),
-        onError: (e) => toast.show(t.createFailed(errMsg(e, t.unknownError)), 'info'),
-      },
-    )
-
   const handleConfirm = () => {
     if (!confirm) return
     const { kind, sprint } = confirm
@@ -284,7 +469,7 @@ export default function AllSprints() {
         onSuccess: () => toast.show(t.sprintStarted),
         onError: (e) => toast.show(t.startFailed(errMsg(e, t.unknownError)), 'info'),
       })
-    } else {
+    } else if (kind === 'close') {
       closeSprint.mutate(
         { sprintId: sprint.id, unfinished: 'BACKLOG' },
         {
@@ -292,10 +477,15 @@ export default function AllSprints() {
           onError: (e) => toast.show(t.closeFailed(errMsg(e, t.unknownError)), 'info'),
         },
       )
+    } else {
+      deleteSprint.mutate(sprint.id, {
+        onSuccess: () => toast.show(t.sprintDeleted),
+        onError: (e) => toast.show(t.deleteSprintFailed(errMsg(e, t.unknownError)), 'info'),
+      })
     }
   }
 
-  const busy = startSprint.isPending || closeSprint.isPending
+  const busy = startSprint.isPending || closeSprint.isPending || deleteSprint.isPending
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
@@ -323,13 +513,8 @@ export default function AllSprints() {
           <button
             type="button"
             className="hover-card"
-            onClick={handleCreate}
-            disabled={createSprint.isPending}
-            style={{
-              ...btnSecondary,
-              padding: '0 12px 0 9px',
-              opacity: createSprint.isPending ? 0.6 : 1,
-            }}
+            onClick={() => setCreateOpen(true)}
+            style={{ ...btnSecondary, padding: '0 12px 0 9px' }}
           >
             <Icon name="plus" size={14} />
             {t.createSprint}
@@ -368,6 +553,7 @@ export default function AllSprints() {
             onOpenTask={setDrawerTask}
             onStart={() => setConfirm({ kind: 'start', sprint })}
             onClose={() => setConfirm({ kind: 'close', sprint })}
+            onDelete={() => setConfirm({ kind: 'delete', sprint })}
             busy={busy}
           />
         ))}
@@ -382,16 +568,40 @@ export default function AllSprints() {
         />
       )}
 
+      {createOpen && projectKey && (
+        <CreateSprintDialog
+          slug={slug}
+          projectKey={projectKey}
+          project={project}
+          sprints={sorted}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
+
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm?.kind === 'close' ? t.confirmCloseSprint : t.confirmStartSprint}
+        title={
+          confirm?.kind === 'close'
+            ? t.confirmCloseSprint
+            : confirm?.kind === 'delete'
+              ? t.deleteSprintConfirm(confirm.sprint.name)
+              : t.confirmStartSprint
+        }
         message={
           confirm?.kind === 'close'
             ? t.closeSprintHint
-            : t.startSprintHint
+            : confirm?.kind === 'delete'
+              ? t.deleteSprintWarning
+              : t.startSprintHint
         }
-        actionLabel={confirm?.kind === 'close' ? t.closeSprint : t.startSprint}
-        danger={confirm?.kind === 'close'}
+        actionLabel={
+          confirm?.kind === 'close'
+            ? t.closeSprint
+            : confirm?.kind === 'delete'
+              ? t.deleteSprint
+              : t.startSprint
+        }
+        danger={confirm?.kind === 'close' || confirm?.kind === 'delete'}
         onConfirm={handleConfirm}
         onCancel={() => setConfirm(null)}
       />

@@ -83,4 +83,11 @@
           AND tenant_id = #{tenantId}
     </delete>
 
+    <!-- 单个 Sprint 删除（任务已先移回 Backlog，capacity_overrides 已先清掉） -->
+    <delete id="deleteByIdT">
+        DELETE FROM sprints
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

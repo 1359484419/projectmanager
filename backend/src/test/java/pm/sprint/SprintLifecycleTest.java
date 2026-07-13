@@ -219,4 +219,44 @@ class SprintLifecycleTest extends IntegrationTest {
                 "/api/t/" + fx.slugB + "/sprints/" + s1.get("id") + "/start", null);
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
     }
+
+    @Test
+    void deleteSprint_movesTasksBackToBacklog() {
+        Map s1 = createSprint(Map.of());
+        Object sprintId = s1.get("id");
+        Map task = createTask("要搬回 backlog", 3);
+        fx.exchange(fx.adminTokenA, HttpMethod.PATCH, base + "/tasks/" + task.get("id"),
+                Map.of("sprintId", sprintId));
+
+        ResponseEntity<Map> del = fx.exchange(fx.adminTokenA, HttpMethod.DELETE,
+                base + "/sprints/" + sprintId, null);
+        assertThat(del.getStatusCode().value()).isEqualTo(204);
+
+        // Sprint 消失（列表里找不到）
+        ResponseEntity<List> list = fx.getList(fx.adminTokenA, base + "/projects/PM/sprints");
+        assertThat((List<Map>) list.getBody()).noneMatch(s -> s.get("id").equals(sprintId));
+
+        // 任务回到 backlog
+        ResponseEntity<List> backlog = fx.getList(fx.adminTokenA, base + "/projects/PM/backlog");
+        assertThat(backlog.getBody()).extracting(t -> ((Map) t).get("id")).contains(task.get("id"));
+    }
+
+    @Test
+    void deleteSprint_activeCannotBeDeleted_409() {
+        Map s1 = createSprint(Map.of());
+        fx.exchange(fx.adminTokenA, HttpMethod.POST, base + "/sprints/" + s1.get("id") + "/start", null);
+
+        ResponseEntity<Map> del = fx.exchange(fx.adminTokenA, HttpMethod.DELETE,
+                base + "/sprints/" + s1.get("id"), null);
+        assertThat(del.getStatusCode().value()).isEqualTo(409);
+        assertThat(del.getBody().get("code")).isEqualTo("SPRINT_ACTIVE_CANNOT_DELETE");
+    }
+
+    @Test
+    void deleteSprint_crossTenant_404() {
+        Map s1 = createSprint(Map.of());
+        ResponseEntity<Map> del = fx.exchange(fx.adminTokenB, HttpMethod.DELETE,
+                "/api/t/" + fx.slugB + "/sprints/" + s1.get("id"), null);
+        assertThat(del.getStatusCode().value()).isEqualTo(404);
+    }
 }

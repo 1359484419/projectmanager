@@ -216,6 +216,16 @@ const zh = {
   confirmStartSprint: '启动该 Sprint？',
   closeSprintHint: '未完成任务将退回 Backlog。',
   startSprintHint: '启动后当前进行中的 Sprint 将被关闭。',
+  deleteSprint: '删除 Sprint',
+  deleteSprintConfirm: (name: string) => `删除 Sprint「${name}」？`,
+  deleteSprintWarning: '其下任务将退回 Backlog，此操作不可撤销。',
+  sprintDeleted: 'Sprint 已删除',
+  deleteSprintFailed: (msg: string) => `删除失败：${msg}`,
+  createSprintDialogTitle: '新建 Sprint',
+  sprintNameLabel: '名称',
+  sprintNamePlaceholder: '留空则自动按顺序命名',
+  sprintLengthLabel: '周期',
+  sprintStartDateLabel: '开始日期',
 
   // ---- Planning ----
   sprintPlanning: 'Sprint 规划',

@@ -1,12 +1,15 @@
 package pm.sprint;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pm.auth.CurrentUser;
 import pm.project.Project;
@@ -54,6 +57,13 @@ public class SprintController {
     SprintService.SprintView create(@PathVariable String slug, @PathVariable String key,
                                     @RequestBody(required = false) SprintService.CreateSprintRequest req) {
         return sprintService.create(key, req);
+    }
+
+    /** 删除 Sprint：ACTIVE 不可删；其下任务移回 Backlog。 */
+    @DeleteMapping("/api/t/{slug}/sprints/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(@PathVariable String slug, @PathVariable Long id) {
+        sprintService.delete(id, CurrentUser.id());
     }
 
     @PostMapping("/api/t/{slug}/sprints/{id}/start")

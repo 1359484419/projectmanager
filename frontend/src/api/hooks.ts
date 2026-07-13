@@ -233,6 +233,14 @@ export function useCloseSprint(slug: string) {
   })
 }
 
+export function useDeleteSprint(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sprintId: number) => api(`${t(slug)}/sprints/${sprintId}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
 // ---------- 容量 ----------
 
 export function useCapacity(slug: string, sprintId: number | null | undefined) {

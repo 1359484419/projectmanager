@@ -216,6 +216,16 @@ const en: typeof import('./zh').default = {
   confirmStartSprint: 'Start this Sprint?',
   closeSprintHint: 'Unfinished tasks will be moved to Backlog.',
   startSprintHint: 'Starting will close the current active Sprint.',
+  deleteSprint: 'Delete Sprint',
+  deleteSprintConfirm: (name: string) => `Delete sprint "${name}"?`,
+  deleteSprintWarning: 'Its tasks will be moved back to Backlog. This cannot be undone.',
+  sprintDeleted: 'Sprint deleted',
+  deleteSprintFailed: (msg: string) => `Delete failed: ${msg}`,
+  createSprintDialogTitle: 'New Sprint',
+  sprintNameLabel: 'Name',
+  sprintNamePlaceholder: 'Leave blank to auto-number',
+  sprintLengthLabel: 'Length',
+  sprintStartDateLabel: 'Start date',
 
   // ---- Planning ----
   sprintPlanning: 'Sprint Planning',

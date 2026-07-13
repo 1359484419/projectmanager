@@ -25,13 +25,16 @@ public class SprintService {
     private final ProjectRepository projects;
     private final TaskRepository tasks;
     private final TaskService taskService;
+    private final CapacityOverrideRepository capacityOverrides;
 
     public SprintService(SprintRepository sprints, ProjectRepository projects,
-                         TaskRepository tasks, TaskService taskService) {
+                         TaskRepository tasks, TaskService taskService,
+                         CapacityOverrideRepository capacityOverrides) {
         this.sprints = sprints;
         this.projects = projects;
         this.tasks = tasks;
         this.taskService = taskService;
+        this.capacityOverrides = capacityOverrides;
     }
 
     public record SprintView(Long id, Long projectId, String name, Project.SprintLength length,
@@ -131,6 +134,24 @@ public class SprintService {
             }
         }
         return Optional.of(next);
+    }
+
+    /**
+     * 删除 Sprint：ACTIVE 不可删（须先 close）；其下未完成/已完成任务一律移回 Backlog，
+     * 容量覆盖一并清掉，最后删 Sprint 行。
+     */
+    @Transactional
+    public void delete(Long sprintId, Long actor) {
+        Sprint sprint = requireById(sprintId);
+        if (sprint.getStatus() == Sprint.Status.ACTIVE) {
+            throw ApiException.conflict("SPRINT_ACTIVE_CANNOT_DELETE",
+                    "an ACTIVE sprint must be closed before it can be deleted");
+        }
+        for (Task task : tasks.findBySprintIdOrderByRankAsc(sprint.getId())) {
+            taskService.changeSprint(task, null, actor, Activity.Source.WEB);
+        }
+        capacityOverrides.deleteBySprintIdIn(List.of(sprint.getId()));
+        sprints.delete(sprint);
     }
 
     // ---------- 查询 ----------
