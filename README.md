@@ -1,6 +1,6 @@
-# ProjectManager
+# 跬步 Kuibu
 
-轻量级自托管项目管理工具 —— 小型团队的 Jira 替代品。
+轻量级自托管项目管理工具，为 5-20 人小团队而生。不积跬步，无以至千里。
 
 ## 功能
 
@@ -17,7 +17,7 @@
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Java 21, Spring Boot 3.3, Spring Security (JWT + PAT), JPA/Hibernate |
+| 后端 | Java 21, Spring Boot 3.3, Spring Security (JWT + PAT), MyBatis |
 | 前端 | React 19, Vite, React Router, TanStack Query, dnd-kit |
 | 数据库 | PostgreSQL 16 |
 | MCP | MCP Java SDK 2.0 (Streamable HTTP) |
@@ -58,7 +58,7 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 
 ## MCP 集成
 
-ProjectManager 内置 MCP server（端点 `/mcp`），支持 Streamable HTTP 协议。AI 编程工具（Claude Code、Cursor 等）可通过 PAT 令牌直接管理任务。
+跬步内置 MCP server（端点 `/mcp`），支持 Streamable HTTP 协议。AI 编程工具（Claude Code、Cursor 等）可通过 PAT 令牌直接管理任务。
 
 ### 接入步骤
 

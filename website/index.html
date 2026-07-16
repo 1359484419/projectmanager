@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跬步 Kuibu — 小团队的 AI 原生项目管理</title>
+<meta name="description" content="跬步 Kuibu：为 5–20 人小团队打造的轻量项目管理工具。看板、Sprint、燃尽图，内置 MCP，在 Claude 里一句话建任务。自托管免费。">
+<style>
+  :root {
+    --paper: #f7f7fa;
+    --card: #ffffff;
+    --ink: #1d2030;
+    --dim: #555a72;
+    --faint: #9298b0;
+    --border: #e2e3ec;
+    --accent: #5b66c9;
+    --accent-deep: #454fa8;
+    --accent-soft: #eceefb;
+    --good: #3f9d6b;
+    --warn: #d1a03a;
+    --serif: "Songti SC", "Noto Serif SC", "SimSun", serif;
+    --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
+    --mono: "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14161f;
+      --card: #1c1f2c;
+      --ink: #e8e9f2;
+      --dim: #a6abc4;
+      --faint: #666c88;
+      --border: #2a2e40;
+      --accent: #7d88e8;
+      --accent-deep: #99a2f0;
+      --accent-soft: #232741;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14161f;
+    --card: #1c1f2c;
+    --ink: #e8e9f2;
+    --dim: #a6abc4;
+    --faint: #666c88;
+    --border: #2a2e40;
+    --accent: #7d88e8;
+    --accent-deep: #99a2f0;
+    --accent-soft: #232741;
+  }
+  :root[data-theme="light"] {
+    --paper: #f7f7fa;
+    --card: #ffffff;
+    --ink: #1d2030;
+    --dim: #555a72;
+    --faint: #9298b0;
+    --border: #e2e3ec;
+    --accent: #5b66c9;
+    --accent-deep: #454fa8;
+    --accent-soft: #eceefb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--paper) 86%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-in {
+    display: flex; align-items: center; gap: 28px;
+    height: 60px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-size: 16px; font-weight: 700;
+  }
+  .topnav { display: flex; gap: 22px; font-size: 14px; color: var(--dim); }
+  .topnav a:hover { color: var(--ink); }
+  .top-cta {
+    margin-left: auto;
+    display: inline-flex; align-items: center;
+    height: 34px; padding: 0 16px; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 13.5px; font-weight: 600;
+    transition: background .15s;
+  }
+  .top-cta:hover { background: var(--accent-deep); }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 88px 0 60px; }
+  .hero-grid {
+    display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; letter-spacing: .12em; color: var(--accent);
+    font-weight: 600; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--accent); }
+  h1.display {
+    font-family: var(--serif);
+    font-size: clamp(34px, 4.6vw, 52px);
+    font-weight: 700;
+    line-height: 1.28;
+    letter-spacing: .02em;
+    text-wrap: balance;
+    margin-bottom: 20px;
+  }
+  h1.display em { font-style: normal; color: var(--accent); }
+  .hero-sub {
+    font-size: 16.5px; color: var(--dim); max-width: 30em; margin-bottom: 34px;
+    text-wrap: pretty;
+  }
+  .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn-lg {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 46px; padding: 0 26px; border-radius: 10px;
+    font-size: 15px; font-weight: 600; transition: .15s;
+  }
+  .btn-fill { background: var(--accent); color: #fff; }
+  .btn-fill:hover { background: var(--accent-deep); transform: translateY(-1px); }
+  .btn-line { border: 1px solid var(--border); background: var(--card); color: var(--ink); }
+  .btn-line:hover { border-color: var(--accent); color: var(--accent); }
+  .hero-note { margin-top: 16px; font-size: 12.5px; color: var(--faint); }
+
+  /* 迷你看板 */
+  .board {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; box-shadow: 0 24px 60px -32px rgba(30, 35, 90, .35);
+  }
+  .board-head {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; color: var(--faint); margin-bottom: 14px;
+    font-family: var(--mono);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .col-name { font-size: 11px; letter-spacing: .08em; color: var(--faint); margin-bottom: 8px; font-weight: 600; }
+  .tcard {
+    background: var(--paper); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; margin-bottom: 8px; font-size: 12px; line-height: 1.45;
+  }
+  .tcard .key { font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: block; margin-bottom: 2px; }
+  .tcard.hot { border-color: var(--accent); background: var(--accent-soft); }
+  .chip {
+    display: inline-block; margin-top: 6px; padding: 1px 7px; border-radius: 10px;
+    font-size: 10px; font-weight: 600;
+  }
+  .chip.story { background: var(--accent-soft); color: var(--accent); }
+  .chip.done { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+
+  /* ---------- 通用节 ---------- */
+  section.block { padding: 76px 0; }
+  section.alt { background: var(--card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .sec-eyebrow {
+    font-size: 12px; letter-spacing: .16em; color: var(--accent); font-weight: 700;
+    margin-bottom: 12px;
+  }
+  h2.sec-title {
+    font-family: var(--serif); font-size: clamp(26px, 3vw, 34px); font-weight: 700;
+    letter-spacing: .02em; margin-bottom: 14px; text-wrap: balance;
+  }
+  .sec-lead { font-size: 15.5px; color: var(--dim); max-width: 38em; margin-bottom: 44px; }
+
+  /* ---------- AI 演示 ---------- */
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; }
+  .chat, .demo-board {
+    background: var(--paper); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  }
+  section.alt .chat, section.alt .demo-board { background: var(--paper); }
+  .chat-title, .demo-board .col-name { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-bottom: 14px; }
+  .bubble {
+    max-width: 88%; padding: 10px 14px; border-radius: 12px;
+    font-size: 13.5px; line-height: 1.6; margin-bottom: 12px;
+    opacity: 0; animation: rise .5s forwards;
+  }
+  .bubble.user { background: var(--accent); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; animation-delay: .4s; }
+  .bubble.ai { background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 4px; animation-delay: 1.6s; }
+  .bubble.ai .ok { color: var(--good); font-weight: 600; }
+  .demo-task { opacity: 0; animation: rise .45s forwards; }
+  .demo-task:nth-child(2) { animation-delay: 2.2s; }
+  .demo-task:nth-child(3) { animation-delay: 2.55s; }
+  .demo-task:nth-child(4) { animation-delay: 2.9s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .bubble, .demo-task { animation: none; opacity: 1; }
+    .dot { animation: none; }
+    .btn-fill:hover { transform: none; }
+  }
+  .demo-caption { margin-top: 22px; font-size: 13px; color: var(--faint); }
+  .demo-caption code {
+    font-family: var(--mono); font-size: 12px;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 2px 7px; border-radius: 5px;
+  }
+
+  /* ---------- 功能 ---------- */
+  .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .feat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 22px 20px; transition: border-color .15s;
+  }
+  .feat:hover { border-color: var(--accent); }
+  .feat h3 { font-size: 15.5px; font-weight: 650; margin-bottom: 8px; }
+  .feat p { font-size: 13.5px; color: var(--dim); }
+  .feat .fi {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft);
+    color: var(--accent); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px; font-size: 16px; font-family: var(--serif); font-weight: 700;
+  }
+
+  /* ---------- 定价 ---------- */
+  .price-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: stretch; }
+  .plan {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px 22px; display: flex; flex-direction: column;
+  }
+  .plan.star { border-color: var(--accent); position: relative; }
+  .plan.star::before {
+    content: "主推"; position: absolute; top: -11px; left: 22px;
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 2px 10px; border-radius: 10px; letter-spacing: .08em;
+  }
+  .plan h3 { font-size: 15px; font-weight: 650; margin-bottom: 4px; }
+  .plan .for { font-size: 12px; color: var(--faint); margin-bottom: 18px; }
+  .plan .price { font-size: 30px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .plan .price small { font-size: 13px; font-weight: 500; color: var(--faint); }
+  .plan .per { font-size: 12px; color: var(--faint); margin-bottom: 18px; }
+  .plan ul { list-style: none; font-size: 13px; color: var(--dim); flex: 1; }
+  .plan li { padding: 5px 0 5px 20px; position: relative; }
+  .plan li::before { content: "✓"; position: absolute; left: 0; color: var(--good); font-weight: 700; }
+  .plan .btn-lg { margin-top: 20px; height: 40px; font-size: 13.5px; justify-content: center; }
+
+  /* ---------- 自托管 CTA ---------- */
+  .selfhost {
+    text-align: center; padding: 80px 0;
+  }
+  .selfhost .proverb {
+    font-family: var(--serif); font-size: clamp(20px, 2.4vw, 26px); color: var(--dim);
+    letter-spacing: .1em; margin-bottom: 26px;
+  }
+  .codebox {
+    display: inline-block; text-align: left;
+    font-family: var(--mono); font-size: 13px; line-height: 1.9;
+    background: #1c1f2c; color: #c7cbe4;
+    border: 1px solid #2a2e40;
+    border-radius: 12px; padding: 18px 26px; margin-bottom: 30px;
+    overflow-x: auto; max-width: 100%;
+  }
+  .codebox .c { color: #666c88; }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 0; font-size: 13px; color: var(--faint);
+  }
+  .foot-in { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .foot-in a:hover { color: var(--ink); }
+  .foot-in .sp { flex: 1; }
+
+  @media (max-width: 900px) {
+    .hero-grid, .demo-grid { grid-template-columns: 1fr; }
+    .feat-grid { grid-template-columns: 1fr 1fr; }
+    .price-grid { grid-template-columns: 1fr 1fr; }
+    .topnav { display: none; }
+  }
+  @media (max-width: 560px) {
+    .feat-grid, .price-grid { grid-template-columns: 1fr; }
+    .hero { padding: 56px 0 40px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#"><span class="brand-mark">跬</span>跬步 Kuibu</a>
+    <nav class="topnav">
+      <a href="#ai">AI 集成</a>
+      <a href="#features">功能</a>
+      <a href="#pricing">定价</a>
+      <a href="#selfhost">自托管</a>
+    </nav>
+    <a class="top-cta" href="#pricing">免费开始</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">小团队 · 自托管 · AI 原生</span>
+      <h1 class="display">不积<em>跬步</em>，<br>无以至千里。</h1>
+      <p class="hero-sub">
+        为 5–20 人小团队打造的项目管理工具：看板、Sprint、燃尽图、容量规划一应俱全，
+        还能让 AI 助手在对话里直接建任务、排冲刺。每天前进一小步，项目自然到千里。
+      </p>
+      <div class="hero-ctas">
+        <a class="btn-lg btn-fill" href="#pricing">免费开始使用</a>
+        <a class="btn-lg btn-line" href="#ai">看 AI 演示 ↓</a>
+      </div>
+      <p class="hero-note">社区版永久免费 · 10 人以内团队全功能 · 数据放在你自己的服务器上</p>
+    </div>
+    <div class="board" aria-hidden="true">
+      <div class="board-head"><span class="dot"></span>Sprint 12 · 还剩 6 天 · 23 / 41 pts</div>
+      <div class="cols">
+        <div>
+          <div class="col-name">待办 TODO</div>
+          <div class="tcard"><span class="key">GEO-18</span>知识库模板下载页<span class="chip story">故事 · 3pt</span></div>
+          <div class="tcard"><span class="key">GEO-21</span>客户诊断报告导出</div>
+        </div>
+        <div>
+          <div class="col-name">进行中 IN PROGRESS</div>
+          <div class="tcard hot"><span class="key">GEO-15</span>AI 文章生成提示词优化<span class="chip story">故事 · 5pt</span></div>
+        </div>
+        <div>
+          <div class="col-name">已完成 DONE</div>
+          <div class="tcard"><span class="key">GEO-12</span>搜狐 / 百家号推文<span class="chip done">完成</span></div>
+          <div class="tcard"><span class="key">GEO-13</span>前期 AI 诊断<span class="chip done">完成</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block alt" id="ai">
+  <div class="wrap">
+    <div class="sec-eyebrow">AI 原生 · MCP 内置</div>
+    <h2 class="sec-title">在 Claude 里说一句话，任务就上了看板</h2>
+    <p class="sec-lead">
+      跬步内置 MCP 服务端，Claude、Cursor 等 AI 工具用一个令牌即可接入。
+      开会记下的待办，让 AI 顺手就录进冲刺——不用切窗口，不用逐条手填。
+    </p>
+    <div class="demo-grid">
+      <div class="chat">
+        <div class="chat-title">Claude Code · 已连接跬步</div>
+        <div class="bubble user">帮我把这三件事加到本周冲刺：优化落地页文案、修复导出乱码、给客户写周报</div>
+        <div class="bubble ai"><span class="ok">✓ 已创建 3 个任务</span>并放入 Sprint 12：GEO-22、GEO-23、GEO-24，都指派给你。还需要估点吗？</div>
+      </div>
+      <div class="demo-board">
+        <div class="col-name">SPRINT 12 · 待办</div>
+        <div class="tcard demo-task"><span class="key">GEO-22</span>优化落地页文案</div>
+        <div class="tcard demo-task"><span class="key">GEO-23</span>修复导出乱码</div>
+        <div class="tcard demo-task"><span class="key">GEO-24</span>给客户写周报</div>
+      </div>
+    </div>
+    <p class="demo-caption">
+      接入只要一步：<code>claude mcp add --transport http pm https://你的域名/mcp</code>
+      —— 支持列项目、查冲刺、建任务、改状态等 6 个工具，权限跟随你的个人令牌。
+    </p>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="sec-eyebrow">功能</div>
+    <h2 class="sec-title">该有的都有，没有的都是你不需要的</h2>
+    <p class="sec-lead">不做用不上的审批流和自定义字段海洋。小团队要的是打开就懂、当天上手。</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="fi">板</div><h3>拖拽式看板</h3><p>四列状态流转，拖一下就换状态；行内快速建任务，键盘友好。</p></div>
+      <div class="feat"><div class="fi">冲</div><h3>Sprint 自动轮转</h3><p>周期到点自动关闭旧冲刺、开启新冲刺，未完成任务自动顺延，停机也能补跑。</p></div>
+      <div class="feat"><div class="fi">图</div><h3>燃尽图与容量</h3><p>按工作日计算成员容量，燃尽趋势一眼看出冲刺是否健康。</p></div>
+      <div class="feat"><div class="fi">路</div><h3>Epic 季度路线图</h3><p>大目标按季度分组，完成度实时汇总，向上汇报不用再拼 PPT。</p></div>
+      <div class="feat"><div class="fi">租</div><h3>多租户隔离</h3><p>一套部署服务多个团队，邀请制加入，数据库层面租户隔离。</p></div>
+      <div class="feat"><div class="fi">译</div><h3>中英双语</h3><p>界面一键切换中英文，跨境团队协作无障碍。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block alt" id="pricing">
+  <div class="wrap">
+    <div class="sec-eyebrow">定价</div>
+    <h2 class="sec-title">从免费自托管开始，长大了再付费</h2>
+    <p class="sec-lead">所有版本功能同源。付费买的是省心：托管、备份、升级、支持。</p>
+    <div class="price-grid">
+      <div class="plan">
+        <h3>社区版</h3><div class="for">自托管 · 10 人以内</div>
+        <div class="price">¥0</div><div class="per">永久免费</div>
+        <ul><li>全部核心功能</li><li>MCP / AI 接入</li><li>多租户</li><li>社区支持</li></ul>
+        <a class="btn-lg btn-line" href="#selfhost">部署指南</a>
+      </div>
+      <div class="plan">
+        <h3>云标准版</h3><div class="for">我们托管 · 不限人数</div>
+        <div class="price">¥19<small> /人/月</small></div><div class="per">年付 ¥190/人</div>
+        <ul><li>免运维托管</li><li>每日自动备份</li><li>版本自动升级</li><li>工单支持</li></ul>
+        <a class="btn-lg btn-fill" href="#">开始试用</a>
+      </div>
+      <div class="plan star">
+        <h3>云 AI 版</h3><div class="for">托管 + AI 全家桶</div>
+        <div class="price">¥39<small> /人/月</small></div><div class="per">年付 ¥390/人</div>
+        <ul><li>标准版全部内容</li><li>MCP 云端接入</li><li>AI 建任务 / 周报</li><li>优先支持</li></ul>
+        <a class="btn-lg btn-fill" href="#">开始试用</a>
+      </div>
+      <div class="plan">
+        <h3>企业自托管</h3><div class="for">私有化 · 不限人数</div>
+        <div class="price">¥8,800<small> /年起</small></div><div class="per">含部署与升级支持</div>
+        <ul><li>私有化部署协助</li><li>不限成员数</li><li>SLA 响应承诺</li><li>专属沟通群</li></ul>
+        <a class="btn-lg btn-line" href="#">联系我们</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="selfhost" id="selfhost">
+  <div class="wrap">
+    <div class="proverb">「故不积跬步，无以至千里；不积小流，无以成江海。」</div>
+    <h2 class="sec-title" style="margin-bottom: 26px;">三条命令，跑在你自己的服务器上</h2>
+    <div class="codebox">
+<span class="c"># 1. 一键构建（前端打入 fat jar）</span><br>
+./deploy/build.sh<br>
+<span class="c"># 2. 部署（幂等：初始化数据库 + systemd + 健康检查）</span><br>
+PM_HOST=ubuntu@你的服务器 ./deploy/deploy.sh<br>
+<span class="c"># 3. 验证</span><br>
+curl http://你的服务器:8080/api/health
+    </div>
+    <div class="hero-ctas" style="justify-content: center;">
+      <a class="btn-lg btn-fill" href="https://github.com/1359484419/projectmanager">GitHub 仓库</a>
+      <a class="btn-lg btn-line" href="https://github.com/1359484419/pm-skill">配套 AI Skill</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-in">
+    <span class="brand" style="font-size: 14px;"><span class="brand-mark" style="width: 24px; height: 24px; font-size: 13px;">跬</span>跬步 Kuibu</span>
+    <span class="sp"></span>
+    <a href="https://github.com/1359484419/projectmanager">GitHub</a>
+    <a href="#pricing">定价</a>
+    <a href="#">联系：laoliang277@gmail.com</a>
+    <span>© 2026 跬步 Kuibu · MIT License（社区版）</span>
+  </div>
+</footer>
+
+</body>
+</html>

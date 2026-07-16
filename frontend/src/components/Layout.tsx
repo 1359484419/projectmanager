@@ -470,12 +470,12 @@ export default function Layout() {
               justifyContent: 'center',
               color: '#fff',
               fontWeight: 800,
-              fontSize: 14,
+              fontSize: 13,
               flex: 'none',
               letterSpacing: '-0.02em',
             }}
           >
-            P
+            跬
           </div>
           {expanded && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, overflow: 'hidden' }}>
@@ -485,7 +485,7 @@ export default function Layout() {
               >
                 {tenantName}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap' }}>mini-jira</span>
+              <span style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap' }}>跬步 Kuibu</span>
             </div>
           )}
         </div>

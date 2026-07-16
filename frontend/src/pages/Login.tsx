@@ -128,11 +128,11 @@ export default function Login() {
               justifyContent: 'center',
               color: '#fff',
               fontWeight: 800,
-              fontSize: 22,
+              fontSize: 20,
               marginBottom: 12,
             }}
           >
-            P
+            跬
           </div>
           <div style={{ fontSize: 16, fontWeight: 650 }}>{t.welcomeBack}</div>
           <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
