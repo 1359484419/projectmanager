@@ -3,11 +3,20 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { clearTokens, getAccessToken } from '../api/client'
-import { useBacklog, useDashboard, useMyTenants, useProjects, useSearchTasks } from '../api/hooks'
+import { api, clearTokens, getAccessToken } from '../api/client'
+import {
+  useBacklog,
+  useDashboard,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useMyTenants,
+  useNotifications,
+  useProjects,
+  useSearchTasks,
+} from '../api/hooks'
 import CreateTaskDialog from './CreateTaskDialog'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
-import type { SearchHit } from '../api/types'
+import type { NotificationItem, SearchHit, Task, TaskBrief } from '../api/types'
 import { Icon, type IconName } from './icons'
 import { Avatar } from './TaskCard'
 import StatusBadge from './StatusBadge'
@@ -284,6 +293,175 @@ function SideNavLink({ item, expanded }: { item: NavItem; expanded: boolean }) {
         </>
       )}
     </NavLink>
+  )
+}
+
+/** 通知时间：今天显示 HH:mm，更早显示 MM-DD */
+function notifTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/**
+ * 顶栏通知铃铛：25s 轮询，未读数徽标；点击条目 = 标已读 + 打开任务抽屉。
+ * 只有在这里点击（或"全部已读"）才算已读——从看板等其他入口打开任务不清未读（产品决策）。
+ */
+function NotificationBell({ slug }: { slug: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const [drawer, setDrawer] = useState<{ projectKey: string; task: TaskBrief } | null>(null)
+  const { data } = useNotifications(slug)
+  const markRead = useMarkNotificationRead(slug)
+  const markAll = useMarkAllNotificationsRead(slug)
+  const unread = data?.unreadCount ?? 0
+  const items = data?.items ?? []
+
+  const openItem = async (n: NotificationItem) => {
+    if (!n.readAt) markRead.mutate(n.id)
+    setOpen(false)
+    try {
+      // 通知行只有标题/键，抽屉 seed 需要完整 TaskBrief——先拉任务详情
+      const task = await api<Task>(`/api/t/${slug}/tasks/${n.taskId}`)
+      setDrawer({
+        projectKey: n.projectKey,
+        task: {
+          id: task.id,
+          seq: task.seq,
+          type: task.type,
+          title: task.title,
+          status: task.status,
+          points: task.points,
+          assigneeId: task.assigneeId,
+        },
+      })
+    } catch {
+      // 任务可能刚被删除：通知也会随级联清掉，下次轮询自然消失，这里静默即可
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <span
+        className="icon-btn"
+        title={t.notifications}
+        onClick={() => setOpen((v) => !v)}
+        style={{ display: 'flex', flex: 'none', position: 'relative' }}
+      >
+        <Icon name="bell" size={16} />
+        {unread > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -3,
+              right: -5,
+              minWidth: 15,
+              height: 15,
+              padding: '0 4px',
+              borderRadius: 8,
+              background: 'var(--type-bug)',
+              color: '#fff',
+              fontSize: 9.5,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+              boxSizing: 'border-box',
+            }}
+          >
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </span>
+
+      <Dropdown open={open} onClose={() => setOpen(false)} style={{ right: 0, width: 330 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '6px 9px 5px',
+            borderBottom: '1px solid var(--border)',
+            marginBottom: 4,
+          }}
+        >
+          <span style={{ fontSize: 12.5, fontWeight: 650 }}>{t.notifications}</span>
+          <span style={{ flex: 1 }} />
+          {unread > 0 && (
+            <span
+              onClick={() => markAll.mutate()}
+              style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer' }}
+            >
+              {t.markAllRead}
+            </span>
+          )}
+        </div>
+        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+          {items.length === 0 && (
+            <div style={{ padding: '18px 10px', fontSize: 12.5, color: 'var(--faint)', textAlign: 'center' }}>
+              {t.noNotifications}
+            </div>
+          )}
+          {items.map((n) => (
+            <div
+              key={n.id}
+              className="menu-item"
+              onClick={() => openItem(n)}
+              style={{
+                ...menuItemStyle,
+                alignItems: 'flex-start',
+                gap: 9,
+                opacity: n.readAt ? 0.55 : 1,
+              }}
+            >
+              {/* 未读点位（已读留白占位保持对齐） */}
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: n.readAt ? 'transparent' : 'var(--accent)',
+                  flex: 'none',
+                  marginTop: 5,
+                }}
+              />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 12.5,
+                    color: 'var(--text)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--faint)' }}>
+                    {n.displayKey}
+                  </span>{' '}
+                  {n.taskTitle}
+                </span>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--dim)' }}>
+                  {t.notifAssigned} · {notifTime(n.createdAt)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </Dropdown>
+
+      {drawer && (
+        <TaskDrawer
+          slug={slug}
+          projectKey={drawer.projectKey}
+          task={drawer.task}
+          onClose={() => setDrawer(null)}
+        />
+      )}
+    </div>
   )
 }
 
@@ -691,6 +869,9 @@ export default function Layout() {
           >
             <Icon name={light ? 'moon' : 'sun'} size={17} />
           </span>
+
+          {/* 通知铃铛 */}
+          <NotificationBell slug={slug} />
 
           {/* 用户菜单 */}
           <div style={{ position: 'relative' }}>

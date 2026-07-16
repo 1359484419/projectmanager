@@ -22,7 +22,8 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
   const [description, setDescription] = useState('')
   const [points, setPoints] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
-  const [sprintTarget, setSprintTarget] = useState<'current' | 'backlog'>('backlog')
+  // '' = Backlog，否则为具体 sprintId（PLANNED/ACTIVE 都可选，非必选）
+  const [sprintId, setSprintId] = useState('')
   const [epicId, setEpicId] = useState('')
 
   const createTask = useCreateTask(slug, projectKey)
@@ -33,6 +34,10 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
   const t = useT()
 
   const activeSprint = pickActiveSprint(sprints.data as Sprint[] | undefined)
+  // 可选目标：ACTIVE 在前，其后 PLANNED（新的在前）；CLOSED 不可选
+  const selectableSprints = ((sprints.data as Sprint[] | undefined) ?? []).filter(
+    (s) => s.status !== 'CLOSED',
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -59,7 +64,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(parsedPoints != null ? { points: parsedPoints } : {}),
         ...(assigneeId ? { assigneeId: Number(assigneeId) } : {}),
-        ...(sprintTarget === 'current' && activeSprint ? { sprintId: activeSprint.id } : {}),
+        ...(sprintId ? { sprintId: Number(sprintId) } : {}),
         ...(epicId ? { epicId: Number(epicId) } : {}),
       },
       {
@@ -236,14 +241,16 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
               <label style={labelStyle}>{t.target}</label>
               <SelectWrap>
                 <select
-                  value={sprintTarget}
-                  onChange={(e) => setSprintTarget(e.target.value as 'current' | 'backlog')}
+                  value={sprintId}
+                  onChange={(e) => setSprintId(e.target.value)}
                   style={{ ...selStyle, height: 34 }}
                 >
-                  <option value="backlog">{t.backlog}</option>
-                  {activeSprint && (
-                    <option value="current">{t.currentSprint(activeSprint.name)}</option>
-                  )}
+                  <option value="">{t.backlog}</option>
+                  {selectableSprints.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.id === activeSprint?.id ? t.currentSprint(s.name) : s.name}
+                    </option>
+                  ))}
                 </select>
               </SelectWrap>
             </div>

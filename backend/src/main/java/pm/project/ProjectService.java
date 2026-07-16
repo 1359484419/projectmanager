@@ -22,6 +22,7 @@ public class ProjectService {
     private final pm.sprint.SprintRepository sprints;
     private final pm.sprint.CapacityOverrideRepository capacityOverrides;
     private final pm.epic.EpicRepository epics;
+    private final pm.notification.NotificationService notifications;
 
     public record ProjectView(Long id, String key, String name,
                               Project.SprintLength defaultSprintLength, boolean autoRotate) {
@@ -37,7 +38,8 @@ public class ProjectService {
                           pm.task.SubtaskRepository subtaskRepo,
                           pm.sprint.SprintRepository sprints,
                           pm.sprint.CapacityOverrideRepository capacityOverrides,
-                          pm.epic.EpicRepository epics) {
+                          pm.epic.EpicRepository epics,
+                          pm.notification.NotificationService notifications) {
         this.projects = projects;
         this.tasks = tasks;
         this.activityRepo = activityRepo;
@@ -46,6 +48,7 @@ public class ProjectService {
         this.sprints = sprints;
         this.capacityOverrides = capacityOverrides;
         this.epics = epics;
+        this.notifications = notifications;
     }
 
     /** 仅 ADMIN；MEMBER 视为管理操作不存在 → 404（与 PATCH 一致）。 */
@@ -116,6 +119,7 @@ public class ProjectService {
             activityRepo.deleteByTaskIdIn(taskIds);
             commentRepo.deleteByTaskIdIn(taskIds);
             taskIds.forEach(subtaskRepo::deleteByTaskId);
+            notifications.deleteByTasks(taskIds);
         }
         tasks.deleteByProjectId(project.getId());
         List<Long> sprintIds = sprints.findByProjectIdOrderByIdDesc(project.getId()).stream()

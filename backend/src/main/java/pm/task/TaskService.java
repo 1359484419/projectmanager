@@ -24,13 +24,15 @@ public class TaskService {
     private final pm.sprint.SprintRepository sprints;
     private final pm.epic.EpicRepository epics;
     private final pm.tenantadmin.MembershipRepository memberships;
+    private final pm.notification.NotificationService notifications;
 
     public TaskService(TaskRepository tasks, ProjectRepository projects,
                        ActivityRepository activityRepo, pm.comment.CommentRepository commentRepo,
                        SubtaskRepository subtaskRepo,
                        ActivityRecorder recorder,
                        RankService rankService, pm.sprint.SprintRepository sprints,
-                       pm.epic.EpicRepository epics, pm.tenantadmin.MembershipRepository memberships) {
+                       pm.epic.EpicRepository epics, pm.tenantadmin.MembershipRepository memberships,
+                       pm.notification.NotificationService notifications) {
         this.tasks = tasks;
         this.projects = projects;
         this.activityRepo = activityRepo;
@@ -41,6 +43,7 @@ public class TaskService {
         this.sprints = sprints;
         this.epics = epics;
         this.memberships = memberships;
+        this.notifications = notifications;
     }
 
     // ---------- 视图 ----------
@@ -113,6 +116,7 @@ public class TaskService {
         task.setCreatedBy(actor);
         tasks.save(task);
         recorder.record(task, actor, "CREATED", null, project.getKey() + "-" + seq, source);
+        notifications.recordAssigned(task.getId(), task.getAssigneeId(), actor);
         return TaskView.from(task, project.getKey());
     }
 
@@ -155,6 +159,7 @@ public class TaskService {
                 recorder.record(task, actor, "ASSIGNED",
                         toStr(task.getAssigneeId()), toStr(v), source);
                 task.setAssigneeId(v);
+                notifications.recordAssigned(task.getId(), v, actor);
             }
         }
         if (req.epicId() != null) {
@@ -203,6 +208,7 @@ public class TaskService {
         activityRepo.deleteByTaskId(taskId);
         commentRepo.deleteByTaskId(taskId);
         subtaskRepo.deleteByTaskId(taskId);
+        notifications.deleteByTask(taskId);
         tasks.delete(task);
     }
 

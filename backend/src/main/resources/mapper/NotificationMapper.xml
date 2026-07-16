@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- notifications 租户表：所有语句显式 tenant_id 条件 -->
+<mapper namespace="pm.notification.NotificationRepository">
+
+    <!-- 下拉列表：JOIN 任务与项目带出标题/displayKey；user_id 限定只看自己的 -->
+    <select id="findRecentByUserT" resultType="pm.notification.NotificationRow">
+        SELECT n.id,
+               n.task_id   AS taskId,
+               n.type,
+               t.title     AS taskTitle,
+               p.key       AS projectKey,
+               t.seq       AS taskSeq,
+               n.read_at   AS readAt,
+               n.created_at AS createdAt
+        FROM notifications n
+        JOIN tasks t ON t.id = n.task_id AND t.tenant_id = #{tenantId}
+        JOIN projects p ON p.id = t.project_id AND p.tenant_id = #{tenantId}
+        WHERE n.user_id = #{userId}
+          AND n.tenant_id = #{tenantId}
+        ORDER BY n.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countUnreadT" resultType="long">
+        SELECT COUNT(*)
+        FROM notifications
+        WHERE user_id = #{userId}
+          AND read_at IS NULL
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- user_id 条件保证只能标自己的通知已读；重复标 0 行不报错（幂等） -->
+    <update id="markReadT">
+        UPDATE notifications
+        SET read_at = now()
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND read_at IS NULL
+          AND tenant_id = #{tenantId}
+    </update>
+
+    <update id="markAllReadT">
+        UPDATE notifications
+        SET read_at = now()
+        WHERE user_id = #{userId}
+          AND read_at IS NULL
+          AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteByTaskIdT">
+        DELETE FROM notifications
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+    </delete>
+
+    <delete id="deleteByTaskIdInT">
+        DELETE FROM notifications
+        WHERE tenant_id = #{tenantId}
+          AND task_id IN
+        <foreach collection="taskIds" item="tid" open="(" separator="," close=")">#{tid}</foreach>
+    </delete>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="n.id">
+        INSERT INTO notifications (tenant_id, user_id, task_id, type, read_at, created_at)
+        VALUES (#{tenantId}, #{n.userId}, #{n.taskId}, #{n.type}, #{n.readAt}, #{n.createdAt})
+    </insert>
+
+</mapper>

@@ -190,6 +190,24 @@ export interface CloseSprintInput {
   targetSprintId?: number
 }
 
+// ---------- 通知 ----------
+
+export interface NotificationItem {
+  id: number
+  taskId: number
+  type: 'TASK_ASSIGNED'
+  taskTitle: string
+  displayKey: string
+  projectKey: string
+  readAt: string | null
+  createdAt: string
+}
+
+export interface NotificationList {
+  unreadCount: number
+  items: NotificationItem[]
+}
+
 // ---------- 容量 ----------
 
 export interface CapacityEntry {

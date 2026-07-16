@@ -22,6 +22,7 @@ import type {
   Invite,
   Member,
   MyTenant,
+  NotificationList,
   Project,
   Roadmap,
   Sprint,
@@ -55,6 +56,7 @@ export const qk = {
   activities: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'activities'] as const,
   members: (slug: string) => [slug, 'members'] as const,
   search: (slug: string, q: string) => [slug, 'search', q] as const,
+  notifications: (slug: string) => [slug, 'notifications'] as const,
 }
 
 const t = (slug: string) => `/api/t/${slug}`
@@ -230,6 +232,35 @@ export function useCloseSprint(slug: string) {
         body: JSON.stringify(input),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
+// ---------- 通知 ----------
+
+/** 消息中心轮询：25s 一次（窗口不聚焦时 TanStack Query 默认暂停轮询）。 */
+export function useNotifications(slug: string) {
+  return useQuery({
+    queryKey: qk.notifications(slug),
+    queryFn: () => api<NotificationList>(`${t(slug)}/notifications`),
+    enabled: !!slug,
+    refetchInterval: 25_000,
+  })
+}
+
+export function useMarkNotificationRead(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      api(`${t(slug)}/notifications/${id}/read`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications(slug) }),
+  })
+}
+
+export function useMarkAllNotificationsRead(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api(`${t(slug)}/notifications/read-all`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications(slug) }),
   })
 }
 

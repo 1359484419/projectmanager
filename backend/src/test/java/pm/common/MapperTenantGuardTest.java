@@ -34,7 +34,7 @@ class MapperTenantGuardTest {
     /** 租户表清单（users/tenants/refresh_tokens 为全局表，不在此列）。 */
     private static final Set<String> TENANT_TABLES = Set.of(
             "projects", "epics", "tasks", "activities", "comments", "subtasks", "sprints",
-            "capacity_overrides", "invites", "api_tokens", "memberships");
+            "capacity_overrides", "invites", "api_tokens", "memberships", "notifications");
 
     private static final String EXEMPT_MARKER = "tenant-guard-exempt";
 
