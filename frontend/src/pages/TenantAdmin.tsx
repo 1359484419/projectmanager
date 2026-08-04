@@ -28,7 +28,7 @@ import {
   useToast,
 } from '../components/ui'
 import { Avatar } from '../components/TaskCard'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
 import type { Invite, Member, Project, Role, SprintLength } from '../api/types'
 
 /** 移出成员 409 错误码 → i18n 提示 */
@@ -49,6 +49,7 @@ const sectionTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600 }
 
 /** 角色胶囊（设计稿成员行右侧 pill） */
 function RolePill({ role }: { role: Role }) {
+  const t = useT()
   return (
     <span
       style={{
@@ -61,7 +62,7 @@ function RolePill({ role }: { role: Role }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {role}
+      {role === 'ADMIN' ? t.roleAdmin : t.roleMember}
     </span>
   )
 }
@@ -123,6 +124,8 @@ function MemberSkeleton() {
 
 /** 成员卡片：标题栏 + 生成邀请链接 + 成员列表 */
 function MembersCard({ slug }: { slug: string }) {
+  const { locale } = useI18n()
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US'
   const toast = useToast()
   const t = useT()
   const members = useMembers(slug)
@@ -203,8 +206,8 @@ function MembersCard({ slug }: { slug: string }) {
             aria-label={t.inviteRole}
             style={{ ...selStyle, height: 28, fontSize: 12 }}
           >
-            <option value="MEMBER">MEMBER</option>
-            <option value="ADMIN">ADMIN</option>
+            <option value="MEMBER">{t.roleMember}</option>
+            <option value="ADMIN">{t.roleAdmin}</option>
           </select>
         </SelectWrap>
         <button
@@ -256,7 +259,7 @@ function MembersCard({ slug }: { slug: string }) {
             {inviteUrl}
           </span>
           <span style={{ fontSize: 11, color: 'var(--faint)', flex: 'none' }}>
-            {t.inviteValidUntil(new Date(invite.expiresAt).toLocaleString())}
+            {t.inviteValidUntil(new Date(invite.expiresAt).toLocaleString(dateLocale))}
           </span>
           <button
             type="button"

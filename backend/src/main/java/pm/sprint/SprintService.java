@@ -170,7 +170,7 @@ public class SprintService {
 
     private Sprint newSprint(Project project, String name, Project.SprintLength length, LocalDate start) {
         String finalName = (name == null || name.isBlank())
-                ? "Sprint " + (sprints.countByProjectId(project.getId()) + 1)
+                ? "迭代 " + (sprints.countByProjectId(project.getId()) + 1)
                 : name;
         Sprint sprint = new Sprint(project.getId(), finalName, length, start, endDateOf(start, length));
         return sprints.save(sprint);

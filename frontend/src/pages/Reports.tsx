@@ -61,6 +61,7 @@ function shortDate(d: string): string {
 // ---------- 燃尽图（自绘 SVG，风格同 logic.jsx burndown()） ----------
 
 function BurndownSvg({ days }: { days: BurndownDay[] }) {
+  const t = useT()
   const W = 620
   const H = 248
   const pl = 40
@@ -92,7 +93,7 @@ function BurndownSvg({ days }: { days: BurndownDay[] }) {
   const area = `${x(0)},${pt + ph} ${remPts.join(' ')} ${x(n - 1)},${pt + ph}`
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label="Sprint burndown">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} role="img" aria-label={t.burndown}>
       {gridLines.map((g, k) => (
         <g key={k}>
           <line x1={pl} y1={g.yy} x2={W - pr} y2={g.yy} stroke="var(--grid)" />

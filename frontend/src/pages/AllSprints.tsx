@@ -39,6 +39,7 @@ function errMsg(e: unknown, fallback = 'unknown error'): string {
 
 /** Sprint 状态徽标（同 logic.jsx smap）：ACTIVE 带 pulse 呼吸点，PLANNED 灰，CLOSED 淡 */
 function SprintStatusBadge({ status }: { status: SprintStatus }) {
+  const t = useT()
   if (status === 'ACTIVE') {
     return (
       <Badge color="var(--prog)" soft="var(--prog-soft)">
@@ -51,12 +52,12 @@ function SprintStatusBadge({ status }: { status: SprintStatus }) {
             animation: 'pulse 1.6s infinite',
           }}
         />
-        ACTIVE
+        {t.sprintInProgress}
       </Badge>
     )
   }
-  if (status === 'PLANNED') return <Badge color="var(--todo)">PLANNED</Badge>
-  return <Badge color="var(--faint)">CLOSED</Badge>
+  if (status === 'PLANNED') return <Badge color="var(--todo)">{t.sprintNotStarted}</Badge>
+  return <Badge color="var(--faint)">{t.sprintEnded}</Badge>
 }
 
 /** 日期区间：'2026-07-01' → '07-01 → 07-14'（设计稿 sp.dates，JetBrains Mono） */
@@ -283,7 +284,7 @@ function SprintCard({
           {fmtDates(sprint.startDate, sprint.endDate)}
         </span>
         <span style={{ fontSize: 12, color: 'var(--dim)', whiteSpace: 'nowrap' }}>
-          {t.nTasks(sprint.tasks.length)} · {fmtPoints(points)} pts
+          {t.nTasks(sprint.tasks.length)} · {fmtPoints(points)} {t.ptsUnit}
         </span>
         <span style={{ flex: 1 }} />
         {sprint.status === 'PLANNED' && (

@@ -57,7 +57,7 @@ class SprintLifecycleTest extends IntegrationTest {
     @Test
     void createSprint_defaults_twoWeeks_sequentialNames() {
         Map s1 = createSprint(Map.of());
-        assertThat(s1.get("name")).isEqualTo("Sprint 1");
+        assertThat(s1.get("name")).isEqualTo("迭代 1");
         assertThat(s1.get("length")).isEqualTo("WEEK_2");
         assertThat(s1.get("status")).isEqualTo("PLANNED");
         LocalDate start = LocalDate.parse((String) s1.get("startDate"));
@@ -65,7 +65,7 @@ class SprintLifecycleTest extends IntegrationTest {
         assertThat(end).isEqualTo(start.plusDays(13));
 
         Map s2 = createSprint(Map.of("length", "WEEK_1", "startDate", "2026-07-06"));
-        assertThat(s2.get("name")).isEqualTo("Sprint 2");
+        assertThat(s2.get("name")).isEqualTo("迭代 2");
         assertThat(s2.get("endDate")).isEqualTo("2026-07-12");
     }
 

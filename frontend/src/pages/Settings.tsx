@@ -21,7 +21,7 @@ import {
   useToast,
 } from '../components/ui'
 import type { ApiToken, CreatedApiToken } from '../api/types'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
 
 /** 卡片内小节标题（13px/600） */
 const sectionTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600 }
@@ -221,6 +221,8 @@ function ProfileCard() {
 
 /** PAT 卡片：生成（一次性明文 + 警示 + 复制）/ 列表 / 吊销（ConfirmDialog） */
 function TokensCard({ currentSlug }: { currentSlug: string }) {
+  const { locale } = useI18n()
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US'
   const t = useT()
   const toast = useToast()
   const tokens = useTokens()
@@ -430,10 +432,10 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
               </span>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 11.5, color: 'var(--faint)', whiteSpace: 'nowrap' }}>
-                {t.createdAt(new Date(tk.createdAt).toLocaleString())}
+                {t.createdAt(new Date(tk.createdAt).toLocaleString(dateLocale))}
               </span>
               <span style={{ fontSize: 11.5, color: 'var(--faint)', whiteSpace: 'nowrap' }}>
-                {tk.lastUsedAt ? t.lastUsed(new Date(tk.lastUsedAt).toLocaleString()) : t.neverUsed}
+                {tk.lastUsedAt ? t.lastUsed(new Date(tk.lastUsedAt).toLocaleString(dateLocale)) : t.neverUsed}
               </span>
               <button
                 type="button"

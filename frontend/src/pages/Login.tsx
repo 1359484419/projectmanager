@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, setTokens } from '../api/client'
+import { api, ApiError, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
 import { useT } from '../i18n'
@@ -87,7 +87,20 @@ export default function Login() {
         navigate(`/t/${tenantSlug}`)
       }
     } catch (err) {
-      toast.show(err instanceof Error ? err.message : t.requestFailed, 'info')
+      // 后端 auth 错误码 → 本地化文案，避免直接把英文 message 抛给用户
+      const codeText: Record<string, string> = {
+        INVALID_SLUG: t.errInvalidSlug,
+        SLUG_TAKEN: t.errSlugTaken,
+        EMAIL_TAKEN: t.errEmailTaken,
+        BAD_CREDENTIALS: t.errBadCredentials,
+      }
+      const msg =
+        err instanceof ApiError && codeText[err.code]
+          ? codeText[err.code]
+          : err instanceof Error
+            ? err.message
+            : t.requestFailed
+      toast.show(msg, 'info')
     } finally {
       setSubmitting(false)
     }
@@ -179,7 +192,7 @@ export default function Login() {
                 <label style={fieldLabel}>{t.teamName}</label>
                 <input
                   style={fieldInput}
-                  placeholder="Acme Inc."
+                  placeholder={t.teamNamePlaceholder}
                   value={tenantName}
                   onChange={(e) => setTenantName(e.target.value)}
                   required
@@ -211,7 +224,7 @@ export default function Login() {
                     placeholder="acme"
                     value={tenantSlug}
                     onChange={(e) => setTenantSlug(e.target.value)}
-                    pattern="[a-z0-9-]{3,32}"
+                    pattern="[a-z0-9\-]{3,32}"
                     title={t.slugHint}
                     required
                     style={{

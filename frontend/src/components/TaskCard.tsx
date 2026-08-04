@@ -44,10 +44,11 @@ export function Avatar({ name, size = 20 }: { name?: string | null; size?: numbe
 }
 
 function PointsChip({ points }: { points: number | null }) {
+  const t = useT()
   if (points == null) return null
   return (
     <span
-      title={`${fmtPoints(points)} points`}
+      title={`${fmtPoints(points)} ${t.ptsUnit}`}
       style={{
         fontSize: 10.5,
         fontFamily: 'var(--font-mono)',
