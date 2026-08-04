@@ -23,11 +23,11 @@ public class TaskImageController {
     private static final Set<String> ALLOWED = Set.of(
             "image/jpeg", "image/png", "image/gif", "image/webp");
 
-    private final TaskRepository tasks;
+    private final TaskService taskService;
     private final TaskImageRepository images;
 
-    public TaskImageController(TaskRepository tasks, TaskImageRepository images) {
-        this.tasks = tasks;
+    public TaskImageController(TaskService taskService, TaskImageRepository images) {
+        this.taskService = taskService;
         this.images = images;
     }
 
@@ -40,7 +40,7 @@ public class TaskImageController {
     @PostMapping("/api/t/{slug}/tasks/{taskId}/images")
     ImageMeta upload(@PathVariable String slug, @PathVariable Long taskId,
                      @RequestParam("file") MultipartFile file) throws IOException {
-        Task task = tasks.findOneById(taskId).orElseThrow(ApiException::notFound);
+        Task task = taskService.requireById(taskId);
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED.contains(contentType)) {
             throw ApiException.badRequest("INVALID_IMAGE", "仅支持 JPEG/PNG/GIF/WebP 图片");
@@ -60,7 +60,7 @@ public class TaskImageController {
 
     @GetMapping("/api/t/{slug}/tasks/{taskId}/images")
     List<ImageMeta> list(@PathVariable String slug, @PathVariable Long taskId) {
-        tasks.findOneById(taskId).orElseThrow(ApiException::notFound);
+        taskService.requireById(taskId);
         return images.findMetaByTaskId(taskId).stream().map(ImageMeta::from).toList();
     }
 
@@ -68,6 +68,7 @@ public class TaskImageController {
     @GetMapping("/api/t/{slug}/images/{imageId}")
     ResponseEntity<byte[]> bytes(@PathVariable String slug, @PathVariable Long imageId) {
         TaskImage image = images.findOneById(imageId).orElseThrow(ApiException::notFound);
+        taskService.requireById(image.getTaskId()); // 记录私有：他人 404
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.getContentType()))
                 .header("Cache-Control", "private, max-age=86400")

@@ -242,10 +242,10 @@ public class TaskService {
                 .toList();
     }
 
-    /** 记录模块：项目内 RECORD 列表（新的在前）。 */
-    public List<TaskView> records(String projectKey) {
+    /** 记录模块：项目内我创建的 RECORD 列表（新的在前；记录是创建者私有数据）。 */
+    public List<TaskView> records(String projectKey, Long userId) {
         Project project = projects.findByKey(projectKey).orElseThrow(ApiException::notFound);
-        return tasks.findRecords(project.getId()).stream()
+        return tasks.findRecords(project.getId(), userId).stream()
                 .map(t -> TaskView.from(t, project.getKey()))
                 .toList();
     }
@@ -277,7 +277,7 @@ public class TaskService {
         }
         var keyById = new java.util.HashMap<Long, String>();
         projects.findAllByOrderByIdAsc().forEach(p -> keyById.put(p.getId(), p.getKey()));
-        return tasks.search(q.strip(), 20, 0).stream()
+        return tasks.search(q.strip(), 20, 0, pm.auth.CurrentUser.id()).stream()
                 .map(t -> {
                     String key = keyById.getOrDefault(t.getProjectId(), "?");
                     return new SearchHit(t.getId(), t.getSeq(), key + "-" + t.getSeq(), key,
@@ -295,8 +295,17 @@ public class TaskService {
                 .toList();
     }
 
+    /**
+     * 统一读取守卫：get/update/delete/activities/comments/subtasks/images 都经此。
+     * 记录（RECORD）是创建者私有数据（发票等），他人一律 404（伪装不存在，不暴露有无）。
+     */
     public Task requireById(Long taskId) {
-        return tasks.findOneById(taskId).orElseThrow(ApiException::notFound);
+        Task task = tasks.findOneById(taskId).orElseThrow(ApiException::notFound);
+        if (task.getType() == Task.Type.RECORD
+                && !java.util.Objects.equals(task.getCreatedBy(), pm.auth.CurrentUser.id())) {
+            throw ApiException.notFound();
+        }
+        return task;
     }
 
     public TaskView toView(Task task) {

@@ -23,7 +23,7 @@ public class RecordController {
 
     @GetMapping("/api/t/{slug}/projects/{key}/records")
     List<TaskService.TaskView> records(@PathVariable String slug, @PathVariable String key) {
-        return taskService.records(key);
+        return taskService.records(key, CurrentUser.id());
     }
 
     public record DueRecordView(Long id, String displayKey, String title, Instant remindAt) {

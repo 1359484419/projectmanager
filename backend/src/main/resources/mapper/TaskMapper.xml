@@ -26,6 +26,7 @@
         SELECT <include refid="columns"/>
         FROM tasks
         WHERE project_id = #{projectId} AND sprint_id IS NULL AND tenant_id = #{tenantId}
+          AND type != 'RECORD'
         ORDER BY rank ASC
     </select>
 
@@ -60,6 +61,7 @@
         SELECT <include refid="columns"/>
         FROM tasks
         WHERE tenant_id = #{tenantId}
+          AND (type != 'RECORD' OR created_by = #{userId})
           AND (lower(title) LIKE lower(#{pattern}) ESCAPE '\'
                OR lower(description) LIKE lower(#{pattern}) ESCAPE '\')
         ORDER BY id DESC
@@ -149,7 +151,8 @@
     <select id="findRecordsT" resultType="pm.task.Task">
         SELECT <include refid="columns"/>
         FROM tasks
-        WHERE project_id = #{projectId} AND type = 'RECORD' AND tenant_id = #{tenantId}
+        WHERE project_id = #{projectId} AND type = 'RECORD' AND created_by = #{userId}
+          AND tenant_id = #{tenantId}
         ORDER BY id DESC
     </select>
 

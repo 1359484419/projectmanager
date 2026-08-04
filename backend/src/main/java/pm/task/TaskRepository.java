@@ -54,9 +54,9 @@ public interface TaskRepository {
      * 关键词搜索（标题/描述，大小写不敏感）；% _ \ 转义后 ESCAPE，防用户输入当通配符。
      * 原签名的 Pageable 是 Spring Data 类型，随 data-jpa 移除改为显式 limit/offset。
      */
-    default List<Task> search(String q, int limit, int offset) {
+    default List<Task> search(String q, int limit, int offset, Long userId) {
         String escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        return searchT("%" + escaped + "%", limit, offset, TenantContext.require());
+        return searchT("%" + escaped + "%", limit, offset, userId, TenantContext.require());
     }
 
     default int maxSeq(Long projectId) {
@@ -119,8 +119,8 @@ public interface TaskRepository {
     }
 
     /** 记录模块：项目内 RECORD 列表（新的在前）。 */
-    default List<Task> findRecords(Long projectId) {
-        return findRecordsT(projectId, TenantContext.require());
+    default List<Task> findRecords(Long projectId, Long userId) {
+        return findRecordsT(projectId, userId, TenantContext.require());
     }
 
     /** 到期未关闭的提醒（当前用户创建的记录，跨项目）。 */
@@ -151,7 +151,8 @@ public interface TaskRepository {
                                              @Param("tenantId") long tenantId);
 
     List<Task> searchT(@Param("pattern") String pattern, @Param("limit") int limit,
-                       @Param("offset") int offset, @Param("tenantId") long tenantId);
+                       @Param("offset") int offset, @Param("userId") Long userId,
+                       @Param("tenantId") long tenantId);
 
     int maxSeqT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
 
@@ -171,7 +172,8 @@ public interface TaskRepository {
 
     void clearEpicT(@Param("epicId") Long epicId, @Param("tenantId") long tenantId);
 
-    List<Task> findRecordsT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
+    List<Task> findRecordsT(@Param("projectId") Long projectId, @Param("userId") Long userId,
+                            @Param("tenantId") long tenantId);
 
     List<DueRecordRow> findDueRecordsT(@Param("userId") Long userId, @Param("now") java.time.Instant now,
                                        @Param("tenantId") long tenantId);

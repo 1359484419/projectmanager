@@ -66,9 +66,21 @@ class RecordFlowTest extends IntegrationTest {
         Map dueItem = (Map) due.getBody().get(0);
         assertThat(dueItem.get("title")).isEqualTo("发票报销-已到期");
 
-        // 他人（成员）看不到我创建的提醒
+        // 记录是创建者私有：他人（成员）看不到提醒、列表、详情、搜索结果
         String memberToken = fx.addMemberToA();
         assertThat(fx.getList(memberToken, base + "/records/due").getBody()).isEmpty();
+        assertThat(fx.getList(memberToken, base + "/projects/PM/records").getBody()).isEmpty();
+        Long plainId = ((Number) plain.get("id")).longValue();
+        assertThat(fx.exchange(memberToken, HttpMethod.GET,
+                base + "/tasks/" + plainId, null).getStatusCode().value()).isEqualTo(404);
+        assertThat(fx.getList(memberToken, base + "/tasks/search?q=" + java.net.URLEncoder.encode("发票报销", java.nio.charset.StandardCharsets.UTF_8)).getBody()).isEmpty();
+        // 创建者自己都正常
+        assertThat(fx.exchange(fx.adminTokenA, HttpMethod.GET,
+                base + "/tasks/" + plainId, null).getStatusCode().value()).isEqualTo(200);
+        // 记录不出现在 backlog（后端排除）
+        boolean backlogHasRecord = ((java.util.List<?>) fx.getList(fx.adminTokenA, base + "/projects/PM/backlog").getBody())
+                .stream().anyMatch(o -> "RECORD".equals(((Map<?, ?>) o).get("type")));
+        assertThat(backlogHasRecord).isFalse();
 
         // dismiss 后不再弹；重复 dismiss 幂等
         Long dueId = ((Number) dueItem.get("id")).longValue();
