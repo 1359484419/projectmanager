@@ -137,8 +137,8 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
             toast.show(t.pointsRangeMsg, 'info')
           }
         }}
-        placeholder="pts"
-        aria-label="points"
+        placeholder={t.points}
+        aria-label={t.points}
         inputMode="decimal"
         style={{
           width: 52,
@@ -305,6 +305,8 @@ export default function Backlog() {
   const activeKey = resolveProjectKey(null, storedProjectKey, projects)
 
   const backlogQuery = useBacklog(slug, activeKey)
+  // 记录（RECORD）不进待办列表，在「记录」页单独管理
+  const backlogTasks = (backlogQuery.data ?? []).filter((tk) => tk.type !== 'RECORD')
   const sprintsQuery = useSprints(slug, activeKey)
   const { current, next } = pickCurrentAndNext(sprintsQuery.data as Sprint[] | undefined)
 
@@ -314,16 +316,15 @@ export default function Backlog() {
 
   // rank 序（后端已按 rank 返回，前端再稳定排序一次防御）
   const tasks = useMemo(() => {
-    const list = backlogQuery.data ?? []
-    const filtered = list.filter(
+    const filtered = backlogTasks.filter(
       (t) =>
         (typeFilter === 'ALL' || t.type === typeFilter) &&
         taskMatchesFilter(t.assigneeId, assigneeFilter),
     )
     return [...filtered].sort((a, b) => a.rank.localeCompare(b.rank))
-  }, [backlogQuery.data, typeFilter, assigneeFilter])
+  }, [backlogTasks, typeFilter, assigneeFilter])
 
-  const backlogTotal = backlogQuery.data?.length ?? 0
+  const backlogTotal = backlogTasks.length
 
   if (projectsQuery.isLoading) return <BacklogSkeleton />
   if (projectsQuery.isError) {
@@ -345,7 +346,7 @@ export default function Backlog() {
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       {/* 标题行：Backlog · N 项 · [项目切换] · 筛选胶囊组 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>Backlog</h1>
+        <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>{t.backlog}</h1>
         <span style={{ fontSize: 12, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
           {t.nItems(backlogTotal)}
         </span>

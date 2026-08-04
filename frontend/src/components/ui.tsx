@@ -45,7 +45,7 @@ export function statusSoft(status: TaskStatus): string {
 }
 
 export function typeOptions(t: Translations): { value: TaskType; label: string }[] {
-  return [{ value: 'STORY', label: t.typeStory }, { value: 'BUG', label: t.typeBug }, { value: 'TASK', label: t.typeTask }]
+  return [{ value: 'STORY', label: t.typeStory }, { value: 'BUG', label: t.typeBug }, { value: 'TASK', label: t.typeTask }, { value: 'RECORD', label: t.typeRecord }]
 }
 
 export function statusOptions(t: Translations): { value: TaskStatus; label: string }[] {

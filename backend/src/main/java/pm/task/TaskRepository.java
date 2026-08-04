@@ -118,6 +118,21 @@ public interface TaskRepository {
         clearEpicT(epicId, TenantContext.require());
     }
 
+    /** 记录模块：项目内 RECORD 列表（新的在前）。 */
+    default List<Task> findRecords(Long projectId) {
+        return findRecordsT(projectId, TenantContext.require());
+    }
+
+    /** 到期未关闭的提醒（当前用户创建的记录，跨项目）。 */
+    default List<DueRecordRow> findDueRecords(Long userId, java.time.Instant now) {
+        return findDueRecordsT(userId, now, TenantContext.require());
+    }
+
+    /** 关闭提醒（幂等；独立字段直写，不与乐观锁编辑冲突）。 */
+    default int dismissReminder(Long id) {
+        return dismissReminderT(id, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Task> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
@@ -155,4 +170,11 @@ public interface TaskRepository {
     void deleteByProjectIdT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
 
     void clearEpicT(@Param("epicId") Long epicId, @Param("tenantId") long tenantId);
+
+    List<Task> findRecordsT(@Param("projectId") Long projectId, @Param("tenantId") long tenantId);
+
+    List<DueRecordRow> findDueRecordsT(@Param("userId") Long userId, @Param("now") java.time.Instant now,
+                                       @Param("tenantId") long tenantId);
+
+    int dismissReminderT(@Param("id") Long id, @Param("tenantId") long tenantId);
 }

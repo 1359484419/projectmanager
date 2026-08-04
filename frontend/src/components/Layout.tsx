@@ -5,6 +5,8 @@ import { NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-
 import { useQueryClient } from '@tanstack/react-query'
 import { api, clearTokens, getAccessToken } from '../api/client'
 import {
+  useDismissReminder,
+  useDueRecords,
   useBacklog,
   useDashboard,
   useMarkAllNotificationsRead,
@@ -15,6 +17,7 @@ import {
   useSearchTasks,
 } from '../api/hooks'
 import CreateTaskDialog from './CreateTaskDialog'
+import { useToast } from './ui'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import type { NotificationItem, SearchHit, Task, TaskBrief } from '../api/types'
 import { Icon, type IconName } from './icons'
@@ -511,6 +514,102 @@ const menuItemStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
+
+/** 记录提醒弹框：右上角固定，到期未关闭的提醒逐条列出；不自动消失，点关闭调 dismiss 后不再弹 */
+function ReminderPopup({ slug }: { slug: string }) {
+  const t = useT()
+  const { locale } = useI18n()
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US'
+  const due = useDueRecords(slug)
+  const dismiss = useDismissReminder(slug)
+  const toast = useToast()
+  const items = due.data ?? []
+  if (items.length === 0) return null
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t.reminderPopupTitle}
+      style={{
+        position: 'fixed',
+        top: 58,
+        right: 16,
+        width: 320,
+        maxWidth: '90vw',
+        zIndex: 200,
+        background: 'var(--bg)',
+        border: '1px solid var(--accent)',
+        borderRadius: 12,
+        boxShadow: '0 16px 48px -8px rgba(0,0,0,.55)',
+        overflow: 'hidden',
+        animation: 'fadeIn .2s',
+      }}
+    >
+      <div
+        style={{
+          padding: '10px 14px',
+          borderBottom: '1px solid var(--border-soft)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 13,
+          fontWeight: 650,
+          color: 'var(--accent)',
+        }}
+      >
+        <Icon name="bell" size={15} />
+        {t.reminderPopupTitle}
+      </div>
+      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+        {items.map((r) => (
+          <div
+            key={r.id}
+            style={{
+              padding: '10px 14px',
+              borderBottom: '1px solid var(--border-soft)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--faint)', fontFamily: 'var(--font-mono)', fontSize: 12, marginRight: 6 }}>
+                  {r.displayKey}
+                </span>
+                {r.title}
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--dim)', marginTop: 2 }}>
+                {t.reminderDue(new Date(r.remindAt).toLocaleString(dateLocale))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                dismiss.mutate(r.id, { onSuccess: () => toast.show(t.reminderDismissed) })
+              }
+              disabled={dismiss.isPending}
+              className="btn-primary"
+              style={{
+                flex: 'none',
+                height: 26,
+                padding: '0 10px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'var(--accent)',
+                color: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              {t.dismissReminderBtn}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
@@ -572,12 +671,13 @@ export default function Layout() {
 
   const navMain: NavItem[] = [
     { path: 'dashboard', label: t.navDashboard, icon: 'dashboard' },
-    { path: 'backlog', label: t.navBacklog, icon: 'backlog', count: backlogTasks?.length },
+    { path: 'backlog', label: t.navBacklog, icon: 'backlog', count: backlogTasks?.filter((tk) => tk.type !== 'RECORD').length },
     { path: 'board', label: t.navBoard, icon: 'board', count: boardCount },
     { path: 'sprints', label: t.navAllSprints, icon: 'sprints' },
     { path: 'planning', label: t.navPlanning, icon: 'planning' },
     { path: 'reports', label: t.navReports, icon: 'reports' },
     { path: 'roadmap', label: t.navRoadmap, icon: 'roadmap' },
+    { path: 'records', label: t.navRecords, icon: 'records' },
   ]
   const navAdmin: NavItem[] = [
     { path: 'admin', label: t.navAdmin, icon: 'admin' },
@@ -936,6 +1036,7 @@ export default function Layout() {
         >
           <Outlet />
         </main>
+        <ReminderPopup slug={slug} />
       </div>
 
       {showCreateDialog && projectKey && (

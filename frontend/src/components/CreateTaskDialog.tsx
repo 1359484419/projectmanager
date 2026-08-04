@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useCreateTask, useEpics, useMembers, useSprints } from '../api/hooks'
+import { uploadTaskImage, useCreateTask, useEpics, useMembers, useSprints } from '../api/hooks'
 import type { Sprint, TaskType } from '../api/types'
 import { useT } from '../i18n'
 import { Icon } from './icons'
@@ -25,6 +25,11 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
   // '' = Backlog，否则为具体 sprintId（PLANNED/ACTIVE 都可选，非必选）
   const [sprintId, setSprintId] = useState('')
   const [epicId, setEpicId] = useState('')
+  // 记录类型：图片 + 可选提醒（到期右上角弹框，手动关闭前不消失）
+  const [images, setImages] = useState<File[]>([])
+  const [needRemind, setNeedRemind] = useState(false)
+  const [remindAt, setRemindAt] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   const createTask = useCreateTask(slug, projectKey)
   const members = useMembers(slug)
@@ -47,13 +52,19 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const isRecord = type === 'RECORD'
+
   const submit = () => {
     const trimmed = title.trim()
-    if (!trimmed || createTask.isPending) return
+    if (!trimmed || createTask.isPending || uploading) return
 
-    const parsedPoints = parsePointsInput(points)
+    const parsedPoints = isRecord ? null : parsePointsInput(points)
     if (parsedPoints === undefined) {
       toast.show(t.pointsRangeMsg, 'info')
+      return
+    }
+    if (isRecord && needRemind && !remindAt) {
+      toast.show(t.remindAtRequired, 'info')
       return
     }
 
@@ -62,13 +73,28 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
         type,
         title: trimmed,
         ...(description.trim() ? { description: description.trim() } : {}),
-        ...(parsedPoints != null ? { points: parsedPoints } : {}),
-        ...(assigneeId ? { assigneeId: Number(assigneeId) } : {}),
-        ...(sprintId ? { sprintId: Number(sprintId) } : {}),
-        ...(epicId ? { epicId: Number(epicId) } : {}),
+        // 记录只填内容/图片：不带天数/负责人/迭代/长期计划
+        ...(!isRecord && parsedPoints != null ? { points: parsedPoints } : {}),
+        ...(!isRecord && assigneeId ? { assigneeId: Number(assigneeId) } : {}),
+        ...(!isRecord && sprintId ? { sprintId: Number(sprintId) } : {}),
+        ...(!isRecord && epicId ? { epicId: Number(epicId) } : {}),
+        ...(isRecord && needRemind && remindAt
+          ? { remindAt: new Date(remindAt).toISOString() }
+          : {}),
       },
       {
-        onSuccess: (created) => {
+        onSuccess: async (created) => {
+          if (isRecord && images.length > 0) {
+            setUploading(true)
+            for (const img of images) {
+              try {
+                await uploadTaskImage(slug, created.id, img)
+              } catch {
+                toast.show(t.imageUploadFailed(img.name), 'info')
+              }
+            }
+            setUploading(false)
+          }
           toast.show(t.taskCreated(`${projectKey}-${created.seq}`))
           onClose()
         },
@@ -76,6 +102,19 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
           toast.show(t.createFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
       },
     )
+  }
+
+  function pickImages(files: FileList | null) {
+    if (!files) return
+    const next: File[] = []
+    for (const f of Array.from(files)) {
+      if (f.size > 5 * 1024 * 1024) {
+        toast.show(t.imageTooLarge(f.name), 'info')
+        continue
+      }
+      next.push(f)
+    }
+    setImages((cur) => [...cur, ...next])
   }
 
   const labelStyle = { fontSize: 12, color: 'var(--dim)', marginBottom: 4, display: 'block' } as const
@@ -183,7 +222,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={t.descriptionPlaceholder}
+              placeholder={isRecord ? t.recordContentPlaceholder : t.descriptionPlaceholder}
               rows={3}
               style={{
                 width: '100%',
@@ -201,7 +240,74 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
             />
           </div>
 
-          {/* 属性行：Points + 负责人 */}
+          {/* 记录：图片 + 提醒 */}
+          {isRecord && (
+            <>
+              <div>
+                <label style={labelStyle}>{t.imagesLabel}</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  multiple
+                  onChange={(e) => { pickImages(e.target.files); e.target.value = '' }}
+                  style={{ fontSize: 12.5, color: 'var(--dim)' }}
+                />
+                {images.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    {images.map((img, i) => (
+                      <div key={i} style={{ position: 'relative' }}>
+                        <img
+                          src={URL.createObjectURL(img)}
+                          alt={img.name}
+                          style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--border)' }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={t.delete}
+                          onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}
+                          style={{
+                            position: 'absolute', top: -6, right: -6, width: 18, height: 18,
+                            borderRadius: '50%', border: '1px solid var(--border)',
+                            background: 'var(--bg)', color: 'var(--dim)', fontSize: 11,
+                            lineHeight: 1, cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={needRemind}
+                    onChange={(e) => setNeedRemind(e.target.checked)}
+                  />
+                  {t.needReminder}
+                </label>
+                {needRemind && (
+                  <input
+                    type="datetime-local"
+                    value={remindAt}
+                    onChange={(e) => setRemindAt(e.target.value)}
+                    aria-label={t.remindAtLabel}
+                    style={{
+                      height: 32, borderRadius: 7, border: '1px solid var(--border)',
+                      background: 'var(--card)', color: 'var(--text)', fontSize: 13,
+                      padding: '0 8px', outline: 'none',
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
+
+          {/* 属性行：天数 + 负责人（记录类型无） */}
+          {!isRecord && (
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>{t.points}</label>
@@ -213,7 +319,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                 >
                   <option value="">{t.noPoints}</option>
                   {POINTS_CHOICES.map((p) => (
-                    <option key={p} value={String(p)}>{fmtPoints(p)} pts</option>
+                    <option key={p} value={String(p)}>{fmtPoints(p)} {t.ptsUnit}</option>
                   ))}
                 </select>
               </SelectWrap>
@@ -234,8 +340,10 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
               </SelectWrap>
             </div>
           </div>
+          )}
 
-          {/* 属性行：Sprint 目标 + Epic */}
+          {/* 属性行：迭代目标 + 长期计划（记录类型无） */}
+          {!isRecord && (
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>{t.target}</label>
@@ -270,6 +378,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
               </SelectWrap>
             </div>
           </div>
+          )}
 
           {/* 提交 */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
@@ -291,7 +400,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
             </button>
             <button
               type="submit"
-              disabled={!title.trim() || createTask.isPending}
+              disabled={!title.trim() || createTask.isPending || uploading}
               className="btn-primary"
               style={{
                 height: 34,
@@ -303,10 +412,10 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
-                opacity: !title.trim() || createTask.isPending ? 0.55 : 1,
+                opacity: !title.trim() || createTask.isPending || uploading ? 0.55 : 1,
               }}
             >
-              {createTask.isPending ? t.creating : t.create}
+              {createTask.isPending || uploading ? t.creating : t.create}
             </button>
           </div>
         </form>

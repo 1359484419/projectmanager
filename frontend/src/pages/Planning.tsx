@@ -217,7 +217,7 @@ function SprintSection({
           />
           <span style={{ fontSize: 12.5, fontWeight: 600 }}>{sprint.name}</span>
           <span style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
-            {fmtPoints(totalPoints)} pts
+            {fmtPoints(totalPoints)} {t.ptsUnit}
           </span>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 11, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
@@ -287,6 +287,8 @@ export default function Planning() {
   const key = resolveProjectKey(null, storedProjectKey, projects)
 
   const { data: backlog, isLoading: backlogLoading } = useBacklog(slug, key)
+  // 记录（RECORD）不参与迭代规划
+  const planBacklog = backlog?.filter((tk) => tk.type !== 'RECORD')
   const { data: sprints, isLoading: sprintsLoading } = useSprints(slug, key, true)
   const updateTask = useUpdateTask(slug)
   const toast = useToast()
@@ -305,7 +307,7 @@ export default function Planning() {
       .sort((a, b) => a.startDate.localeCompare(b.startDate))
   }, [sprints])
 
-  const backlogBriefs = useMemo(() => (backlog ?? []).map(toBrief), [backlog])
+  const backlogBriefs = useMemo(() => (planBacklog ?? []).map(toBrief), [planBacklog])
 
   const { setNodeRef: setBacklogRef, isOver: overBacklog } = useDroppable({ id: BACKLOG_ZONE })
 
@@ -407,9 +409,9 @@ export default function Planning() {
               }}
             >
               <div style={{ ...panelHeadStyle, fontSize: 12.5, fontWeight: 600, color: 'var(--dim)' }}>
-                Backlog{' '}
+                {t.backlog}{' '}
                 <span style={{ color: 'var(--faint)', fontWeight: 400 }}>
-                  {backlog ? t.nItemsDragRight(backlog.length) : t.dragRight}
+                  {planBacklog ? t.nItemsDragRight(planBacklog.length) : t.dragRight}
                 </span>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>

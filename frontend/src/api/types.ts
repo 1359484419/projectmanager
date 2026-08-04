@@ -3,7 +3,7 @@
 // ---------- 枚举 ----------
 
 export type Role = 'ADMIN' | 'MEMBER'
-export type TaskType = 'STORY' | 'BUG' | 'TASK'
+export type TaskType = 'STORY' | 'BUG' | 'TASK' | 'RECORD'
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'DONE'
 export type SprintLength = 'WEEK_1' | 'WEEK_2' | 'MONTH_1'
 export type SprintStatus = 'PLANNED' | 'ACTIVE' | 'CLOSED'
@@ -62,6 +62,8 @@ export interface Task {
   rank: string
   createdAt: string
   doneAt: string | null
+  remindAt: string | null
+  reminderDismissed: boolean
 }
 
 /** 列表/看板/分组场景的精简任务（dashboard groups、roadmap tasks、withTasks 等） */
@@ -92,6 +94,7 @@ export interface CreateTaskInput {
   epicId?: number
   sprintId?: number
   assigneeId?: number
+  remindAt?: string
 }
 
 /** PATCH /api/t/{slug}/tasks/{id} 请求体（rank 传 after/before 由后端计算） */
@@ -314,4 +317,20 @@ export interface CreatedApiToken extends ApiToken {
 export interface CreateTokenInput {
   name: string
   tenantSlug: string
+}
+
+/** 到期提醒（右上角强制弹框，手动关闭前每次轮询都会返回） */
+export interface DueRecord {
+  id: number
+  displayKey: string
+  title: string
+  remindAt: string
+}
+
+/** 记录图片元数据（字节流经 /images/{id} 以 blob 方式取） */
+export interface TaskImageMeta {
+  id: number
+  filename: string
+  contentType: string
+  createdAt: string
 }

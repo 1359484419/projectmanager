@@ -51,12 +51,14 @@ public class TaskService {
     public record TaskView(Long id, Long projectId, int seq, String displayKey, Task.Type type,
                            String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
-                           Instant createdAt, Instant doneAt, Long createdBy) {
+                           Instant createdAt, Instant doneAt, Long createdBy,
+                           Instant remindAt, boolean reminderDismissed) {
         public static TaskView from(Task t, String projectKey) {
             return new TaskView(t.getId(), t.getProjectId(), t.getSeq(),
                     projectKey + "-" + t.getSeq(), t.getType(), t.getTitle(), t.getDescription(),
                     t.getPoints(), t.getEpicId(), t.getSprintId(), t.getAssigneeId(),
-                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getDoneAt(), t.getCreatedBy());
+                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getDoneAt(), t.getCreatedBy(),
+                    t.getRemindAt(), t.isReminderDismissed());
         }
     }
 
@@ -72,7 +74,8 @@ public class TaskService {
     }
 
     public record CreateTaskRequest(Task.Type type, String title, String description,
-                                    BigDecimal points, Long epicId, Long sprintId, Long assigneeId) {
+                                    BigDecimal points, Long epicId, Long sprintId, Long assigneeId,
+                                    Instant remindAt) {
     }
 
     /**
@@ -113,6 +116,10 @@ public class TaskService {
         task.setEpicId(req.epicId());
         task.setSprintId(req.sprintId());
         task.setAssigneeId(req.assigneeId());
+        // 记录（RECORD）可选提醒；非记录类型忽略 remindAt
+        if (req.type() == Task.Type.RECORD) {
+            task.setRemindAt(req.remindAt());
+        }
         task.setCreatedBy(actor);
         tasks.save(task);
         recorder.record(task, actor, "CREATED", null, project.getKey() + "-" + seq, source);
@@ -233,6 +240,27 @@ public class TaskService {
         return tasks.findByProjectIdAndSprintIdIsNullOrderByRankAsc(project.getId()).stream()
                 .map(t -> TaskView.from(t, project.getKey()))
                 .toList();
+    }
+
+    /** 记录模块：项目内 RECORD 列表（新的在前）。 */
+    public List<TaskView> records(String projectKey) {
+        Project project = projects.findByKey(projectKey).orElseThrow(ApiException::notFound);
+        return tasks.findRecords(project.getId()).stream()
+                .map(t -> TaskView.from(t, project.getKey()))
+                .toList();
+    }
+
+    /** 到期未关闭的提醒（当前用户创建的记录，跨项目）。 */
+    public List<DueRecordRow> dueRecords(Long userId) {
+        return tasks.findDueRecords(userId, Instant.now());
+    }
+
+    /** 关闭提醒（幂等）：关闭后不再弹。 */
+    @Transactional
+    public void dismissReminder(Long taskId) {
+        if (tasks.dismissReminder(taskId) == 0) {
+            throw ApiException.notFound();
+        }
     }
 
     /** 搜索命中：带 displayKey 与所属项目 key（前端跳转/开抽屉用）。 */

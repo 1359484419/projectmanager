@@ -1,6 +1,6 @@
 // 数据层：TanStack Query 封装。所有 URL 与 docs/superpowers/plans/2026-07-06-mini-jira.md 对齐。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, isConflictError } from './client'
+import { api, getAccessToken, isConflictError } from './client'
 import { useToast } from '../components/ui'
 import { useT } from '../i18n'
 import type {
@@ -18,6 +18,7 @@ import type {
   CreateTokenInput,
   CreatedApiToken,
   Dashboard,
+  DueRecord,
   Epic,
   Invite,
   Member,
@@ -29,6 +30,7 @@ import type {
   SprintWithTasks,
   Subtask,
   Task,
+  TaskImageMeta,
   UpdateEpicInput,
   UpdateProjectInput,
   UpdateTaskInput,
@@ -57,6 +59,9 @@ export const qk = {
   members: (slug: string) => [slug, 'members'] as const,
   search: (slug: string, q: string) => [slug, 'search', q] as const,
   notifications: (slug: string) => [slug, 'notifications'] as const,
+  records: (slug: string, key: string) => [slug, 'projects', key, 'records'] as const,
+  dueRecords: (slug: string) => [slug, 'records', 'due'] as const,
+  taskImages: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'images'] as const,
 }
 
 const t = (slug: string) => `/api/t/${slug}`
@@ -501,4 +506,65 @@ export function useRevokeToken() {
     mutationFn: (id: number) => api<void>(`/api/me/tokens/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.myTokens }),
   })
+}
+
+// ---------- 记录模块 ----------
+
+export function useRecords(slug: string, key: string) {
+  return useQuery({
+    queryKey: qk.records(slug, key),
+    queryFn: () => api<Task[]>(`${t(slug)}/projects/${key}/records`),
+    enabled: !!slug && !!key,
+  })
+}
+
+/** 到期未关闭的提醒：30s 轮询，非空即在右上角弹框（手动关闭前一直弹） */
+export function useDueRecords(slug: string) {
+  return useQuery({
+    queryKey: qk.dueRecords(slug),
+    queryFn: () => api<DueRecord[]>(`${t(slug)}/records/due`),
+    enabled: !!slug,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useDismissReminder(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (taskId: number) =>
+      api(`${t(slug)}/records/${taskId}/dismiss`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.dueRecords(slug) })
+      qc.invalidateQueries({ queryKey: [slug, 'projects'] })
+    },
+  })
+}
+
+export function useTaskImages(slug: string, taskId: number | null) {
+  return useQuery({
+    queryKey: qk.taskImages(slug, taskId ?? -1),
+    queryFn: () => api<TaskImageMeta[]>(`${t(slug)}/tasks/${taskId}/images`),
+    enabled: !!slug && taskId != null,
+  })
+}
+
+/** 图片上传（multipart，不走 api() 的 JSON 封装） */
+export async function uploadTaskImage(slug: string, taskId: number, file: File): Promise<void> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`/api/t/${slug}/tasks/${taskId}/images`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+    body: form,
+  })
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`)
+}
+
+/** 图片字节流 → object URL（带鉴权头，img src 用不了 Authorization，故走 fetch+blob） */
+export async function fetchImageUrl(slug: string, imageId: number): Promise<string> {
+  const res = await fetch(`/api/t/${slug}/images/${imageId}`, {
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+  })
+  if (!res.ok) throw new Error(`image fetch failed: ${res.status}`)
+  return URL.createObjectURL(await res.blob())
 }

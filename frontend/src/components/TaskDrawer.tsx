@@ -26,13 +26,15 @@ import type {
   UpdateTaskInput,
 } from '../api/types'
 import { isConflictError } from '../api/client'
-import { useT } from '../i18n'
+import { useI18n, useT } from '../i18n'
 import type { Translations } from '../i18n'
 import { Icon } from './icons'
 import { avatarColor } from './TaskCard'
 import TypeIcon from './TypeIcon'
 import { SelectWrap, selStyle, statusColor, statusOptions, typeOptions } from './ui'
 import { POINTS_CHOICES, fmtPoints } from '../utils/points'
+import { fetchImageUrl, uploadTaskImage, useTaskImages } from '../api/hooks'
+import { useEffect as useEffectImg, useState as useStateImg } from 'react'
 
 export interface TaskDrawerProps {
   slug: string
@@ -237,6 +239,79 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
 
 // ---------- 子块：子任务（两态勾选 + 添加/删除，不进列表/看板） ----------
 
+/** 记录图片：fetch+blob 展示（img src 带不了 Authorization），支持补传 */
+function RecordImagesBlock({ slug, taskId }: { slug: string; taskId: number }) {
+  const t = useT()
+  const images = useTaskImages(slug, taskId)
+  const [urls, setUrls] = useStateImg<Record<number, string>>({})
+  const [uploading, setUploading] = useStateImg(false)
+
+  useEffectImg(() => {
+    let cancelled = false
+    const metas = images.data ?? []
+    metas.forEach((m) => {
+      if (urls[m.id]) return
+      fetchImageUrl(slug, m.id)
+        .then((u) => { if (!cancelled) setUrls((cur) => ({ ...cur, [m.id]: u })) })
+        .catch(() => {})
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.data, slug])
+
+  async function onPick(files: FileList | null) {
+    if (!files || uploading) return
+    setUploading(true)
+    for (const f of Array.from(files)) {
+      if (f.size > 5 * 1024 * 1024) continue
+      try {
+        await uploadTaskImage(slug, taskId, f)
+      } catch {
+        // 单张失败不阻断其余
+      }
+    }
+    setUploading(false)
+    images.refetch()
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 6 }}>{t.imagesLabel}</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        {(images.data ?? []).map((m) => (
+          <a key={m.id} href={urls[m.id]} target="_blank" rel="noreferrer" title={m.filename}>
+            <img
+              src={urls[m.id]}
+              alt={m.filename}
+              style={{
+                width: 84, height: 84, objectFit: 'cover', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--card-2)',
+              }}
+            />
+          </a>
+        ))}
+        <label
+          style={{
+            width: 84, height: 84, borderRadius: 8, border: '1px dashed var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--faint)', fontSize: 12, cursor: 'pointer',
+            opacity: uploading ? 0.5 : 1,
+          }}
+        >
+          + {t.addImage}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            onChange={(e) => { onPick(e.target.files); e.target.value = '' }}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
   const t = useT()
   const subtasks = useSubtasks(slug, taskId)
@@ -438,6 +513,8 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
 // ---------- 主组件 ----------
 
 export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: TaskDrawerProps) {
+  const { locale } = useI18n()
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US'
   const taskQuery = useTask(slug, seed.id)
   const updateTask = useUpdateTask(slug)
   const deleteTask = useDeleteTask(slug)
@@ -725,6 +802,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               </select>
             </SelectWrap>
 
+            {task.type !== 'RECORD' && (<>
             <span style={dimLabelStyle}>{t.points}</span>
             <SelectWrap>
               <select
@@ -738,11 +816,12 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 <option value="">{t.noPoints}</option>
                 {pointsChoices.map((p) => (
                   <option key={p} value={String(p)}>
-                    {fmtPoints(p)} pts
+                    {fmtPoints(p)} {t.ptsUnit}
                   </option>
                 ))}
               </select>
             </SelectWrap>
+            </>)}
 
             <span style={dimLabelStyle}>{t.assignee}</span>
             <SelectWrap>
@@ -806,6 +885,18 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
               fontFamily: 'inherit',
             }}
           />
+
+          {/* 记录：图片 + 提醒信息 */}
+          {task.type === 'RECORD' && (
+            <>
+              <RecordImagesBlock slug={slug} taskId={seed.id} />
+              <div style={{ fontSize: 12.5, color: 'var(--dim)' }}>
+                {task.remindAt
+                  ? `${t.remindAtLabel}：${new Date(task.remindAt).toLocaleString(dateLocale)}${task.reminderDismissed ? `（${t.reminderDone}）` : ''}`
+                  : t.noReminder}
+              </div>
+            </>
+          )}
 
           {/* 子任务 */}
           <SubtasksBlock slug={slug} taskId={seed.id} />

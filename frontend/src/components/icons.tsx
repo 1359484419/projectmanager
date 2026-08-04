@@ -11,6 +11,8 @@ const IC = {
     '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
   backlog:
     '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+  records:
+    '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>',
   board:
     '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/>',
   sprints:
@@ -95,10 +97,15 @@ const TYPE_GLYPHS: Record<TaskType, { color: string; html: string }> = {
     color: 'var(--type-task)',
     html: '<path d="M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="m9 11 3 3L22 4"/>',
   },
+  // 记录：收据/票据图标（发票报销等备忘 + 可选提醒）
+  RECORD: {
+    color: 'var(--type-record, #b8860b)',
+    html: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+  },
 }
 
 export function typeLabel(t: Translations): Record<TaskType, string> {
-  return { STORY: t.typeStory, BUG: t.typeBug, TASK: t.typeTask }
+  return { STORY: t.typeStory, BUG: t.typeBug, TASK: t.typeTask, RECORD: t.typeRecord }
 }
 
 export interface TypeGlyphProps {

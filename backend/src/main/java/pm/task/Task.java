@@ -7,7 +7,7 @@ import java.time.Instant;
 
 public class Task extends TenantEntity {
 
-    public enum Type { STORY, BUG, TASK }
+    public enum Type { STORY, BUG, TASK, RECORD }
 
     public enum Status { TODO, IN_PROGRESS, COMPLETED, DONE }
 
@@ -44,6 +44,11 @@ public class Task extends TenantEntity {
     private Instant createdAt = Instant.now();
 
     private Instant doneAt;
+
+    /** 记录（RECORD）可选提醒：到期后前端右上角弹框，手动关闭置 reminderDismissed。 */
+    private Instant remindAt;
+
+    private boolean reminderDismissed;
 
     protected Task() {
     }
@@ -166,5 +171,21 @@ public class Task extends TenantEntity {
 
     public void setDoneAt(Instant doneAt) {
         this.doneAt = doneAt;
+    }
+
+    public Instant getRemindAt() {
+        return remindAt;
+    }
+
+    public void setRemindAt(Instant remindAt) {
+        this.remindAt = remindAt;
+    }
+
+    public boolean isReminderDismissed() {
+        return reminderDismissed;
+    }
+
+    public void setReminderDismissed(boolean reminderDismissed) {
+        this.reminderDismissed = reminderDismissed;
     }
 }

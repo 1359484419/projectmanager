@@ -5,6 +5,10 @@ spring:
     password: ${DB_PASS:pm}
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 25MB
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml

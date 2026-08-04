@@ -6,7 +6,8 @@
 
     <sql id="columns">
         id, tenant_id, version, project_id, sprint_id, epic_id, type, seq, title,
-        description, points, assignee_id, status, rank, created_by, created_at, done_at
+        description, points, assignee_id, status, rank, created_by, created_at, done_at,
+        remind_at, reminder_dismissed
     </sql>
 
     <select id="findOneByIdT" resultType="pm.task.Task">
@@ -91,10 +92,11 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="t.id">
         INSERT INTO tasks (tenant_id, project_id, sprint_id, epic_id, type, seq, title,
                            description, points, assignee_id, status, rank, created_by,
-                           created_at, done_at)
+                           created_at, done_at, remind_at, reminder_dismissed)
         VALUES (#{tenantId}, #{t.projectId}, #{t.sprintId}, #{t.epicId}, #{t.type}, #{t.seq},
                 #{t.title}, #{t.description}, #{t.points}, #{t.assigneeId}, #{t.status},
-                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.doneAt})
+                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.doneAt}, #{t.remindAt},
+                #{t.reminderDismissed})
     </insert>
 
     <!-- 乐观锁：WHERE 带 version，命中 0 行由接口 default save 抛 409 CONFLICT -->
@@ -113,7 +115,9 @@
             status      = #{t.status},
             rank        = #{t.rank},
             created_by  = #{t.createdBy},
-            done_at     = #{t.doneAt}
+            done_at     = #{t.doneAt},
+            remind_at   = #{t.remindAt},
+            reminder_dismissed = #{t.reminderDismissed}
         WHERE id = #{t.id} AND version = #{t.version} AND tenant_id = #{tenantId}
     </update>
 
@@ -139,6 +143,35 @@
         UPDATE tasks
         SET epic_id = NULL
         WHERE epic_id = #{epicId} AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- 记录模块：项目内 RECORD 列表（新的在前） -->
+    <select id="findRecordsT" resultType="pm.task.Task">
+        SELECT <include refid="columns"/>
+        FROM tasks
+        WHERE project_id = #{projectId} AND type = 'RECORD' AND tenant_id = #{tenantId}
+        ORDER BY id DESC
+    </select>
+
+    <!-- 到期未关闭的提醒（当前用户创建的记录，跨项目；带 project key 拼 displayKey） -->
+    <select id="findDueRecordsT" resultType="pm.task.DueRecordRow">
+        SELECT t.id, t.title, t.remind_at, t.seq, p.key AS project_key
+        FROM tasks t
+        JOIN projects p ON p.id = t.project_id
+        WHERE t.type = 'RECORD'
+          AND t.created_by = #{userId}
+          AND t.remind_at IS NOT NULL
+          AND t.remind_at &lt;= #{now}
+          AND NOT t.reminder_dismissed
+          AND t.tenant_id = #{tenantId}
+        ORDER BY t.remind_at ASC
+    </select>
+
+    <!-- 关闭提醒：独立字段直写，不走 version 乐观锁（与内容编辑互不冲突） -->
+    <update id="dismissReminderT">
+        UPDATE tasks
+        SET reminder_dismissed = true
+        WHERE id = #{id} AND type = 'RECORD' AND tenant_id = #{tenantId}
     </update>
 
 </mapper>

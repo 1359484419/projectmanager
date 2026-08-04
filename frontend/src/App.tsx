@@ -12,6 +12,7 @@ import Board from './pages/Board'
 import AllSprints from './pages/AllSprints'
 import Planning from './pages/Planning'
 import Reports from './pages/Reports'
+import Records from './pages/Records'
 import Roadmap from './pages/Roadmap'
 import TenantAdmin from './pages/TenantAdmin'
 import Settings from './pages/Settings'
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="planning" element={<Planning />} />
             <Route path="reports" element={<Reports />} />
             <Route path="roadmap" element={<Roadmap />} />
+            <Route path="records" element={<Records />} />
             <Route path="admin" element={<TenantAdmin />} />
             <Route path="settings" element={<Settings />} />
           </Route>

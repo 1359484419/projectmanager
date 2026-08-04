@@ -161,7 +161,7 @@ public class McpTools {
         for (TaskInput input : inputs) {
             TaskService.TaskView view = taskService.create(project.getKey(),
                     new TaskService.CreateTaskRequest(input.type(), input.title(), input.description(),
-                            input.points(), input.epicId(), sprintId, actor),
+                            input.points(), input.epicId(), sprintId, actor, null),
                     actor, Activity.Source.MCP);
             created.add(new CreatedTask(view.displayKey(), view.title()));
         }
