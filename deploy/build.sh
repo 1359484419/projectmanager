@@ -21,4 +21,11 @@ cd "$ROOT/backend"
 mvn -q -DskipTests package
 
 ls -lh "$ROOT"/backend/target/projectmanager-*.jar
+
+echo "==> 打包智能体服务 agent/（源码 + 锁文件，依赖在服务器上 uv sync --frozen 安装）"
+cd "$ROOT/agent"
+uv lock --check                       # 锁文件必须与 pyproject 一致，避免服务器上解析出不同版本
+tar czf "$ROOT/backend/target/pm-agent.tgz" --exclude='__pycache__' --exclude='.pytest_cache' \
+  -C "$ROOT/agent" app migrations pyproject.toml uv.lock
+ls -lh "$ROOT/backend/target/pm-agent.tgz"
 echo "==> 构建完成"

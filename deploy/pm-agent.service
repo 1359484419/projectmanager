@@ -1,0 +1,23 @@
+# systemd unit 模板 —— 部署到服务器 /etc/systemd/system/pm-agent.service
+# 跬步自然语言助手（FastAPI + LangGraph，Python）。只监听本机 127.0.0.1:8090，由 Java 服务反代，不对外暴露。
+# 凭证不在本文件：模型网关 key / DB 连接全部来自 /opt/pm-agent/env（root:root 0600）
+[Unit]
+Description=pm-agent (kuibu NL assistant, FastAPI + LangGraph)
+After=network.target postgresql.service
+# 与主应用相互独立：主应用不依赖本服务（助手不可用时反代返回 503，主功能不受影响）
+
+[Service]
+User=pm
+Group=pm
+EnvironmentFile=/opt/pm-agent/env
+WorkingDirectory=/opt/pm-agent
+ExecStart=/opt/pm-agent/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8090
+Restart=on-failure
+RestartSec=5
+# 资源与安全约束
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

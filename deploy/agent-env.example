@@ -1,0 +1,30 @@
+# /opt/pm-agent/env 模板（服务器上真实文件权限必须 600，绝不提交真实值）
+# remote-setup.sh 首次会自动生成（AGENT_DB_URL 复用 /opt/pm/env 的 pm 库密码），只需补 LLM_* 三项。
+
+# OpenAI 兼容网关（必填）；模型 ID 大小写敏感
+LLM_BASE_URL=https://<网关地址>/v1
+LLM_API_KEY=<网关 key>
+LLM_MODEL=DeepSeek-V4.1-Flash
+# 逐 token 流式；网关不支持 stream 时改 false
+LLM_STREAM=true
+# 网关连接是否走系统代理环境变量（默认 false 直连；需要代理时改 true 并确保装了 socksio）
+LLM_TRUST_ENV=false
+
+# Java 主服务（本机）
+PM_API_URL=http://127.0.0.1:8080
+
+# 同一 PG 实例、独立 schema（checkpoint + 审计表由本服务自建）
+AGENT_DB_URL=postgresql://pm:<DB_PASS>@127.0.0.1:5432/pm
+AGENT_DB_SCHEMA=agent
+AGENT_DB_POOL_SIZE=4
+
+# 单次运行上限（默认值即可）
+MAX_TOOL_ROUNDS=15
+MAX_TOKENS_PER_RUN=60000
+RUN_TIMEOUT_SECONDS=90
+CARD_TTL_SECONDS=600
+HEALTH_CACHE_SECONDS=60
+# 会话保留天数与清理间隔（秒）；消息文本长度上限
+THREAD_RETENTION_DAYS=7
+RETENTION_CHECK_SECONDS=3600
+MAX_MESSAGE_CHARS=4000

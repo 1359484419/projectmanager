@@ -12,6 +12,7 @@
 - **多租户** —— 邀请制团队，租户间数据隔离
 - **MCP 集成** —— 内置 MCP server，Claude Code / Cursor 等 AI 工具可直接管理任务
 - **AI Skill** —— 配套 [pm-skill](https://github.com/1359484419/pm-skill)，对话式整理任务、写日报/周报
+- **自然语言助手** —— 页内「助手」面板（⌘/Ctrl+J），一句话查询、建任务、改状态；修改/删除必经确认卡，创建直接执行并可撤销（LangGraph ReAct 智能体，见 `agent/`）
 
 ## 技术栈
 
@@ -21,6 +22,7 @@
 | 前端 | React 19, Vite, React Router, TanStack Query, dnd-kit |
 | 数据库 | PostgreSQL 16 |
 | MCP | MCP Java SDK 2.0 (Streamable HTTP) |
+| 助手 | Python 3.12 + FastAPI + LangGraph（手写 StateGraph，不用 langchain），OpenAI 兼容网关 |
 | 部署 | 单机 fat jar + systemd（前端打入 Spring Boot static） |
 
 ## 快速开始
@@ -39,7 +41,16 @@ cd backend
 cd frontend
 npm install
 npm run dev
+
+# 4.（可选）启动自然语言助手（默认 :8090；后端需带 PM_ASSISTANT_URL=http://localhost:8090 启动）
+cd agent
+cp .env.example .env       # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL、PM_API_URL、AGENT_DB_URL
+uv sync
+uv run uvicorn app.main:app --port 8090
+curl http://localhost:8090/health   # → {"status":"ok","llm":"ok"}
 ```
+
+助手不启动时主应用不受影响：前端面板会提示「助手暂时不可用」。
 
 ### 生产部署
 
@@ -81,6 +92,7 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 projectmanager/
 ├── backend/          # Spring Boot 后端
 ├── frontend/         # React + Vite 前端
+├── agent/            # 自然语言助手（Python，FastAPI + LangGraph）
 ├── deploy/           # 部署脚本与配置
 ├── docs/             # 设计稿与 QA 记录
 └── skill/            # MCP skill 定义与配置模板
