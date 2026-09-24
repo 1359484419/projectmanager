@@ -27,3 +27,13 @@ frontend/test-results/
 # 生产构建时从 frontend/dist 复制，不入库
 backend/src/main/resources/static/
 mini-Jira-PM.html
+
+# 线上账号/密码记录，禁止入库
+accounts.md
+
+# Python 智能体服务本地凭证与虚拟环境
+agent/.env
+agent/.venv/
+agent/__pycache__/
+agent/**/__pycache__/
+agent/.pytest_cache/
