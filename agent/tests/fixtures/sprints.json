@@ -1,0 +1,5 @@
+[
+  {"id": 31, "projectId": 1, "name": "Sprint 3", "length": "WEEK_2", "startDate": "2026-10-05", "endDate": "2026-10-18", "status": "PLANNED", "tasks": null},
+  {"id": 30, "projectId": 1, "name": "Sprint 2", "length": "WEEK_2", "startDate": "2026-09-21", "endDate": "2026-10-04", "status": "ACTIVE", "tasks": null},
+  {"id": 29, "projectId": 1, "name": "Sprint 1", "length": "WEEK_2", "startDate": "2026-09-07", "endDate": "2026-09-20", "status": "CLOSED", "tasks": null}
+]

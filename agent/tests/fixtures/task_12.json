@@ -1,0 +1,3 @@
+{"id": 112, "projectId": 1, "seq": 12, "displayKey": "PM-12", "type": "STORY", "title": "登录页接入短信验证",
+ "description": "详见需求文档", "points": 2, "epicId": 5, "sprintId": 30, "assigneeId": 8, "status": "IN_PROGRESS",
+ "rank": "n", "createdAt": "2026-09-20T01:00:00Z", "doneAt": null, "createdBy": 7, "remindAt": null, "reminderDismissed": false}

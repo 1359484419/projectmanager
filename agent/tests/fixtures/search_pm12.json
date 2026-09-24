@@ -1,0 +1,4 @@
+[
+  {"id": 1120, "seq": 120, "displayKey": "PM-120", "projectKey": "PM", "title": "PM-12 的后续", "type": "TASK", "status": "TODO", "points": null, "assigneeId": null, "description": null},
+  {"id": 112, "seq": 12, "displayKey": "PM-12", "projectKey": "PM", "title": "登录页接入短信验证", "type": "STORY", "status": "IN_PROGRESS", "points": 2, "assigneeId": 8, "description": "详见需求文档"}
+]

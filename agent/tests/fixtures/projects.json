@@ -1,0 +1,4 @@
+[
+  {"id": 1, "key": "PM", "name": "跬步", "defaultSprintLength": "WEEK_2", "autoRotate": true},
+  {"id": 2, "key": "OPS", "name": "运维", "defaultSprintLength": "WEEK_1", "autoRotate": false}
+]

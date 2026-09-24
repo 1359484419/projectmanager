@@ -1,0 +1,5 @@
+[
+  {"userId": 7, "displayName": "李雷", "email": "lilei@example.com", "role": "ADMIN"},
+  {"userId": 8, "displayName": "张三", "email": "zhangsan@example.com", "role": "MEMBER"},
+  {"userId": 9, "displayName": "张伟", "email": "zhangwei@example.com", "role": "MEMBER"}
+]

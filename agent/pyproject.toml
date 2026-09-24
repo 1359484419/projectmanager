@@ -1,0 +1,30 @@
+[project]
+name = "pm-agent"
+version = "0.1.0"
+description = "跬步自然语言助手：FastAPI + 手写 LangGraph ReAct 图（不依赖 langchain）"
+requires-python = ">=3.12"
+dependencies = [
+  "langgraph>=1.2,<2",
+  "langgraph-checkpoint-postgres>=3.1,<4",
+  "psycopg[binary,pool]>=3.2",
+  "openai>=3,<4",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "sse-starlette>=2.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.21", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["pg: 需要本地 PostgreSQL（不可达时自动 skip）", "real_llm: 真模型冒烟（需 .env、后端与助手服务在跑；默认排除）"]
+addopts = "-m 'not real_llm'"
+
+[tool.uv]
+package = false

@@ -1,0 +1,8 @@
+{"sprint": {"id": 30, "projectId": 1, "name": "Sprint 2", "length": "WEEK_2", "startDate": "2026-09-21", "endDate": "2026-10-04", "status": "ACTIVE"},
+ "daysLeft": 10,
+ "columns": {
+   "TODO": [{"id": 115, "seq": 15, "title": "写周报", "type": "TASK", "status": "TODO", "points": 0.5, "assigneeId": 7, "assigneeName": "李雷", "description": null}],
+   "IN_PROGRESS": [{"id": 112, "seq": 12, "title": "登录页接入短信验证", "type": "STORY", "status": "IN_PROGRESS", "points": 2, "assigneeId": 8, "assigneeName": "张三", "description": "详见需求文档"}],
+   "COMPLETED": [],
+   "DONE": [{"id": 110, "seq": 10, "title": "初始化仓库", "type": "TASK", "status": "DONE", "points": 1, "assigneeId": 7, "assigneeName": "李雷", "description": null}]
+ }}
