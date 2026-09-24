@@ -3,6 +3,7 @@ package pm.tenantadmin;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pm.common.ApiException;
+import pm.common.RequestSource;
 import pm.mcp.ApiTokenRepository;
 import pm.task.Activity;
 import pm.task.ActivityRecorder;
@@ -53,7 +54,7 @@ public class MemberService {
         apiTokens.deleteByUserIdAndTenantId(targetUserId, tenantId);
         for (Task task : tasks.findByAssigneeIdAndStatusNot(targetUserId, Task.Status.DONE)) {
             recorder.record(task, actorUserId, "ASSIGNED",
-                    String.valueOf(targetUserId), null, Activity.Source.WEB);
+                    String.valueOf(targetUserId), null, RequestSource.current());
             task.setAssigneeId(null);
             tasks.save(task); // MyBatis 无 JPA 脏检查，显式落库
         }

@@ -10,7 +10,8 @@ import java.time.Instant;
  */
 public class Activity extends TenantEntity {
 
-    public enum Source { WEB, MCP }
+    /** WEB：浏览器；MCP：PAT/MCP 工具；AGENT：自然语言助手（Python 服务以用户 JWT 回调并带 X-PM-Source: AGENT）。 */
+    public enum Source { WEB, MCP, AGENT }
 
     private Long id;
 

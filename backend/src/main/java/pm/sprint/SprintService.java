@@ -3,6 +3,7 @@ package pm.sprint;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pm.common.ApiException;
+import pm.common.RequestSource;
 import pm.project.Project;
 import pm.project.ProjectRepository;
 import pm.task.Activity;
@@ -148,7 +149,7 @@ public class SprintService {
                     "an ACTIVE sprint must be closed before it can be deleted");
         }
         for (Task task : tasks.findBySprintIdOrderByRankAsc(sprint.getId())) {
-            taskService.changeSprint(task, null, actor, Activity.Source.WEB);
+            taskService.changeSprint(task, null, actor, RequestSource.current());
         }
         capacityOverrides.deleteBySprintIdIn(List.of(sprint.getId()));
         sprints.delete(sprint);
@@ -187,7 +188,7 @@ public class SprintService {
     private void moveUnfinished(Sprint sprint, Long targetSprintId, Long actor) {
         for (Task task : tasks.findBySprintIdOrderByRankAsc(sprint.getId())) {
             if (task.getStatus() != Task.Status.DONE) {
-                taskService.changeSprint(task, targetSprintId, actor, Activity.Source.WEB);
+                taskService.changeSprint(task, targetSprintId, actor, RequestSource.current());
             }
         }
     }

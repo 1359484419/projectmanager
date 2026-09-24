@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pm.auth.CurrentUser;
+import pm.common.RequestSource;
 
 import java.util.List;
 
@@ -25,13 +26,13 @@ public class TaskController {
     @PostMapping("/api/t/{slug}/projects/{key}/tasks")
     TaskService.TaskView create(@PathVariable String slug, @PathVariable String key,
                                 @RequestBody TaskService.CreateTaskRequest req) {
-        return taskService.create(key, req, CurrentUser.id(), Activity.Source.WEB);
+        return taskService.create(key, req, CurrentUser.id(), RequestSource.current());
     }
 
     @PatchMapping("/api/t/{slug}/tasks/{id}")
     TaskService.TaskView update(@PathVariable String slug, @PathVariable Long id,
                                 @RequestBody TaskService.UpdateTaskRequest req) {
-        return taskService.update(id, req, CurrentUser.id(), Activity.Source.WEB);
+        return taskService.update(id, req, CurrentUser.id(), RequestSource.current());
     }
 
     @DeleteMapping("/api/t/{slug}/tasks/{id}")

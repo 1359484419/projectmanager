@@ -24,3 +24,6 @@ pm:
     # 启动守卫：非 dev profile 且仍为该默认值 → 拒绝启动（JwtService fail-fast）。
     # 本地开发以 dev profile 启动：mvn spring-boot:run -Dspring-boot.run.profiles=dev
     secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
+  assistant:
+    # 自然语言助手（Python 服务）地址；为空表示未部署，/api/t/{slug}/assistant/** 返回 404
+    url: ${PM_ASSISTANT_URL:}
