@@ -25,6 +25,7 @@ import { Avatar } from './TaskCard'
 import StatusBadge from './StatusBadge'
 import TypeIcon from './TypeIcon'
 import TaskDrawer from './TaskDrawer'
+import AssistantPanel from '../assistant/AssistantPanel'
 import { useI18n, useT } from '../i18n'
 
 /** 顶栏全局搜索：防抖 250ms，全租户按关键词搜标题/描述，点结果开任务抽屉，⌘K 聚焦 */
@@ -693,6 +694,19 @@ export default function Layout() {
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
+  // ---- 助手面板：顶栏按钮 + ⌘/Ctrl+J 开关 ----
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        setAssistantOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   function handleCreate() {
     setShowCreateDialog(true)
   }
@@ -970,6 +984,18 @@ export default function Layout() {
             <Icon name={light ? 'moon' : 'sun'} size={17} />
           </span>
 
+          {/* 助手（自然语言面板），⌘J */}
+          <span
+            className="icon-btn"
+            role="button"
+            aria-label={t.assistant.title}
+            title={t.assistant.openBtn}
+            onClick={() => setAssistantOpen((v) => !v)}
+            style={{ display: 'flex', flex: 'none', color: assistantOpen ? 'var(--accent)' : undefined }}
+          >
+            <Icon name="sparkles" size={17} />
+          </span>
+
           {/* 通知铃铛 */}
           <NotificationBell slug={slug} />
 
@@ -1038,6 +1064,14 @@ export default function Layout() {
         </main>
         <ReminderPopup slug={slug} />
       </div>
+
+      <AssistantPanel
+        slug={slug}
+        projectKey={projectKey || null}
+        projectName={project?.name}
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+      />
 
       {showCreateDialog && projectKey && (
         <CreateTaskDialog

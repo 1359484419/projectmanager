@@ -204,6 +204,7 @@ function Column({
   return (
     <div
       ref={setNodeRef}
+      data-column={status}
       style={{
         flex: 1,
         minWidth: 240,

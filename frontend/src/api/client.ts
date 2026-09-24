@@ -62,7 +62,7 @@ export function isConflictError(err: unknown): err is ApiError {
 // 并发 401 时共享同一次 refresh 请求
 let refreshPromise: Promise<boolean> | null = null
 
-async function tryRefresh(): Promise<boolean> {
+export async function tryRefresh(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const refreshToken = getRefreshToken()
@@ -108,6 +108,25 @@ function redirectToLogin(): void {
   if (window.location.pathname === '/login') return
   const returnTo = window.location.pathname + window.location.search
   window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`)
+}
+
+/**
+ * 原始 Response 版的 api()：同样自动带 token、401 时 refresh 后重发同一请求、
+ * refresh 失败跳 /login。不解析响应体——给 SSE 流式接口（助手面板）用，
+ * 调用方自己判断 res.ok 与读取 body。
+ */
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  let res = await rawFetch(path, init)
+  if (res.status === 401 && getRefreshToken()) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      res = await rawFetch(path, init)
+    } else {
+      redirectToLogin()
+      throw new ApiError(401, 'SESSION_EXPIRED', '登录已过期，请重新登录')
+    }
+  }
+  return res
 }
 
 /**

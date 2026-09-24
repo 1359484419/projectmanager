@@ -488,7 +488,7 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 2 }}>
               <span style={{ fontSize: 11, color: 'var(--faint)' }}>{formatTime(a.at)}</span>
-              {a.source === 'MCP' && (
+              {(a.source === 'MCP' || a.source === 'AGENT') && (
                 <span
                   style={{
                     fontSize: 10,
@@ -499,7 +499,7 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
                     padding: '0 5px',
                   }}
                 >
-                  via MCP
+                  {a.source === 'AGENT' ? t.viaAgent : t.viaMcp}
                 </span>
               )}
             </div>

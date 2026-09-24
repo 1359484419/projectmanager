@@ -8,7 +8,7 @@ export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'DONE'
 export type SprintLength = 'WEEK_1' | 'WEEK_2' | 'MONTH_1'
 export type SprintStatus = 'PLANNED' | 'ACTIVE' | 'CLOSED'
 export type EpicStatus = 'OPEN' | 'DONE'
-export type ActivitySource = 'WEB' | 'MCP'
+export type ActivitySource = 'WEB' | 'MCP' | 'AGENT'
 
 // ---------- 认证 / 个人 ----------
 
