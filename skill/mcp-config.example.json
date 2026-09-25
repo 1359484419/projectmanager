@@ -2,9 +2,9 @@
   "mcpServers": {
     "pm": {
       "type": "http",
-      "url": "https://pm.example.com/mcp",
+      "url": "http://<host>:8080/mcp",
       "headers": {
-        "Authorization": "Bearer pmt_<在个人设置页生成的令牌>"
+        "Authorization": "Bearer pmt_<在「个人设置 → 个人访问令牌」生成的令牌>"
       }
     }
   }
