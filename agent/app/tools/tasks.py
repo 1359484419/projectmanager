@@ -40,11 +40,18 @@ class CreateTaskParams(StrictModel):
     title: str = Field(min_length=1, description="标题")
     description: str | None = None
     points: float | None = Field(default=None, description="天数：0.5-5，步进 0.5")
-    assignee: str | None = Field(default=None, description="负责人姓名/邮箱；me/我 表示自己")
+    assignee: str | None = Field(default=None, description="负责人姓名/邮箱；缺省即指派给当前用户本人（用户说\"帮我建\"就是给自己）")
+    unassigned: bool = Field(default=False, description="仅当用户明确说\"先不指派/不指定负责人\"时为 true，任务留空负责人")
     epic_name: str | None = Field(default=None, description="所属长期计划名称")
     sprint: str | None = Field(default=None, description="放入哪个迭代：current/next/名称；缺省或 backlog 进待办")
 
     _p = field_validator("points")(classmethod(lambda cls, v: validate_points(v)))
+
+    @model_validator(mode="after")
+    def _assignee_consistent(self):
+        if self.assignee and self.unassigned:
+            raise ValueError("assignee 与 unassigned 不能同时给")
+        return self
 
 
 class UpdateTaskStatusParams(StrictModel):
@@ -141,8 +148,9 @@ async def _before_create_task(p: CreateTaskParams) -> None:
 
 @pm_tool(name="create_task", risk="L1", params=CreateTaskParams, label="创建任务",
          escalate=_escalate_create, before=_before_create_task,
-         summarize=lambda p, b: f"创建任务「{p.title}」并指派给 {p.assignee}",
-         description="创建任务（STORY/BUG/TASK）。缺省进待办；可指定天数、负责人、长期计划、迭代。记录类请用 create_record。")
+         summarize=lambda p, b: f"创建任务「{p.title}」并指派给 {p.assignee or '我'}",
+         description="创建任务（STORY/BUG/TASK）。缺省进待办、负责人默认是当前用户本人（不要为此追问）；"
+                     "可指定天数、负责人、长期计划、迭代；用户明确说不指派时传 unassigned=true。记录类请用 create_record。")
 async def create_task(p: CreateTaskParams) -> dict:
     key = await resolve_project_key(p.project_key)
     body: dict = {"type": p.type, "title": p.title}
@@ -152,6 +160,8 @@ async def create_task(p: CreateTaskParams) -> dict:
         body["points"] = p.points
     if p.assignee:
         body["assigneeId"] = (await resolve_member(p.assignee))["userId"]
+    elif not p.unassigned:
+        body["assigneeId"] = current_ctx().user_id   # 缺省指派给自己：用户说"帮我建"不该再手动 assign
     if p.epic_name:
         body["epicId"] = (await resolve_epic(p.epic_name, key))["id"]
     if p.sprint:

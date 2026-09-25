@@ -353,3 +353,21 @@ async def test_sprint_lifecycle_and_members():
     out = await run("remove_member", member="张伟")
     assert rm.called and out["removed"] == "张伟"
     assert (await run("list_members"))["members"][0]["displayName"] == "李雷"
+
+
+@respx.mock
+async def test_create_task_defaults_assignee_to_current_user():
+    """用户说"帮我建一个任务"没提负责人 → 默认指派给自己；明确 unassigned=True 才留空（线上反馈：建完还得手动 assign 给自己）。"""
+    import json
+    mock_common()
+    route = respx.post(f"{BASE}/projects/PM/tasks").mock(return_value=ok({**fx("task_12"), "displayKey": "PM-58"}))
+    await run("create_task", type="TASK", title="默认给我")
+    assert json.loads(route.calls.last.request.read())["assigneeId"] == CTX.user_id
+    await run("create_task", type="TASK", title="明确不指派", unassigned=True)
+    assert "assigneeId" not in json.loads(route.calls.last.request.read())
+    with pytest.raises(ValidationError):
+        tg.REGISTRY["create_task"].params(type="TASK", title="x", assignee="张三", unassigned=True)
+    spec = tg.REGISTRY["create_task"]
+    assert tg.effective_risk(spec, spec.params(type="TASK", title="x", unassigned=True), CTX) == "L1"
+    # 卡片/结果摘要里不再出现 "指派给 None"
+    assert "None" not in spec.summarize(spec.params(type="TASK", title="x"), None)
