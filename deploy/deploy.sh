@@ -52,8 +52,10 @@ $SSH "$PM_HOST" "sudo bash -c '
 
 echo "==> 启动/重启 pm-agent"
 $SSH "$PM_HOST" "sudo systemctl enable pm-agent >/dev/null 2>&1; sudo systemctl restart pm-agent"
+AGENT_PORT=$($SSH "$PM_HOST" "sudo grep '^PM_AGENT_PORT=' /opt/pm-agent/env | cut -d= -f2")
+echo "pm-agent 端口：${AGENT_PORT:?服务器 /opt/pm-agent/env 缺少 PM_AGENT_PORT}"
 for i in $(seq 1 20); do
-  body=$($SSH "$PM_HOST" "curl -s http://127.0.0.1:8090/health" 2>/dev/null || true)
+  body=$($SSH "$PM_HOST" "curl -s http://127.0.0.1:$AGENT_PORT/health" 2>/dev/null || true)
   if echo "$body" | grep -q '"status"'; then
     echo "pm-agent 健康检查：$body"
     echo "$body" | grep -q '"llm":"ok"' || echo "提示：模型网关不可达，请检查 /opt/pm-agent/env 的 LLM_BASE_URL / LLM_API_KEY 后 systemctl restart pm-agent" >&2

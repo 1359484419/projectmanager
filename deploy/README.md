@@ -45,13 +45,13 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 
 ## 自然语言助手服务 pm-agent
 
-同机第二个 systemd 服务（Python，FastAPI + LangGraph），只监听 `127.0.0.1:8090`，由 Java 反代 `/api/t/{slug}/assistant/**` 转发；助手不可用时反代返回 503，主应用功能不受影响。
+同机第二个 systemd 服务（Python，FastAPI + LangGraph），只监听 `127.0.0.1:${PM_AGENT_PORT}`（`remote-setup.sh` 首次安装时从 8090 起自动选空闲端口写入 `/opt/pm-agent/env`；线上 8090 被其它项目占用，实际为 8091），由 Java 反代 `/api/t/{slug}/assistant/**` 转发；助手不可用时反代返回 503，主应用功能不受影响。
 
 - `build.sh` 额外产出 `backend/target/pm-agent.tgz`（`agent/` 的 `app migrations pyproject.toml uv.lock`，先 `uv lock --check`）。
 - `remote-setup.sh`（幂等）追加：装 `uv` 到 `/usr/local/bin`、建 `/opt/pm-agent`、生成 `/opt/pm-agent/env`（`AGENT_DB_URL` 复用 pm 库密码；`LLM_*` 为占位值，**需手工填写**）、给 `/opt/pm/env` 追加 `PM_ASSISTANT_URL`、安装 `pm-agent.service`。
-- `deploy.sh` 追加：上传 tgz → 解压到 `/opt/pm-agent` → 以 `pm` 用户 `uv sync --frozen --no-dev`（venv 与缓存都在 `/opt/pm-agent` 下）→ `systemctl restart pm-agent` → `curl 127.0.0.1:8090/health`。
+- `deploy.sh` 追加：上传 tgz → 解压到 `/opt/pm-agent` → 以 `pm` 用户 `uv sync --frozen --no-dev`（venv 与缓存都在 `/opt/pm-agent` 下）→ `systemctl restart pm-agent` → `curl 127.0.0.1:${PM_AGENT_PORT}/health`。
 - 环境变量模板：`agent-env.example`。首次部署后填好 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 再 `sudo systemctl restart pm-agent`。
-- 健康：`curl http://127.0.0.1:8090/health` → `{"status":"ok","llm":"ok"}`；`degraded` 表示模型网关不可达（服务本身在跑）。
+- 健康：`curl http://127.0.0.1:$(grep PM_AGENT_PORT /opt/pm-agent/env | cut -d= -f2)/health` → `{"status":"ok","llm":"ok"}`；`degraded` 表示模型网关不可达（服务本身在跑）。
 - 数据：与主应用同一 PG 实例，独立 schema `agent`（LangGraph checkpoint 表 + `agent.runs / agent.tool_calls` 审计表），由服务启动时自建，Flyway 不管。
 - 日志：`sudo journalctl -u pm-agent -f`（每行一个 JSON）。
 

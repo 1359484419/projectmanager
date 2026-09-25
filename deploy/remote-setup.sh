@@ -75,6 +75,12 @@ mkdir -p /opt/pm-agent
 chown pm:pm /opt/pm-agent
 
 echo "==> 9. /opt/pm-agent/env（已存在则保留不覆盖）"
+# 端口：已有 env 里的 PM_AGENT_PORT 优先；否则从 8090 起找第一个空闲端口（线上 8090 被其它项目占用）
+AGENT_PORT=$(grep -s '^PM_AGENT_PORT=' /opt/pm-agent/env | cut -d= -f2)
+if [ -z "$AGENT_PORT" ]; then
+  for p in 8090 8091 8092 8093 8094; do ss -ltn 2>/dev/null | grep -q ":$p " || { AGENT_PORT=$p; break; }; done
+fi
+echo "  pm-agent 端口：$AGENT_PORT"
 if [ ! -f /opt/pm-agent/env ]; then
   AGENT_DB_PASS=$(grep '^DB_PASS=' /opt/pm/env | cut -d= -f2- || true)
   cat > /opt/pm-agent/env <<AGENT_ENV
@@ -82,6 +88,7 @@ if [ ! -f /opt/pm-agent/env ]; then
 LLM_BASE_URL=https://REPLACE-ME/v1
 LLM_API_KEY=REPLACE-ME
 LLM_MODEL=DeepSeek-V4.1-Flash
+PM_AGENT_PORT=$AGENT_PORT
 PM_API_URL=http://127.0.0.1:8080
 AGENT_DB_URL=postgresql://pm:${AGENT_DB_PASS}@127.0.0.1:5432/pm
 AGENT_DB_SCHEMA=agent
@@ -95,10 +102,11 @@ AGENT_ENV
   echo "  已生成 /opt/pm-agent/env：LLM_BASE_URL / LLM_API_KEY 是占位值，填好后 systemctl restart pm-agent"
 else
   echo "  /opt/pm-agent/env 已存在，保留"
+  grep -q '^PM_AGENT_PORT=' /opt/pm-agent/env || echo "PM_AGENT_PORT=$AGENT_PORT" >> /opt/pm-agent/env
 fi
 
 echo "==> 10. Java 侧反代地址 PM_ASSISTANT_URL（缺失才追加）"
-grep -q '^PM_ASSISTANT_URL=' /opt/pm/env || echo 'PM_ASSISTANT_URL=http://127.0.0.1:8090' >> /opt/pm/env
+grep -q '^PM_ASSISTANT_URL=' /opt/pm/env || echo "PM_ASSISTANT_URL=http://127.0.0.1:$AGENT_PORT" >> /opt/pm/env
 
 echo "==> 11. systemd unit pm-agent（与仓库 deploy/pm-agent.service 同步）"
 cp "$(dirname "$0")/pm-agent.service" /etc/systemd/system/pm-agent.service
