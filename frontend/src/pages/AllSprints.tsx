@@ -1,41 +1,38 @@
 // All Sprints 页：所有 Sprint 倒序列表（ACTIVE/CLOSED/PLANNED），每个 Sprint 一个分组卡，
 // 默认全部展开，点标题折叠。数据来自 GET /projects/{key}/sprints?withTasks=true。
 // 视觉真源：docs/design/mock/markup.html「SPRINTS」节 + logic.jsx sprintGroups 徽标算法。
-import { useMemo, useState, type FormEvent } from 'react'
+import { apiErrorMessage } from '../api/errors'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   useCloseSprint,
-  useCreateSprint,
   useDeleteSprint,
+  useMyTenants,
   useProjects,
   useSprints,
   useStartSprint,
 } from '../api/hooks'
-import type { Project, SprintLength, SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
+import type { SprintStatus, SprintWithTasks, TaskBrief } from '../api/types'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
+import CreateSprintDialog from '../components/CreateSprintDialog'
+import NoProjectEmpty from '../components/NoProjectEmpty'
 import { Icon } from '../components/icons'
 import {
   Badge,
   ConfirmDialog,
   SelectWrap,
-  btnGhost,
-  btnPrimary,
   btnSecondary,
   cardStyle,
-  inputStyle,
-  labelStyle,
   pageTitleStyle,
   selStyle,
   useToast,
 } from '../components/ui'
 import { useT } from '../i18n'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
+import { canManageTenant } from '../state/tenantRole'
 import { fmtPoints } from '../utils/points'
-
-function errMsg(e: unknown, fallback = 'unknown error'): string {
-  return e instanceof Error ? e.message : fallback
-}
+import { activeSprintBlocking } from '../utils/sprints'
 
 /** Sprint 状态徽标（同 logic.jsx smap）：ACTIVE 带 pulse 呼吸点，PLANNED 灰，CLOSED 淡 */
 function SprintStatusBadge({ status }: { status: SprintStatus }) {
@@ -65,162 +62,6 @@ function fmtDates(start: string, end: string): string {
   return `${start.slice(5)} → ${end.slice(5)}`
 }
 
-function sprintLengths(t: { sprintLength1w: string; sprintLength2w: string; sprintLength1m: string }) {
-  return [
-    { value: 'WEEK_1' as SprintLength, label: t.sprintLength1w },
-    { value: 'WEEK_2' as SprintLength, label: t.sprintLength2w },
-    { value: 'MONTH_1' as SprintLength, label: t.sprintLength1m },
-  ]
-}
-
-/** 新建 Sprint 弹窗：名称（留空自动编号）、周期（默认项目周期）、开始日期（默认为最晚现有 Sprint 结束日+1，否则今天）。 */
-function CreateSprintDialog({
-  slug,
-  projectKey,
-  project,
-  sprints,
-  onClose,
-}: {
-  slug: string
-  projectKey: string
-  project?: Project
-  sprints: SprintWithTasks[]
-  onClose: () => void
-}) {
-  const t = useT()
-  const toast = useToast()
-  const createSprint = useCreateSprint(slug, projectKey)
-  const defaultStart = useMemo(() => {
-    const latestEnd = sprints.reduce<string | null>(
-      (max, s) => (max === null || s.endDate > max ? s.endDate : max),
-      null,
-    )
-    if (!latestEnd) return new Date().toISOString().slice(0, 10)
-    const d = new Date(latestEnd)
-    d.setDate(d.getDate() + 1)
-    return d.toISOString().slice(0, 10)
-  }, [sprints])
-  const [name, setName] = useState('')
-  const [length, setLength] = useState<SprintLength>(project?.defaultSprintLength ?? 'WEEK_2')
-  const [startDate, setStartDate] = useState(defaultStart)
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    if (createSprint.isPending) return
-    createSprint.mutate(
-      { name: name.trim() || undefined, length, startDate },
-      {
-        onSuccess: (s) => {
-          toast.show(t.sprintCreated(s.name))
-          onClose()
-        },
-        onError: (err) => {
-          toast.show(t.createFailed(err.message), 'info')
-        },
-      },
-    )
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t.createSprintDialogTitle}
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,.5)',
-        zIndex: 70,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        animation: 'fadeIn .12s',
-      }}
-    >
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 400,
-          maxWidth: '92vw',
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow)',
-          padding: 20,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 650, marginBottom: 16 }}>
-          {t.createSprintDialogTitle}
-        </div>
-
-        <label style={labelStyle} htmlFor="sprint-name">
-          {t.sprintNameLabel}
-        </label>
-        <input
-          id="sprint-name"
-          style={{ ...inputStyle, marginBottom: 14 }}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t.sprintNamePlaceholder}
-          autoFocus
-        />
-
-        <label style={labelStyle} htmlFor="sprint-length">
-          {t.sprintLengthLabel}
-        </label>
-        <SelectWrap style={{ marginBottom: 14 }}>
-          <select
-            id="sprint-length"
-            style={selStyle}
-            value={length}
-            onChange={(e) => setLength(e.target.value as SprintLength)}
-          >
-            {sprintLengths(t).map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </SelectWrap>
-
-        <label style={labelStyle} htmlFor="sprint-start">
-          {t.sprintStartDateLabel}
-        </label>
-        <input
-          id="sprint-start"
-          type="date"
-          style={{ ...inputStyle, marginBottom: 20 }}
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          required
-        />
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
-          <button type="button" onClick={onClose} style={btnGhost} className="hover-card">
-            {t.cancel}
-          </button>
-          <button
-            type="submit"
-            disabled={createSprint.isPending}
-            className="btn-primary"
-            style={{
-              ...btnPrimary,
-              height: 32,
-              padding: '0 16px',
-              borderRadius: 8,
-              opacity: createSprint.isPending ? 0.6 : 1,
-            }}
-          >
-            {createSprint.isPending ? t.creating : t.create}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
 function SprintCard({
   sprint,
   projectKey,
@@ -231,6 +72,7 @@ function SprintCard({
   onClose,
   onDelete,
   busy,
+  canManage,
 }: {
   sprint: SprintWithTasks
   projectKey: string
@@ -241,6 +83,8 @@ function SprintCard({
   onClose: () => void
   onDelete: () => void
   busy: boolean
+  /** 启动/关闭/删除迭代是 ADMIN 权限（后端 @RequireRole → 403）：MEMBER 不渲染这些控件，而不是点了才报错 */
+  canManage: boolean
 }) {
   const t = useT()
   const points = sprint.tasks.reduce((sum, tk) => sum + (tk.points ?? 0), 0)
@@ -287,7 +131,7 @@ function SprintCard({
           {t.nTasks(sprint.tasks.length)} · {fmtPoints(points)} {t.ptsUnit}
         </span>
         <span style={{ flex: 1 }} />
-        {sprint.status === 'PLANNED' && (
+        {canManage && sprint.status === 'PLANNED' && (
           <button
             type="button"
             className="btn-primary"
@@ -313,7 +157,7 @@ function SprintCard({
             {t.startSprint}
           </button>
         )}
-        {sprint.status === 'ACTIVE' && (
+        {canManage && sprint.status === 'ACTIVE' && (
           <button
             type="button"
             className="hover-card"
@@ -339,7 +183,7 @@ function SprintCard({
             {t.closeSprint}
           </button>
         )}
-        {sprint.status !== 'ACTIVE' && (
+        {canManage && sprint.status !== 'ACTIVE' && (
           <button
             type="button"
             className="hover-card"
@@ -430,10 +274,12 @@ export default function AllSprints() {
   const toast = useToast()
   const t = useT()
   const { data: projects, isLoading: projectsLoading } = useProjects(slug)
+  // 角色来自 /api/me/tenants（与 Layout 共享缓存）：迭代 启动/关闭/删除 只对 ADMIN 显示（审查 2026-09-25 #3）
+  const { data: tenants } = useMyTenants()
+  const canManage = canManageTenant(tenants?.find((x) => x.slug === slug)?.role)
   // 与顶栏项目切换器共享的选中项目（localStorage 按租户记忆）
   const storedProjectKey = useSelectedProjectKey(slug)
   const projectKey = resolveProjectKey(null, storedProjectKey, projects)
-  const project = projects?.find((p) => p.key === projectKey)
 
   const { data: sprints, isLoading, isError, error } = useSprints(slug, projectKey, true)
   const startSprint = useStartSprint(slug)
@@ -461,27 +307,31 @@ export default function AllSprints() {
     )
   }, [sprints])
 
+  // 启动前置：后端同项目只允许一个进行中的迭代（409 ACTIVE_SPRINT_EXISTS），确认框提前告知并禁用启动
+  const blocking = confirm?.kind === 'start' ? activeSprintBlocking(sorted, confirm.sprint.id) : null
+
   const handleConfirm = () => {
     if (!confirm) return
     const { kind, sprint } = confirm
+    if (kind === 'start' && blocking) return
     setConfirm(null)
     if (kind === 'start') {
       startSprint.mutate(sprint.id, {
         onSuccess: () => toast.show(t.sprintStarted),
-        onError: (e) => toast.show(t.startFailed(errMsg(e, t.unknownError)), 'info'),
+        onError: (e) => toast.show(t.startFailed(apiErrorMessage(e, t)), 'info'),
       })
     } else if (kind === 'close') {
       closeSprint.mutate(
         { sprintId: sprint.id, unfinished: 'BACKLOG' },
         {
           onSuccess: () => toast.show(t.sprintClosed),
-          onError: (e) => toast.show(t.closeFailed(errMsg(e, t.unknownError)), 'info'),
+          onError: (e) => toast.show(t.closeFailed(apiErrorMessage(e, t)), 'info'),
         },
       )
     } else {
       deleteSprint.mutate(sprint.id, {
         onSuccess: () => toast.show(t.sprintDeleted),
-        onError: (e) => toast.show(t.deleteSprintFailed(errMsg(e, t.unknownError)), 'info'),
+        onError: (e) => toast.show(t.deleteSprintFailed(apiErrorMessage(e, t)), 'info'),
       })
     }
   }
@@ -489,9 +339,9 @@ export default function AllSprints() {
   const busy = startSprint.isPending || closeSprint.isPending || deleteSprint.isPending
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       {/* 页头：标题 · 项目切换 · 新建 Sprint */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <h1 style={pageTitleStyle}>{t.allSprints}</h1>
         {projects && projects.length > 1 && (
           <SelectWrap chevronTop={9}>
@@ -525,15 +375,11 @@ export default function AllSprints() {
 
       {(projectsLoading || isLoading) && <SprintsSkeleton />}
 
-      {!projectsLoading && projects && projects.length === 0 && (
-        <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--dim)' }}>
-          {t.noProjectsSprints}
-        </div>
-      )}
+      {!projectsLoading && projects && projects.length === 0 && <NoProjectEmpty slug={slug} />}
 
       {isError && (
         <div style={{ fontSize: 13, color: 'var(--type-bug)' }}>
-          {t.sprintsLoadFailed(errMsg(error, t.unknownError))}
+          {t.sprintsLoadFailed(apiErrorMessage(error, t))}
         </div>
       )}
 
@@ -556,6 +402,7 @@ export default function AllSprints() {
             onClose={() => setConfirm({ kind: 'close', sprint })}
             onDelete={() => setConfirm({ kind: 'delete', sprint })}
             busy={busy}
+            canManage={canManage}
           />
         ))}
       </div>
@@ -570,13 +417,7 @@ export default function AllSprints() {
       )}
 
       {createOpen && projectKey && (
-        <CreateSprintDialog
-          slug={slug}
-          projectKey={projectKey}
-          project={project}
-          sprints={sorted}
-          onClose={() => setCreateOpen(false)}
-        />
+        <CreateSprintDialog slug={slug} projectKey={projectKey} onClose={() => setCreateOpen(false)} />
       )}
 
       <ConfirmDialog
@@ -593,8 +434,11 @@ export default function AllSprints() {
             ? t.closeSprintHint
             : confirm?.kind === 'delete'
               ? t.deleteSprintWarning
-              : t.startSprintHint
+              : blocking
+                ? t.startSprintBlocked(blocking.name)
+                : t.startSprintHint
         }
+        confirmDisabled={blocking != null}
         actionLabel={
           confirm?.kind === 'close'
             ? t.closeSprint

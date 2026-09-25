@@ -25,8 +25,11 @@ import type { Sprint, SprintWithTasks, Task, TaskBrief } from '../api/types'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
 import CapacityBar from '../components/CapacityBar'
+import NoProjectEmpty from '../components/NoProjectEmpty'
+import CreateSprintDialog from '../components/CreateSprintDialog'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { Icon } from '../components/icons'
-import { SelectWrap, cardStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
+import { SelectWrap, btnPrimary, cardStyle, pageTitleStyle, selStyle, useToast } from '../components/ui'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { fmtPoints } from '../utils/points'
 import { useT } from '../i18n'
@@ -296,6 +299,12 @@ export default function Planning() {
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+  const [createSprintOpen, setCreateSprintOpen] = useState(false)
+  // 移动端：左右两栏改为上下堆叠，整页滚动
+  const isMobile = useIsMobile()
+  const gridStyle: CSSProperties = isMobile
+    ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16, padding: '0 16px 20px', overflowY: 'auto' }
+    : { flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '0 24px 20px' }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -347,7 +356,7 @@ export default function Planning() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
       <div
         style={{
-          padding: '20px 24px 12px',
+          padding: isMobile ? '16px 16px 12px' : '20px 24px 12px',
           flex: 'none',
           display: 'flex',
           alignItems: 'center',
@@ -356,7 +365,7 @@ export default function Planning() {
       >
         <h1 style={pageTitleStyle}>{t.sprintPlanning}</h1>
         {projects && projects.length > 0 && (
-          <SelectWrap chevronTop={9} style={{ width: 200 }}>
+          <SelectWrap chevronTop={9} style={{ width: 200, maxWidth: '55vw' }}>
             <select value={key} onChange={(e) => setSelectedProjectKey(slug, e.target.value)} style={selStyle}>
               {projects.map((p) => (
                 <option key={p.key} value={p.key}>
@@ -383,26 +392,18 @@ export default function Planning() {
           <div className="sk" style={{ borderRadius: 12 }} />
         </div>
       ) : !projects || projects.length === 0 ? (
-        <div style={{ padding: '24px 24px', fontSize: 13, color: 'var(--faint)' }}>
-          {t.noProjectPlanning}
+        <div style={{ padding: '0 24px 24px' }}>
+          <NoProjectEmpty slug={slug} />
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 16,
-              padding: '0 24px 20px',
-            }}
-          >
+          <div style={gridStyle}>
             {/* 左：Backlog 简表（可放置：拖回 Backlog） */}
             <section
               ref={setBacklogRef}
               style={{
                 ...panelStyle,
+                ...(isMobile ? { flex: 'none', maxHeight: 320 } : {}),
                 background: overBacklog ? 'var(--accent-soft)' : 'var(--card)',
                 borderColor: overBacklog ? 'var(--accent)' : 'var(--border)',
                 transition: 'background .12s, border-color .12s',
@@ -428,15 +429,19 @@ export default function Planning() {
             </section>
 
             {/* 右：当前 / 下个 Sprint + 成员容量（内容超高时整列滚动） */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0, overflowY: isMobile ? 'visible' : 'auto', paddingRight: 2 }}>
               {sprintsLoading ? (
                 <>
                   <div className="sk" style={{ flex: 1, borderRadius: 12 }} />
                   <div className="sk" style={{ height: 140, borderRadius: 12, flex: 'none' }} />
                 </>
               ) : planSprints.length === 0 ? (
-                <div style={{ ...panelStyle, justifyContent: 'center', flex: 1 }}>
+                <div style={{ ...panelStyle, justifyContent: 'center', alignItems: 'center', flex: 1, minHeight: 160, gap: 4 }}>
                   <div style={emptyHintStyle}>{t.noSprintPlanning}</div>
+                  <button type="button" className="btn-primary" style={btnPrimary} onClick={() => setCreateSprintOpen(true)}>
+                    <Icon name="plus" size={14} />
+                    {t.createSprint}
+                  </button>
                 </div>
               ) : (
                 planSprints.map((s) => (
@@ -478,6 +483,9 @@ export default function Planning() {
           task={drawerTask}
           onClose={() => setDrawerTask(null)}
         />
+      )}
+      {createSprintOpen && key && (
+        <CreateSprintDialog slug={slug} projectKey={key} onClose={() => setCreateSprintOpen(false)} />
       )}
     </div>
   )

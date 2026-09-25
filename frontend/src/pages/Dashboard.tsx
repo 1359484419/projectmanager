@@ -3,13 +3,16 @@
 // 项目选择：?project=KEY 查询参数，缺省取项目列表第一个。
 // 点任务卡打开 TaskDrawer 查看/编辑详情。
 // 视觉真源：docs/design/mock/markup.html DASHBOARD 节 + logic.jsx donutSvg。
+import { apiErrorMessage } from '../api/errors'
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useDashboard, useProjects } from '../api/hooks'
 import type { Dashboard as DashboardData, TaskBrief, TaskStatus } from '../api/types'
 import AssigneeFilterCompact from '../components/AssigneeFilterCompact'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
+import NoProjectEmpty from '../components/NoProjectEmpty'
+import CreateSprintDialog from '../components/CreateSprintDialog'
 import { Icon } from '../components/icons'
 import { btnPrimary, pageTitleStyle, statusColor, statusLabel } from '../components/ui'
 import { useT } from '../i18n'
@@ -285,7 +288,7 @@ function Page({
 }) {
   const t = useT()
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <h1 style={pageTitleStyle}>{t.dashboardTitle}</h1>
         <span style={{ flex: 1 }} />
@@ -316,6 +319,8 @@ export default function Dashboard() {
   const [assigneeFilter] = useAssigneeFilter()
   const t = useT()
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+  // 「去创建迭代」直接弹新建迭代对话框（以前跳到无法建迭代的规划页）
+  const [createSprintOpen, setCreateSprintOpen] = useState(false)
 
   const filtered = useMemo(
     () => (dashboard.data ? applyAssigneeFilter(dashboard.data, assigneeFilter) : undefined),
@@ -333,7 +338,7 @@ export default function Dashboard() {
     return (
       <Page>
         <p style={{ fontSize: 13, color: 'var(--over)' }}>
-          {t.projectListLoadFailed(projects.error.message)}
+          {t.projectListLoadFailed(apiErrorMessage(projects.error, t))}
         </p>
       </Page>
     )
@@ -341,18 +346,7 @@ export default function Dashboard() {
   if (!projectKey) {
     return (
       <Page>
-        <div
-          style={{
-            border: '1px dashed var(--border-strong)',
-            borderRadius: 12,
-            padding: '48px 24px',
-            textAlign: 'center',
-            fontSize: 13,
-            color: 'var(--dim)',
-          }}
-        >
-          {t.noProjectsDashboard}
-        </div>
+        <NoProjectEmpty slug={slug} />
       </Page>
     )
   }
@@ -360,7 +354,7 @@ export default function Dashboard() {
     return (
       <Page>
         <p style={{ fontSize: 13, color: 'var(--over)' }}>
-          {t.dashboardLoadFailed(dashboard.error.message)}
+          {t.dashboardLoadFailed(apiErrorMessage(dashboard.error, t))}
         </p>
       </Page>
     )
@@ -383,9 +377,9 @@ export default function Dashboard() {
           }}
         >
           <p style={{ fontSize: 13, marginBottom: 14 }}>{t.noActiveSprint}</p>
-          <Link to={`/t/${slug}/planning`} style={{ ...btnPrimary, textDecoration: 'none' }}>
+          <button type="button" className="btn-primary" style={btnPrimary} onClick={() => setCreateSprintOpen(true)}>
             {t.goCreateSprint}
-          </Link>
+          </button>
         </div>
       ) : (
         <>
@@ -405,6 +399,9 @@ export default function Dashboard() {
           task={drawerTask}
           onClose={() => setDrawerTask(null)}
         />
+      )}
+      {createSprintOpen && (
+        <CreateSprintDialog slug={slug} projectKey={projectKey} onClose={() => setCreateSprintOpen(false)} />
       )}
     </Page>
   )

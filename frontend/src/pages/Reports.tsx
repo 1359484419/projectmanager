@@ -1,10 +1,12 @@
 // 报表页：Sprint 燃尽图（自绘 SVG：ideal 虚线 + remaining 主色线/渐隐面积/圆点）+ 每人负载横条
 // 视觉真源：docs/design/mock/markup.html（REPORTS 节）+ logic.jsx burndown()/memberLoad()
 import { useMemo, useState, type CSSProperties } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useBurndown, useCapacity, useProjects, useSprints } from '../api/hooks'
 import type { BurndownDay, CapacityEntry, Sprint, SprintStatus } from '../api/types'
-import { SelectWrap, cardStyle, pageTitleStyle } from '../components/ui'
+import { SelectWrap, btnPrimary, cardStyle, pageTitleStyle } from '../components/ui'
+import NoProjectEmpty from '../components/NoProjectEmpty'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { fmtPoints } from '../utils/points'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { useT, type Translations } from '../i18n'
@@ -25,10 +27,11 @@ const cardPad: CSSProperties = { ...cardStyle, padding: '16px 18px' }
 
 const cardTitleStyle: CSSProperties = { fontSize: 12.5, fontWeight: 600 }
 
-function Empty({ text }: { text: string }) {
+function Empty({ text, cta }: { text: string; cta?: React.ReactNode }) {
   return (
     <div style={{ padding: '36px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--faint)' }}>
       {text}
+      {cta && <div style={{ marginTop: 14 }}>{cta}</div>}
     </div>
   )
 }
@@ -279,12 +282,14 @@ export default function Reports() {
     selectedId ?? ordered.find((s) => s.status === 'ACTIVE')?.id ?? ordered[0]?.id ?? null
 
   const statusLabels = sprintStatusLabel(t)
+  const isMobile = useIsMobile()
+  const gridCols = isMobile ? '1fr' : '1.5fr 1fr'
 
   if (!slug) return <Empty text={t.missingTenantInfo} />
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h1 style={pageTitleStyle}>{t.reports}</h1>
         <SelectWrap chevronTop={9}>
           <select
@@ -312,7 +317,7 @@ export default function Reports() {
       </div>
 
       {projectsLoading || sprintsLoading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 16 }}>
           <div style={cardPad}>
             <ChartSkeleton />
           </div>
@@ -321,13 +326,20 @@ export default function Reports() {
           </div>
         </div>
       ) : !projectKey ? (
-        <Empty text={t.noProjectReports} />
+        <NoProjectEmpty slug={slug} />
       ) : ordered.length === 0 ? (
-        <Empty text={t.noSprintReports} />
+        <Empty
+          text={t.noSprintReports}
+          cta={
+            <Link to={`/t/${slug}/sprints`} style={{ ...btnPrimary, textDecoration: 'none' }}>
+              {t.goToAllSprints}
+            </Link>
+          }
+        />
       ) : effectiveId == null ? (
         <Empty text={t.selectSprint} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 16 }}>
           <BurndownCard slug={slug} sprintId={effectiveId} />
           <CapacityCard slug={slug} sprintId={effectiveId} />
         </div>

@@ -2,12 +2,22 @@
 // 视觉真源：docs/design/mock/markup.html ROADMAP + EPIC MODAL 节。
 // 数据：GET /api/t/{slug}/projects/{key}/roadmap（useRoadmap，后端已按季度分组）。
 // 项目选择：?project=KEY 深链优先 → 顶栏切换器选中的项目 → 第一个（与 Dashboard 一致）。
+import { apiErrorMessage } from '../api/errors'
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useCreateEpic, useDeleteEpic, useEpics, useProjects, useRoadmap, useUpdateEpic } from '../api/hooks'
+import {
+  useCreateEpic,
+  useDeleteEpic,
+  useEpics,
+  useMyTenants,
+  useProjects,
+  useRoadmap,
+  useUpdateEpic,
+} from '../api/hooks'
 import type { Epic, RoadmapEpic, TaskBrief } from '../api/types'
 import EpicCard from '../components/EpicCard'
 import TaskDrawer from '../components/TaskDrawer'
+import NoProjectEmpty from '../components/NoProjectEmpty'
 import { Icon } from '../components/icons'
 import {
   ConfirmDialog,
@@ -22,6 +32,7 @@ import {
   useToast,
 } from '../components/ui'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
+import { canManageTenant } from '../state/tenantRole'
 import { useT } from '../i18n'
 
 /** 当前及后续 3 个季度选项，如 "2026-Q3" */
@@ -68,6 +79,9 @@ function EpicDialog({
   const createEpic = useCreateEpic(slug, projectKey)
   const updateEpic = useUpdateEpic(slug, projectKey)
   const deleteEpic = useDeleteEpic(slug, projectKey)
+  // 删除长期计划是 ADMIN 权限（后端 @RequireRole → 403）：MEMBER 不渲染删除按钮（审查 2026-09-25 #3）
+  const { data: tenants } = useMyTenants()
+  const canDelete = canManageTenant(tenants?.find((x) => x.slug === slug)?.role)
   const toast = useToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [name, setName] = useState(epic?.name ?? '')
@@ -102,7 +116,7 @@ function EpicDialog({
             onClose()
           },
           onError: (err) => {
-            toast.show(t.epicUpdateFailed(err.message), 'info')
+            toast.show(t.epicUpdateFailed(apiErrorMessage(err, t)), 'info')
           },
         },
       )
@@ -121,7 +135,7 @@ function EpicDialog({
           onClose()
         },
         onError: (err) => {
-          toast.show(t.createFailed(err.message), 'info')
+          toast.show(t.createFailed(apiErrorMessage(err, t)), 'info')
         },
       },
     )
@@ -256,7 +270,7 @@ function EpicDialog({
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
-          {isEdit && (
+          {isEdit && canDelete && (
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
@@ -305,7 +319,7 @@ function EpicDialog({
               },
               onError: (err) => {
                 setConfirmDelete(false)
-                toast.show(t.deleteEpicFailed(err.message), 'info')
+                toast.show(t.deleteEpicFailed(apiErrorMessage(err, t)), 'info')
               },
             })
           }}
@@ -375,20 +389,18 @@ export default function Roadmap() {
     return <RoadmapSkeleton />
   }
   if (projects.isError) {
-    return <PageMessage error>{t.projectListLoadFailed(projects.error.message)}</PageMessage>
+    return <PageMessage error>{t.projectListLoadFailed(apiErrorMessage(projects.error, t))}</PageMessage>
   }
   if (!projectKey) {
     return (
       <div style={pageStyle}>
-        <h1 style={{ ...pageTitleStyle, marginBottom: 8 }}>{t.roadmap}</h1>
-        <p style={{ fontSize: 13, color: 'var(--dim)', margin: 0 }}>
-          {t.noProjectRoadmap}
-        </p>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 16 }}>{t.roadmap}</h1>
+        <NoProjectEmpty slug={slug} />
       </div>
     )
   }
   if (roadmap.isError) {
-    return <PageMessage error>{t.roadmapLoadFailed(roadmap.error.message)}</PageMessage>
+    return <PageMessage error>{t.roadmapLoadFailed(apiErrorMessage(roadmap.error, t))}</PageMessage>
   }
 
   const groups = roadmap.data ?? []

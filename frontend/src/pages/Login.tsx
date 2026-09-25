@@ -3,6 +3,8 @@ import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, setTokens } from '../api/client'
+import { apiErrorMessage } from '../api/errors'
+import { validateRegister, type FieldErrorKey, type RegisterErrors } from '../utils/validation'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
 import { useT } from '../i18n'
@@ -47,6 +49,13 @@ const tabStyle = (active: boolean): CSSProperties => ({
 
 type Mode = 'login' | 'register'
 
+const fieldErrorStyle: CSSProperties = { fontSize: 11, color: 'var(--type-bug)', marginTop: -8, marginBottom: 10 }
+
+function errorText(key: FieldErrorKey | undefined, t: ReturnType<typeof useT>): string | null {
+  if (!key) return null
+  return { required: t.errRequired, email: t.errEmail, password: t.errPassword, slug: t.errSlug, mismatch: t.errMismatch }[key]
+}
+
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -61,9 +70,23 @@ export default function Login() {
   const [tenantSlug, setTenantSlug] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // 受控校验：字段离焦或提交后才显示行内错误；提交按钮在有错时禁用
+  const [touched, setTouched] = useState<Partial<Record<keyof RegisterErrors, boolean>>>({})
+  const [submitted, setSubmitted] = useState(false)
+  const isRegister = mode === 'register'
+  const errors: RegisterErrors = isRegister
+    ? validateRegister({ displayName, tenantName, tenantSlug, email, password, confirmPassword: confirmPwd })
+    : {}
+  const hasErrors = Object.keys(errors).length > 0
+  const touch = (k: keyof RegisterErrors) => () => setTouched((prev) => ({ ...prev, [k]: true }))
+  const showErr = (k: keyof RegisterErrors) => (touched[k] || submitted ? errorText(errors[k], t) : null)
+  const fieldBorder = (k: keyof RegisterErrors) => (showErr(k) ? 'var(--type-bug)' : 'var(--border)')
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    setSubmitted(true)
+    if (isRegister && hasErrors) return
+    if (!isRegister && (!email || !password)) return
     setSubmitting(true)
     try {
       if (mode === 'login') {
@@ -94,19 +117,12 @@ export default function Login() {
         EMAIL_TAKEN: t.errEmailTaken,
         BAD_CREDENTIALS: t.errBadCredentials,
       }
-      const msg =
-        err instanceof ApiError && codeText[err.code]
-          ? codeText[err.code]
-          : err instanceof Error
-            ? err.message
-            : t.requestFailed
+      const msg = err instanceof ApiError && codeText[err.code] ? codeText[err.code] : apiErrorMessage(err, t)
       toast.show(msg, 'info')
     } finally {
       setSubmitting(false)
     }
   }
-
-  const isRegister = mode === 'register'
 
   return (
     <div
@@ -147,7 +163,7 @@ export default function Login() {
           >
             跬
           </div>
-          <div style={{ fontSize: 16, fontWeight: 650 }}>{t.welcomeBack}</div>
+          <div style={{ fontSize: 16, fontWeight: 650 }}>{isRegister ? t.registerTitle : t.welcomeBack}</div>
           <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
             {isRegister ? t.registerSubtitle : t.loginSubtitle}
           </div>
@@ -178,25 +194,29 @@ export default function Login() {
               {t.register}
             </span>
           </div>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             {isRegister && (
               <>
                 <label style={fieldLabel}>{t.displayNameLabel}</label>
                 <input
-                  style={fieldInput}
+                  style={{ ...fieldInput, borderColor: fieldBorder('displayName') }}
                   placeholder={t.displayNameRegPlaceholder}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  required
+                  onBlur={touch('displayName')}
+                  aria-label={t.displayNameLabel}
                 />
+                {showErr('displayName') && <div style={fieldErrorStyle}>{showErr('displayName')}</div>}
                 <label style={fieldLabel}>{t.teamName}</label>
                 <input
-                  style={fieldInput}
+                  style={{ ...fieldInput, borderColor: fieldBorder('tenantName') }}
                   placeholder={t.teamNamePlaceholder}
                   value={tenantName}
                   onChange={(e) => setTenantName(e.target.value)}
-                  required
+                  onBlur={touch('tenantName')}
+                  aria-label={t.teamName}
                 />
+                {showErr('tenantName') && <div style={fieldErrorStyle}>{showErr('tenantName')}</div>}
                 <label style={fieldLabel}>{t.teamSlug}</label>
                 <div
                   style={{
@@ -205,7 +225,7 @@ export default function Login() {
                     gap: 2,
                     height: 36,
                     borderRadius: 8,
-                    border: '1px solid var(--border)',
+                    border: `1px solid ${fieldBorder('tenantSlug')}`,
                     background: 'var(--card-2)',
                     padding: '0 11px',
                     marginBottom: 12,
@@ -223,10 +243,9 @@ export default function Login() {
                   <input
                     placeholder="acme"
                     value={tenantSlug}
-                    onChange={(e) => setTenantSlug(e.target.value)}
-                    pattern="[a-z0-9\-]{3,32}"
-                    title={t.slugHint}
-                    required
+                    onChange={(e) => setTenantSlug(e.target.value.trim().toLowerCase())}
+                    onBlur={touch('tenantSlug')}
+                    aria-label={t.teamSlug}
                     style={{
                       flex: 1,
                       height: 34,
@@ -239,58 +258,61 @@ export default function Login() {
                     }}
                   />
                 </div>
+                <div style={{ ...(showErr('tenantSlug') ? fieldErrorStyle : { fontSize: 11, color: 'var(--faint)', marginTop: -8, marginBottom: 10 }) }}>
+                  {showErr('tenantSlug') ?? t.slugHint}
+                </div>
               </>
             )}
             <label style={fieldLabel}>{t.email}</label>
             <input
-              style={fieldInput}
+              style={{ ...fieldInput, borderColor: fieldBorder('email') }}
               type="email"
               placeholder="you@acme.io"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
+              onBlur={touch('email')}
+              aria-label={t.email}
+              autoComplete="email"
             />
+            {showErr('email') && <div style={fieldErrorStyle}>{showErr('email')}</div>}
             <label style={fieldLabel}>{t.password}</label>
             <input
-              style={{ ...fieldInput, marginBottom: isRegister ? 4 : 18 }}
+              style={{ ...fieldInput, marginBottom: isRegister ? 4 : 18, borderColor: fieldBorder('password') }}
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              minLength={isRegister ? 8 : undefined}
-              required
+              onBlur={touch('password')}
+              aria-label={t.password}
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
             />
             {isRegister && (
-              <div style={{ fontSize: 11, color: 'var(--faint)', marginBottom: 8 }}>
-                {t.passwordMinHint}
+              <div style={{ fontSize: 11, color: showErr('password') ? 'var(--type-bug)' : 'var(--faint)', marginBottom: 8 }}>
+                {showErr('password') ?? t.passwordMinHint}
               </div>
             )}
             {isRegister && (
               <>
                 <label style={fieldLabel}>{t.confirmPassword}</label>
                 <input
-                  style={{
-                    ...fieldInput,
-                    marginBottom: 4,
-                    borderColor: confirmPwd && password !== confirmPwd ? 'var(--type-bug)' : 'var(--border)',
-                  }}
+                  style={{ ...fieldInput, marginBottom: 4, borderColor: fieldBorder('confirmPassword') }}
                   type="password"
                   placeholder={t.confirmPasswordRegPlaceholder}
                   value={confirmPwd}
                   onChange={(e) => setConfirmPwd(e.target.value)}
-                  required
+                  onBlur={touch('confirmPassword')}
+                  aria-label={t.confirmPassword}
+                  autoComplete="new-password"
                 />
-                {confirmPwd && password !== confirmPwd && (
-                  <div style={{ fontSize: 11, color: 'var(--type-bug)', marginBottom: 8 }}>
-                    {t.passwordRegMismatch}
-                  </div>
+                {showErr('confirmPassword') && (
+                  <div style={{ fontSize: 11, color: 'var(--type-bug)', marginBottom: 8 }}>{showErr('confirmPassword')}</div>
                 )}
                 <div style={{ marginBottom: 10 }} />
               </>
             )}
             <button
               type="submit"
-              disabled={submitting || (isRegister && (password !== confirmPwd || password.length < 8))}
+              disabled={submitting || (isRegister && submitted && hasErrors)}
               style={{
                 width: '100%',
                 height: 38,
@@ -300,8 +322,8 @@ export default function Login() {
                 color: '#fff',
                 fontSize: 13.5,
                 fontWeight: 600,
-                cursor: submitting || (isRegister && (password !== confirmPwd || password.length < 8)) ? 'default' : 'pointer',
-                opacity: submitting || (isRegister && (password !== confirmPwd || password.length < 8)) ? 0.65 : 1,
+                cursor: submitting || (isRegister && submitted && hasErrors) ? 'default' : 'pointer',
+                opacity: submitting || (isRegister && submitted && hasErrors) ? 0.65 : 1,
               }}
             >
               {submitting ? t.submitting : isRegister ? t.createTeam : t.login}

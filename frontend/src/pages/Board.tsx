@@ -1,7 +1,7 @@
 // Sprint 看板：TODO / IN_PROGRESS / COMPLETED / DONE 四列，dnd-kit 拖拽改状态（乐观更新，失败回滚）
 // 视觉真源：docs/design/mock/markup.html（BOARD 节）+ logic.jsx（boardColumns 列样式）
 import { useMemo, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +20,9 @@ import { qk, useBoard, useMembers, useProjects, useSprints } from '../api/hooks'
 import type { Board as BoardData, TaskBrief, TaskStatus } from '../api/types'
 import TaskCard, { Avatar } from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
-import { STATUS_VAR, statusLabel, useToast } from '../components/ui'
+import NoProjectEmpty from '../components/NoProjectEmpty'
+import { useIsMobile } from '../hooks/useMediaQuery'
+import { STATUS_VAR, btnPrimary, statusLabel, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { useT } from '../i18n'
@@ -335,16 +337,16 @@ function BoardHeader({ sub }: { sub?: React.ReactNode }) {
         flex: 'none',
       }}
     >
-      <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>{t.board}</h1>
+      <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0, whiteSpace: 'nowrap' }}>{t.board}</h1>
       {sub}
       <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t.boardDragHint}</span>
+      <span className="hide-mobile" style={{ fontSize: 12, color: 'var(--faint)' }}>{t.boardDragHint}</span>
     </div>
   )
 }
 
-/** 空态/异常提示块（无项目 / 无活跃 Sprint / 加载失败） */
-function EmptyHint({ text }: { text: string }) {
+/** 空态/异常提示块（无活跃 Sprint / 加载失败），可带 CTA */
+function EmptyHint({ text, cta }: { text: string; cta?: React.ReactNode }) {
   return (
     <div style={{ padding: '8px 20px' }}>
       <div
@@ -353,14 +355,70 @@ function EmptyHint({ text }: { text: string }) {
           borderRadius: 12,
           minHeight: 120,
           display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: 13,
           color: 'var(--faint)',
+          padding: 20,
+          textAlign: 'center',
         }}
       >
         {text}
+        {cta}
       </div>
+    </div>
+  )
+}
+
+/** 移动端：四列改为状态 tab + 单列（拖拽换列在手机上不可用，改状态走抽屉的状态下拉） */
+function StatusTabs({
+  value,
+  onChange,
+  columns,
+}: {
+  value: TaskStatus
+  onChange: (s: TaskStatus) => void
+  columns: Record<TaskStatus, TaskBrief[]>
+}) {
+  const t = useT()
+  return (
+    <div role="tablist" style={{ display: 'flex', gap: 4, padding: '0 16px 10px', flex: 'none', overflowX: 'auto' }}>
+      {COLUMNS.map((col) => {
+        const on = col.status === value
+        return (
+          <button
+            key={col.status}
+            role="tab"
+            type="button"
+            aria-selected={on}
+            onClick={() => onChange(col.status)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 30,
+              padding: '0 10px',
+              borderRadius: 7,
+              border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+              background: on ? 'var(--accent-soft)' : 'var(--card)',
+              color: on ? 'var(--text)' : 'var(--dim)',
+              fontSize: 12,
+              fontWeight: on ? 600 : 450,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: col.dot }} />
+            {statusLabel(t)[col.status]}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--faint)' }}>
+              {(columns[col.status] ?? []).length}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -403,6 +461,8 @@ export default function Board() {
 
   const [activeTask, setActiveTask] = useState<TaskBrief | null>(null)
   const [drawerTask, setDrawerTask] = useState<TaskBrief | null>(null)
+  const isMobile = useIsMobile()
+  const [mobileStatus, setMobileStatus] = useState<TaskStatus>('TODO')
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -463,9 +523,11 @@ export default function Board() {
   }
   if (!projectKey) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
         <BoardHeader />
-        <EmptyHint text={t.noProjectBoard} />
+        <div style={{ padding: '8px 20px' }}>
+          <NoProjectEmpty slug={slug} />
+        </div>
       </div>
     )
   }
@@ -473,7 +535,14 @@ export default function Board() {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <BoardHeader />
-        <EmptyHint text={t.noActiveSprintBoard(projectKey)} />
+        <EmptyHint
+          text={t.noActiveSprintBoard(projectKey)}
+          cta={
+            <Link to={`/t/${slug}/sprints`} style={{ ...btnPrimary, textDecoration: 'none' }}>
+              {t.goToAllSprints}
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -503,17 +572,18 @@ export default function Board() {
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <AssigneeFilterRow slug={slug} columns={columns} />
+          {isMobile && <StatusTabs value={mobileStatus} onChange={setMobileStatus} columns={filteredColumns} />}
           <div
             style={{
               flex: 1,
               minHeight: 0,
               display: 'flex',
               gap: 14,
-              padding: '0 20px 20px',
+              padding: isMobile ? '0 16px 16px' : '0 20px 20px',
               overflowX: 'auto',
             }}
           >
-            {COLUMNS.map((col) => (
+            {(isMobile ? COLUMNS.filter((c) => c.status === mobileStatus) : COLUMNS).map((col) => (
               <Column
                 key={col.status}
                 status={col.status}

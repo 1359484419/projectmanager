@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 import { useProjects, useRecords } from '../api/hooks'
 import type { Task, TaskBrief } from '../api/types'
 import TaskDrawer from '../components/TaskDrawer'
+import NoProjectEmpty from '../components/NoProjectEmpty'
 import TypeIcon from '../components/TypeIcon'
 import { SelectWrap, cardStyle, pageTitleStyle, selStyle } from '../components/ui'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
@@ -63,7 +64,10 @@ export default function Records() {
         </span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+      <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+        {projects && projects.length === 0 ? (
+          <NoProjectEmpty slug={slug} />
+        ) : (
         <div style={{ ...cardStyle, overflow: 'hidden' }}>
           {records.isError ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--dim)', fontSize: 13 }}>
@@ -112,6 +116,7 @@ export default function Records() {
             ))
           )}
         </div>
+        )}
       </div>
 
       {openTask && key && (

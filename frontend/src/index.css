@@ -400,3 +400,37 @@ textarea::placeholder {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ---------------- 移动端（≤768px）：侧栏抽屉 / 顶栏精简 / 页面留白收紧 ---------------- */
+.hide-mobile {
+  display: flex;
+}
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 49;
+  animation: fadeIn 0.12s;
+}
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  .page-scroll {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .sidebar-drawer {
+    position: fixed !important;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: 232px !important;
+    transition: transform 0.18s ease !important;
+    box-shadow: 14px 0 40px -18px rgba(0, 0, 0, 0.8);
+  }
+  .sidebar-drawer[data-open='false'] {
+    transform: translateX(-100%);
+  }
+}

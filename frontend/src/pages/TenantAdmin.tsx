@@ -1,8 +1,10 @@
 // 租户管理（仅 ADMIN）：成员列表、生成邀请链接（复制）、项目默认 Sprint 周期与 auto_rotate 开关。
 // 数据：GET /api/t/{slug}/members、POST /api/t/{slug}/invites、
 //       GET /api/t/{slug}/projects、PATCH /api/t/{slug}/projects/{key}。
-// 非 ADMIN 调用 members/invites 时后端按约定返回 404，页面据此展示无权限提示。
+// 角色来自 /api/me/tenants：MEMBER 只看到只读成员列表（无邀请/移出/租户名/项目设置），
+// 后端角色不足返回 403 FORBIDDEN（中文 message），toast 直接展示。
 // 视觉真源：docs/design/mock/markup.html（ADMIN 节）+ logic.jsx（rotateToggle）。
+import { apiErrorMessage } from '../api/errors'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
@@ -17,6 +19,7 @@ import {
   useUpdateProject,
 } from '../api/hooks'
 import { ApiError, currentUserId } from '../api/client'
+import { canManageTenant } from '../state/tenantRole'
 import {
   ConfirmDialog,
   Icon,
@@ -122,8 +125,8 @@ function MemberSkeleton() {
   )
 }
 
-/** 成员卡片：标题栏 + 生成邀请链接 + 成员列表 */
-function MembersCard({ slug }: { slug: string }) {
+/** 成员卡片：标题栏 + 生成邀请链接 + 成员列表；readOnly（MEMBER）时不显示邀请与移出控件 */
+function MembersCard({ slug, readOnly }: { slug: string; readOnly?: boolean }) {
   const { locale } = useI18n()
   const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US'
   const toast = useToast()
@@ -150,7 +153,7 @@ function MembersCard({ slug }: { slug: string }) {
         const msg =
           err instanceof ApiError && err.status === 409 && errMap[err.code]
             ? errMap[err.code]
-            : t.removeFailed(err.message)
+            : t.removeFailed(apiErrorMessage(err, t))
         toast.show(msg, 'info')
       },
     })
@@ -167,7 +170,7 @@ function MembersCard({ slug }: { slug: string }) {
       { role },
       {
         onSuccess: (data) => setInvite(data),
-        onError: (err) => toast.show(t.inviteGenerateFailed(err.message), 'info'),
+        onError: (err) => toast.show(t.inviteGenerateFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }
@@ -182,7 +185,8 @@ function MembersCard({ slug }: { slug: string }) {
     }
   }
 
-  const denied = members.isError && members.error instanceof ApiError && members.error.status === 404
+  const denied =
+    members.isError && members.error instanceof ApiError && (members.error.status === 404 || members.error.status === 403)
 
   return (
     <div style={{ ...cardStyle, marginBottom: 16, overflow: 'hidden' }}>
@@ -198,6 +202,7 @@ function MembersCard({ slug }: { slug: string }) {
       >
         <span style={sectionTitleStyle}>{t.members}</span>
         <span style={{ flex: 1 }} />
+        {!readOnly && (<>
         {/* 角色选择（真实 API 需要 role 参数，设计稿之外的最小补充） */}
         <SelectWrap chevronTop={8} style={{ width: 104 }}>
           <select
@@ -228,6 +233,7 @@ function MembersCard({ slug }: { slug: string }) {
         >
           {createInvite.isPending ? t.generatingInvite : t.generateInvite}
         </button>
+        </>)}
       </div>
 
       {/* 邀请链接展示条 */}
@@ -290,7 +296,7 @@ function MembersCard({ slug }: { slug: string }) {
       {members.isLoading && <MemberSkeleton />}
       {members.isError && (
         <div style={{ padding: '18px 16px', fontSize: 12.5, color: denied ? 'var(--faint)' : 'var(--type-bug)' }}>
-          {denied ? t.noPermissionMembers : t.projectsLoadFailed(members.error.message)}
+          {denied ? t.noPermissionMembers : t.projectsLoadFailed(apiErrorMessage(members.error, t))}
         </div>
       )}
       {members.data && members.data.length === 0 && (
@@ -318,7 +324,7 @@ function MembersCard({ slug }: { slug: string }) {
                 {m.email}
               </span>
               <RolePill role={m.role} />
-              {m.userId !== me && (
+              {!readOnly && m.userId !== me && (
                 <button
                   type="button"
                   onClick={() => setRemoveTarget(m)}
@@ -370,7 +376,7 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
   function save(patch: { defaultSprintLength?: SprintLength; autoRotate?: boolean }) {
     update.mutate(patch, {
       onSuccess: () => toast.show(t.projectSettingsSaved),
-      onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
+      onError: (err) => toast.show(t.saveFailed(apiErrorMessage(err, t)), 'info'),
     })
   }
 
@@ -383,7 +389,7 @@ function ProjectSettingsBlock({ slug, project, showDivider }: { slug: string; pr
       },
       onError: (err) => {
         setConfirmDelete(false)
-        toast.show(t.deleteProjectFailed(err.message), 'info')
+        toast.show(t.deleteProjectFailed(apiErrorMessage(err, t)), 'info')
       },
     })
   }
@@ -486,7 +492,7 @@ function CreateProjectForm({ slug }: { slug: string }) {
           setName('')
           toast.show(t.projectCreated)
         },
-        onError: (err) => toast.show(t.createFailed(err.message), 'info'),
+        onError: (err) => toast.show(t.createFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }
@@ -550,7 +556,7 @@ function ProjectsCard({ slug }: { slug: string }) {
         </div>
       )}
       {projects.isError && (
-        <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>{t.projectsLoadFailed(projects.error.message)}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>{t.projectsLoadFailed(apiErrorMessage(projects.error, t))}</div>
       )}
       {projects.data && projects.data.length === 0 && (
         <div
@@ -592,7 +598,7 @@ function TenantNameCard({ slug }: { slug: string }) {
         setDirty(false)
         toast.show(t.tenantNameSaved)
       },
-      onError: (err) => toast.show(t.saveFailed((err as Error).message), 'info'),
+      onError: (err) => toast.show(t.saveFailed(apiErrorMessage(err, t)), 'info'),
     })
   }
 
@@ -644,13 +650,28 @@ function TenantNameCard({ slug }: { slug: string }) {
 export default function TenantAdmin() {
   const { slug = '' } = useParams<{ slug: string }>()
   const t = useT()
+  const tenants = useMyTenants()
+  const role = tenants.data?.find((tn) => tn.slug === slug)?.role
+  // 角色未知（列表加载中）按 MEMBER 渲染（fail-closed），加载完成后再显示管理控件
+  const admin = canManageTenant(role)
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ maxWidth: 820 }}>
         <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>{t.tenantAdmin}</h1>
-        <TenantNameCard slug={slug} />
-        <MembersCard slug={slug} />
-        <ProjectsCard slug={slug} />
+        {admin ? (
+          <>
+            <TenantNameCard slug={slug} />
+            <MembersCard slug={slug} />
+            <ProjectsCard slug={slug} />
+          </>
+        ) : (
+          <>
+            {tenants.data && (
+              <p style={{ fontSize: 12.5, color: 'var(--dim)', margin: '0 0 14px' }}>{t.memberReadOnlyHint}</p>
+            )}
+            <MembersCard slug={slug} readOnly />
+          </>
+        )}
       </div>
     </div>
   )

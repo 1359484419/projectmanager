@@ -1,9 +1,9 @@
 // 租户内布局：左侧可折叠侧边栏 + 顶栏 + 路由内容（<Outlet/>）
 // 视觉真源：docs/design/mock/markup.html（SIDEBAR / topbar 节）
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, clearTokens, getAccessToken } from '../api/client'
+import { api, clearTokens, currentUserId, getAccessToken } from '../api/client'
 import {
   useDismissReminder,
   useDueRecords,
@@ -11,12 +11,16 @@ import {
   useDashboard,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
+  useMembers,
   useMyTenants,
   useNotifications,
   useProjects,
   useSearchTasks,
 } from '../api/hooks'
 import CreateTaskDialog from './CreateTaskDialog'
+import CreateProjectDialog from './CreateProjectDialog'
+import { canManageTenant, findMe } from '../state/tenantRole'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { useToast } from './ui'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import type { NotificationItem, SearchHit, Task, TaskBrief } from '../api/types'
@@ -248,11 +252,12 @@ interface NavItem {
   count?: number
 }
 
-function SideNavLink({ item, expanded }: { item: NavItem; expanded: boolean }) {
+function SideNavLink({ item, expanded, onNavigate }: { item: NavItem; expanded: boolean; onNavigate?: () => void }) {
   return (
     <NavLink
       to={item.path}
       title={item.label}
+      onClick={onNavigate}
       className={({ isActive }) => (isActive ? '' : 'nav-link')}
       style={({ isActive }) => ({
         display: 'flex',
@@ -644,8 +649,14 @@ export default function Layout() {
       navigate('/tenants', { replace: true })
     }
   }, [tenants, slug, navigate])
-  const tenantName = tenants?.find((t) => t.slug === slug)?.name ?? slug
+  const tenant = tenants?.find((t) => t.slug === slug)
+  const tenantName = tenant?.name ?? slug
+  // 角色来自 /api/me/tenants：MEMBER 不显示任何管理写控件（新建项目等）
+  const isAdmin = canManageTenant(tenant?.role)
   const { data: projects } = useProjects(slug)
+  const noProjects = projects != null && projects.length === 0
+  // 显示名：后端 JWT 只有 sub，名字从成员列表里按 userId 取（改名后 members 缓存失效即同步）
+  const { data: members } = useMembers(slug)
   // 当前项目：URL ?project=（深链）→ 记忆的选中项目 → 第一个项目，全站联动
   const [searchParams, setSearchParams] = useSearchParams()
   const storedProjectKey = useSelectedProjectKey(slug)
@@ -668,7 +679,17 @@ export default function Layout() {
     ? Object.values(dashboard.counts).reduce((a, b) => a + b, 0)
     : undefined
 
-  const user = currentUser()
+  const user = findMe(members, currentUserId()) ?? currentUser()
+
+  // ---- 移动端（≤768px）：侧栏改为抽屉，路由切换后自动收起 ----
+  const isMobile = useIsMobile()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const location = useLocation()
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [location.pathname])
+  const sidebarExpanded = isMobile ? true : expanded
+  const [showCreateProject, setShowCreateProject] = useState(false)
 
   const navMain: NavItem[] = [
     { path: 'dashboard', label: t.navDashboard, icon: 'dashboard' },
@@ -707,7 +728,12 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const toast = useToast()
   function handleCreate() {
+    if (!projectKey) {
+      toast.show(t.newTaskNeedProject, 'info')
+      return
+    }
     setShowCreateDialog(true)
   }
 
@@ -728,9 +754,15 @@ export default function Layout() {
       }}
     >
       {/* ============ 侧边栏 ============ */}
+      {isMobile && drawerOpen && (
+        <div className="sidebar-backdrop" onClick={() => setDrawerOpen(false)} />
+      )}
       <aside
+        className={isMobile ? 'sidebar-drawer' : undefined}
+        data-open={isMobile ? String(drawerOpen) : undefined}
+        aria-hidden={isMobile && !drawerOpen ? true : undefined}
         style={{
-          width: collapsed ? 60 : 224,
+          width: sidebarExpanded ? 224 : 60,
           flex: 'none',
           background: 'var(--panel)',
           borderRight: '1px solid var(--border)',
@@ -769,7 +801,7 @@ export default function Layout() {
           >
             跬
           </div>
-          {expanded && (
+          {sidebarExpanded && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, overflow: 'hidden' }}>
               <span
                 style={{ fontSize: 13.5, fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap' }}
@@ -794,11 +826,11 @@ export default function Layout() {
           }}
         >
           {navMain.map((item) => (
-            <SideNavLink key={item.path} item={item} expanded={expanded} />
+            <SideNavLink key={item.path} item={item} expanded={sidebarExpanded} onNavigate={() => setDrawerOpen(false)} />
           ))}
           <div style={{ height: 1, background: 'var(--border)', margin: '8px 6px' }} />
           {navAdmin.map((item) => (
-            <SideNavLink key={item.path} item={item} expanded={expanded} />
+            <SideNavLink key={item.path} item={item} expanded={sidebarExpanded} onNavigate={() => setDrawerOpen(false)} />
           ))}
         </nav>
 
@@ -811,11 +843,11 @@ export default function Layout() {
             display: 'flex',
             alignItems: 'center',
             gap: 9,
-            justifyContent: expanded ? undefined : 'center',
+            justifyContent: sidebarExpanded ? undefined : 'center',
           }}
         >
           <Avatar name={user.name || t.me} size={26} />
-          {expanded && (
+          {sidebarExpanded && (
             <>
               <div
                 style={{
@@ -839,9 +871,15 @@ export default function Layout() {
                   {user.email || slug}
                 </span>
               </div>
-              <span className="icon-btn" title={t.collapseSidebar} onClick={() => setCollapsed(true)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
-                <Icon name="panel" size={16} />
-              </span>
+              {isMobile ? (
+                <span className="icon-btn" title={t.closeMenu} aria-label={t.closeMenu} role="button" onClick={() => setDrawerOpen(false)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
+                  <Icon name="x" size={16} />
+                </span>
+              ) : (
+                <span className="icon-btn" title={t.collapseSidebar} onClick={() => setCollapsed(true)} style={{ display: 'flex', flex: 'none', color: 'var(--faint)' }}>
+                  <Icon name="panel" size={16} />
+                </span>
+              )}
             </>
           )}
         </div>
@@ -857,15 +895,28 @@ export default function Layout() {
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            padding: '0 16px',
+            gap: isMobile ? 8 : 12,
+            padding: isMobile ? '0 12px' : '0 16px',
             background: 'var(--bg)',
           }}
         >
-          {collapsed && (
-            <span className="icon-btn" title={t.expandSidebar} onClick={() => setCollapsed(false)} style={{ display: 'flex', flex: 'none' }}>
-              <Icon name="panel" size={16} />
+          {isMobile ? (
+            <span
+              className="icon-btn"
+              role="button"
+              title={t.openMenu}
+              aria-label={t.openMenu}
+              onClick={() => setDrawerOpen(true)}
+              style={{ display: 'flex', flex: 'none' }}
+            >
+              <Icon name="menu" size={18} />
             </span>
+          ) : (
+            collapsed && (
+              <span className="icon-btn" title={t.expandSidebar} onClick={() => setCollapsed(false)} style={{ display: 'flex', flex: 'none' }}>
+                <Icon name="panel" size={16} />
+              </span>
+            )
           )}
 
           {/* 项目切换 */}
@@ -889,10 +940,13 @@ export default function Layout() {
                 fontSize: 13,
                 fontWeight: 550,
                 cursor: 'pointer',
+                maxWidth: isMobile ? 160 : 260,
               }}
             >
-              <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)' }} />
-              {project?.name ?? t.project}
+              <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--accent)', flex: 'none' }} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {project?.name ?? t.project}
+              </span>
               <Icon name="chevron" size={13} style={{ color: 'var(--faint)' }} />
             </button>
             <Dropdown open={projMenu} onClose={() => setProjMenu(false)} style={{ left: 0, width: 220 }}>
@@ -927,28 +981,36 @@ export default function Layout() {
                   </div>
                 )
               })}
-              <div
-                className="menu-item"
-                style={{ ...menuItemStyle, color: 'var(--dim)' }}
-                onClick={() => {
-                  setProjMenu(false)
-                  navigate('admin')
-                }}
-              >
-                <Icon name="plus" size={14} />
-                {t.newProject}
-              </div>
+              {(projects ?? []).length === 0 && !isAdmin && (
+                <div style={{ ...menuItemStyle, color: 'var(--faint)', cursor: 'default' }}>{t.noProjectMemberHint}</div>
+              )}
+              {isAdmin && (
+                <div
+                  className="menu-item"
+                  style={{ ...menuItemStyle, color: 'var(--dim)' }}
+                  onClick={() => {
+                    setProjMenu(false)
+                    setShowCreateProject(true)
+                  }}
+                >
+                  <Icon name="plus" size={14} />
+                  {t.newProject}
+                </div>
+              )}
             </Dropdown>
           </div>
 
           <div style={{ flex: 1 }} />
 
-          {/* 全局搜索：全租户关键词搜索（标题/描述），点结果开任务抽屉 */}
-          <GlobalSearch slug={slug} />
+          {/* 全局搜索：全租户关键词搜索（标题/描述），点结果开任务抽屉；移动端隐藏 */}
+          {!isMobile && <GlobalSearch slug={slug} />}
 
           {/* 新建 */}
           <button
             onClick={handleCreate}
+            disabled={noProjects}
+            title={noProjects ? t.newTaskNeedProject : undefined}
+            aria-label={t.newTask}
             className="btn-primary"
             style={{
               display: 'flex',
@@ -962,21 +1024,23 @@ export default function Layout() {
               color: '#fff',
               fontSize: 12.5,
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: noProjects ? 'not-allowed' : 'pointer',
+              opacity: noProjects ? 0.5 : 1,
+              flex: 'none',
             }}
           >
             <Icon name="plus" size={14} />
             {t.newTask}
           </button>
 
-          {/* 刷新 */}
-          <span className="icon-btn" title={t.refreshData} onClick={handleRefresh} style={{ display: 'flex', flex: 'none' }}>
+          {/* 刷新（移动端隐藏） */}
+          <span className="icon-btn hide-mobile" title={t.refreshData} onClick={handleRefresh} style={{ display: 'flex', flex: 'none' }}>
             <Icon name="refresh" size={15} />
           </span>
 
-          {/* 主题切换：dark 显示 sun（点击去 light），light 显示 moon */}
+          {/* 主题切换：dark 显示 sun（点击去 light），light 显示 moon（移动端隐藏） */}
           <span
-            className="icon-btn"
+            className="icon-btn hide-mobile"
             title={t.toggleTheme}
             onClick={() => setLight((v) => !v)}
             style={{ display: 'flex', flex: 'none' }}
@@ -1080,6 +1144,7 @@ export default function Layout() {
           onClose={() => setShowCreateDialog(false)}
         />
       )}
+      {showCreateProject && <CreateProjectDialog slug={slug} onClose={() => setShowCreateProject(false)} />}
     </div>
   )
 }

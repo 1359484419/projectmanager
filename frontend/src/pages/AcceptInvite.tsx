@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../api/errors'
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -6,6 +7,7 @@ import { api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/types'
 import { useToast } from '../components/ui'
 import { useT } from '../i18n'
+import { validateAcceptInvite, type AcceptInviteErrors, type FieldErrorKey } from '../utils/validation'
 
 const fieldLabel: CSSProperties = {
   display: 'block',
@@ -27,6 +29,13 @@ const fieldInput: CSSProperties = {
   outline: 'none',
 }
 
+const fieldErrorStyle: CSSProperties = { fontSize: 11, color: 'var(--type-bug)', marginTop: -8, marginBottom: 10 }
+
+function errorText(key: FieldErrorKey | undefined, t: ReturnType<typeof useT>): string | null {
+  if (!key) return null
+  return { required: t.errRequired, email: t.errEmail, password: t.errPassword, slug: t.errSlug, mismatch: t.errMismatch }[key]
+}
+
 export default function AcceptInvite() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -38,9 +47,20 @@ export default function AcceptInvite() {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // 链接里已带令牌时不再显示可编辑的令牌输入框（避免误改）；缺令牌才让用户粘贴
+  const tokenFromUrl = !!searchParams.get('token')
+  const [touched, setTouched] = useState<Partial<Record<keyof AcceptInviteErrors, boolean>>>({})
+  const [submitted, setSubmitted] = useState(false)
+  const errors = validateAcceptInvite({ token, email, password })
+  const hasErrors = Object.keys(errors).length > 0
+  const touch = (k: keyof AcceptInviteErrors) => () => setTouched((prev) => ({ ...prev, [k]: true }))
+  const showErr = (k: keyof AcceptInviteErrors) => (touched[k] || submitted ? errorText(errors[k], t) : null)
+  const fieldBorder = (k: keyof AcceptInviteErrors) => (showErr(k) ? 'var(--type-bug)' : 'var(--border)')
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    setSubmitted(true)
+    if (hasErrors) return
     setSubmitting(true)
     try {
       const pair = await api<TokenPair>('/api/auth/accept-invite', {
@@ -52,7 +72,7 @@ export default function AcceptInvite() {
       queryClient.clear()
       navigate('/tenants')
     } catch (err) {
-      toast.show(err instanceof Error ? err.message : t.requestFailed, 'info')
+      toast.show(err instanceof Error ? apiErrorMessage(err, t) : t.requestFailed, 'info')
     } finally {
       setSubmitting(false)
     }
@@ -95,7 +115,7 @@ export default function AcceptInvite() {
               marginBottom: 12,
             }}
           >
-            P
+            跬
           </div>
           <div style={{ fontSize: 16, fontWeight: 650 }}>{t.acceptInviteTitle}</div>
           <div
@@ -121,33 +141,44 @@ export default function AcceptInvite() {
             boxShadow: 'var(--shadow)',
           }}
         >
-          <form onSubmit={handleSubmit}>
-            <label style={fieldLabel}>{t.inviteToken}</label>
-            <input
-              style={{ ...fieldInput, fontFamily: 'var(--font-mono)' }}
-              placeholder={t.inviteTokenPlaceholder}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-            />
+          <form onSubmit={handleSubmit} noValidate>
+            {!tokenFromUrl && (
+              <>
+                <label style={fieldLabel}>{t.inviteToken}</label>
+                <input
+                  style={{ ...fieldInput, fontFamily: 'var(--font-mono)', borderColor: fieldBorder('token') }}
+                  placeholder={t.inviteTokenPlaceholder}
+                  value={token}
+                  onChange={(e) => setToken(e.target.value.trim())}
+                  onBlur={touch('token')}
+                  aria-label={t.inviteToken}
+                />
+                {showErr('token') && <div style={fieldErrorStyle}>{showErr('token')}</div>}
+              </>
+            )}
             <label style={fieldLabel}>{t.email}</label>
             <input
-              style={fieldInput}
+              style={{ ...fieldInput, borderColor: fieldBorder('email') }}
               type="email"
               placeholder="you@acme.io"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
+              onBlur={touch('email')}
+              aria-label={t.email}
+              autoComplete="email"
             />
+            {showErr('email') && <div style={fieldErrorStyle}>{showErr('email')}</div>}
             <label style={fieldLabel}>{t.password}</label>
             <input
-              style={fieldInput}
+              style={{ ...fieldInput, borderColor: fieldBorder('password') }}
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
+              onBlur={touch('password')}
+              aria-label={t.password}
             />
+            {showErr('password') && <div style={fieldErrorStyle}>{showErr('password')}</div>}
             <label style={fieldLabel}>{t.displayNameNewUser}</label>
             <input
               style={{ ...fieldInput, marginBottom: 18 }}
@@ -157,7 +188,7 @@ export default function AcceptInvite() {
             />
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (submitted && hasErrors)}
               style={{
                 width: '100%',
                 height: 38,
@@ -167,8 +198,8 @@ export default function AcceptInvite() {
                 color: '#fff',
                 fontSize: 13.5,
                 fontWeight: 600,
-                cursor: submitting ? 'default' : 'pointer',
-                opacity: submitting ? 0.65 : 1,
+                cursor: submitting || (submitted && hasErrors) ? 'default' : 'pointer',
+                opacity: submitting || (submitted && hasErrors) ? 0.65 : 1,
               }}
             >
               {submitting ? t.submitting : t.joinTeam}

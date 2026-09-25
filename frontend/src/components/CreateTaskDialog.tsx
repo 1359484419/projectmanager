@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../api/errors'
 import { useEffect, useState } from 'react'
 import { uploadTaskImage, useCreateTask, useEpics, useMembers, useSprints } from '../api/hooks'
 import type { Sprint, TaskType } from '../api/types'
@@ -99,7 +100,7 @@ export default function CreateTaskDialog({ slug, projectKey, onClose }: CreateTa
           onClose()
         },
         onError: (err) =>
-          toast.show(t.createFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
+          toast.show(t.createFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }

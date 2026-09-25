@@ -3,12 +3,13 @@
 // 改名/改密码后端 /api/me 资料端点未在共享 hooks 中提供，按 API 前缀约定就地 fetch：
 //   PATCH /api/me {displayName}；PUT /api/me/password {oldPassword, newPassword}。
 // 视觉真源：docs/design/mock/markup.html（SETTINGS 节）。
+import { apiErrorMessage } from '../api/errors'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
-import { useCreateToken, useMyTenants, useRevokeToken, useTokens } from '../api/hooks'
+import { qk, useCreateToken, useMyTenants, useRevokeToken, useTokens } from '../api/hooks'
 import {
   ConfirmDialog,
   Icon,
@@ -79,9 +80,10 @@ function CopyButton({ text, doneMsg }: { text: string; doneMsg: string }) {
 }
 
 /** 个人资料卡片：昵称 + 修改密码 */
-function ProfileCard() {
+function ProfileCard({ slug }: { slug: string }) {
   const t = useT()
   const toast = useToast()
+  const qc = useQueryClient()
   const [displayName, setDisplayName] = useState('')
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -91,8 +93,12 @@ function ProfileCard() {
   const rename = useMutation({
     mutationFn: (name: string) =>
       api<void>('/api/me', { method: 'PATCH', body: JSON.stringify({ displayName: name }) }),
-    onSuccess: () => toast.show(t.displayNameSaved),
-    onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
+    onSuccess: () => {
+      toast.show(t.displayNameSaved)
+      // 顶栏/侧栏显示名取自成员列表，改名后失效让它同步
+      if (slug) qc.invalidateQueries({ queryKey: qk.members(slug) })
+    },
+    onError: (err) => toast.show(t.saveFailed(apiErrorMessage(err, t)), 'info'),
   })
 
   const change = useMutation({
@@ -104,7 +110,7 @@ function ProfileCard() {
       setConfirm('')
       toast.show(t.passwordChanged)
     },
-    onError: (err) => toast.show(t.saveFailed(err.message), 'info'),
+    onError: (err) => toast.show(t.saveFailed(apiErrorMessage(err, t)), 'info'),
   })
 
   function handleRename(e: FormEvent) {
@@ -247,7 +253,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
           setName('')
           toast.show(t.tokenGenerated)
         },
-        onError: (err) => toast.show(t.tokenGenerateFailed(err.message), 'info'),
+        onError: (err) => toast.show(t.tokenGenerateFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }
@@ -260,7 +266,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
         if (created?.id === target.id) setCreated(null)
         toast.show(t.revoked(target.name))
       },
-      onError: (err) => toast.show(t.revokeFailed(err.message), 'info'),
+      onError: (err) => toast.show(t.revokeFailed(apiErrorMessage(err, t)), 'info'),
     })
     setRevoking(null)
   }
@@ -396,7 +402,7 @@ function TokensCard({ currentSlug }: { currentSlug: string }) {
       )}
       {tokens.isError && (
         <div style={{ fontSize: 12.5, color: 'var(--type-bug)' }}>
-          {t.tokenListFailed(tokens.error.message)}
+          {t.tokenListFailed(apiErrorMessage(tokens.error, t))}
         </div>
       )}
       {tokens.data && list.length === 0 && !created && (
@@ -485,7 +491,7 @@ export default function Settings() {
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       <div style={{ maxWidth: 720 }}>
         <h1 style={{ ...pageTitleStyle, margin: '0 0 18px' }}>{t.settings}</h1>
-        <ProfileCard />
+        <ProfileCard slug={slug} />
         <TokensCard currentSlug={slug} />
       </div>
     </div>

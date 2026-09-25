@@ -1,4 +1,6 @@
 const en: typeof import('./zh').default = {
+  /** 本份文案的语言标识（不是 UI 文案）：apiErrorMessage 据此决定后端中文 message 能否直出 */
+  locale: 'en' as 'zh' | 'en',
   // ---- Common ----
   cancel: 'Cancel',
   save: 'Save',
@@ -72,7 +74,7 @@ const en: typeof import('./zh').default = {
   // ---- Sidebar / Nav ----
   navDashboard: 'Overview',
   navBacklog: 'Backlog',
-  navBoard: 'Dashboard',
+  navBoard: 'Board',
   navAllSprints: 'All Sprints',
   navPlanning: 'Planning',
   navReports: 'Reports',
@@ -188,7 +190,7 @@ const en: typeof import('./zh').default = {
   taskTitle: 'Task title',
   filterAll: 'All',
   projectLoadFailed: 'Project load failed. Please refresh.',
-  noProjectsYet: 'No projects yet. Create one in Admin.',
+  noProjectsYet: 'No projects yet. Create one first.',
   nItems: (n: number) => `${n} items`,
   selectProject: 'Select project',
   backlogLoadFailed: 'Backlog load failed. Please refresh.',
@@ -202,11 +204,11 @@ const en: typeof import('./zh').default = {
   moveToSprintAria: (key: string) => `Move to Sprint (${key})`,
 
   // ---- Board ----
-  board: 'Dashboard',
+  board: 'Board',
   boardDragHint: 'Drag cards to change status',
   dropHere: 'Drop here',
   noProjectBoard: 'No projects yet. Create one first.',
-  noActiveSprintBoard: (key: string) => `No active Sprint for ${key}. Go to Planning to start one.`,
+  noActiveSprintBoard: (key: string) => `No active Sprint for ${key}. Start one on the All Sprints page.`,
   daysLeft: '',
   days: 'd left',
   boardLoadFailed: 'Board load failed. Please refresh.',
@@ -246,7 +248,7 @@ const en: typeof import('./zh').default = {
   confirmCloseSprint: 'Close this Sprint?',
   confirmStartSprint: 'Start this Sprint?',
   closeSprintHint: 'Unfinished tasks will be moved to Backlog.',
-  startSprintHint: 'Starting will close the current active Sprint.',
+  startSprintHint: 'Cannot start while another Sprint is active. Close it first.',
   deleteSprint: 'Delete Sprint',
   deleteSprintConfirm: (name: string) => `Delete sprint "${name}"?`,
   deleteSprintWarning: 'Its tasks will be moved back to Backlog. This cannot be undone.',
@@ -274,11 +276,11 @@ const en: typeof import('./zh').default = {
   movedToSprintPlanning: 'Moved to Sprint',
   moveFailedPlanning: 'Move failed. Please retry.',
   movedToBacklog: 'Moved to Backlog',
-  noProjectPlanning: 'No projects yet. Create one in Backlog first.',
+  noProjectPlanning: 'No projects yet. Create one first.',
   nItemsDragRight: (n: number) => `· ${n} items · drag right`,
   dragRight: '· drag right',
   backlogEmptyPlanning: 'Backlog is empty.',
-  noSprintPlanning: 'No active or planned Sprints. Create one in All Sprints first.',
+  noSprintPlanning: 'No active or planned Sprints.',
 
   // ---- Reports ----
   reports: 'Reports',
@@ -292,7 +294,7 @@ const en: typeof import('./zh').default = {
   noWorkloadData: 'No workload data for this Sprint',
   missingTenantInfo: 'Missing tenant info',
   noProjectReports: 'No projects yet. Create one first.',
-  noSprintReports: 'No Sprints yet. Create one in Planning.',
+  noSprintReports: 'No Sprints yet. Create one on the All Sprints page.',
   selectSprint: 'Select a Sprint',
   sprintNotStarted: 'Not started',
   sprintInProgress: 'In progress',
@@ -354,7 +356,7 @@ const en: typeof import('./zh').default = {
   manualCopy: 'Manual copy:',
 
   // ---- Login ----
-  welcomeBack: 'Welcome to PM',
+  welcomeBack: 'Welcome to Kuibu',
   loginSubtitle: 'Log in to continue',
   registerSubtitle: 'Create your team workspace',
   displayNameLabel: 'Display name',
@@ -462,6 +464,44 @@ const en: typeof import('./zh').default = {
   confirmPasswordRegPlaceholder: 'Re-enter password',
   passwordMinHint: 'At least 8 characters',
   passwordRegMismatch: 'Passwords do not match',
+
+  // ---- Empty-state CTA / onboarding ----
+  createFirstProject: 'Create your first project',
+  noProjectMemberHint: 'No projects yet. Ask an admin to create one.',
+  newTaskNeedProject: 'Create a project first',
+  goToAllSprints: 'Go to All Sprints',
+  createProjectDialogTitle: 'New project',
+  startSprintBlocked: (name: string) => `Sprint "${name}" is still active. Close it before starting another.`,
+  memberReadOnlyHint: 'You are a member of this tenant: only admins can rename it, invite people or manage projects.',
+  menu: 'Menu',
+  openMenu: 'Open menu',
+  closeMenu: 'Close menu',
+  registerTitle: 'Create your team',
+
+  // ---- Inline form validation ----
+  errRequired: 'Required',
+  errEmail: 'Invalid email address',
+  errPassword: 'At least 8 characters',
+  errSlug: '3-32 lowercase letters, digits or hyphens',
+  errMismatch: 'Passwords do not match',
+
+  // ---- Backend error codes ----
+  apiErrors: {
+    ACTIVE_SPRINT_EXISTS: 'Another Sprint is active. Close it before starting this one.',
+    SPRINT_NOT_PLANNED: 'Only a planned Sprint can be started',
+    SPRINT_NOT_ACTIVE: 'Only an active Sprint can be closed',
+    NOT_FOUND: 'Not found — it may have been deleted or you lack access',
+    FORBIDDEN: 'Permission denied (admin only)',
+    CONFLICT: 'Modified by someone else. Refresh and retry.',
+    VALIDATION: 'Invalid input, please check and retry',
+    UNAUTHORIZED: 'Session expired, please sign in again',
+    SESSION_EXPIRED: 'Session expired, please sign in again',
+    INVALID_REFRESH: 'Session expired, please sign in again',
+    BAD_CREDENTIALS: 'Incorrect email or password',
+    THREAD_BUSY: 'Previous request still running, please wait',
+    SERVER_ERROR: 'Server error, please try again later',
+    NETWORK: 'Network error, check your connection and retry',
+  },
 
   // ---- Assistant (natural-language panel) ----
   assistant: {

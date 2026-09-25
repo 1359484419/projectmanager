@@ -1,5 +1,6 @@
 // Backlog 页 —— 视觉真源：docs/design/mock/markup.html「===== BACKLOG =====」节 + logic.jsx
 // 结构：标题行（Backlog · N 项 · 筛选胶囊组）→ 卡片容器（快速创建行 + 紧凑任务行列表）
+import { apiErrorMessage } from '../api/errors'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useBacklog, useCreateTask, useProjects, useSprints, useUpdateTask } from '../api/hooks'
@@ -7,7 +8,8 @@ import type { Sprint, Task, TaskBrief, TaskType } from '../api/types'
 import AssigneeFilterCompact from '../components/AssigneeFilterCompact'
 import TaskCard from '../components/TaskCard'
 import TaskDrawer from '../components/TaskDrawer'
-import { Icon, SelectWrap, useToast } from '../components/ui'
+import NoProjectEmpty from '../components/NoProjectEmpty'
+import { Icon, SelectWrap, pageTitleStyle, useToast } from '../components/ui'
 import { taskMatchesFilter, useAssigneeFilter } from '../state/assigneeFilter'
 import { resolveProjectKey, setSelectedProjectKey, useSelectedProjectKey } from '../state/selectedProject'
 import { POINTS_MAX, POINTS_MIN, POINTS_STEP, parsePointsInput } from '../utils/points'
@@ -65,7 +67,7 @@ function QuickCreateRow({ slug, projectKey }: { slug: string; projectKey: string
           toast.show(t.taskCreated(projectKey + '-' + created.seq))
         },
         onError: (err) =>
-          toast.show(t.createFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
+          toast.show(t.createFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }
@@ -206,7 +208,7 @@ function BacklogRow({
       {
         onSuccess: () => toast.show(t.movedToSprint(projectKey + '-' + task.seq, target.name)),
         onError: (err) =>
-          toast.show(t.moveFailed(err instanceof Error ? err.message : t.unknownError), 'info'),
+          toast.show(t.moveFailed(apiErrorMessage(err, t)), 'info'),
       },
     )
   }
@@ -336,17 +338,18 @@ export default function Backlog() {
   }
   if (!projects || projects.length === 0) {
     return (
-      <div style={{ flex: 1, padding: '20px 24px', fontSize: 13, color: 'var(--faint)' }}>
-        {t.noProjectsYet}
+      <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 16 }}>{t.backlog}</h1>
+        <NoProjectEmpty slug={slug} />
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
       {/* 标题行：Backlog · N 项 · [项目切换] · 筛选胶囊组 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h1 style={{ fontSize: 16, fontWeight: 650, margin: 0 }}>{t.backlog}</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <h1 style={pageTitleStyle}>{t.backlog}</h1>
         <span style={{ fontSize: 12, color: 'var(--faint)', fontFamily: 'var(--font-mono)' }}>
           {t.nItems(backlogTotal)}
         </span>

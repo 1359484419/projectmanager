@@ -1,7 +1,7 @@
 // 全链路冒烟（plan Task 26）：
 // 注册（随机 slug）→ 建项目 → Backlog 建 3 任务 → 建 Sprint 并启动 → 任务移入 Sprint
 // → 看板拖到 DONE → Dashboard 计数正确 → 报表燃尽图 SVG 存在 → All Sprints 出现该 Sprint。
-// 选择器对齐 UI 重刷后的高保真设计稿 DOM（docs/design/mock/markup.html）。
+// 选择器对齐 UI 重刷后的高保真设计稿 DOM（docs/design/mock/markup.html）与 i18n/zh.ts 的中文文案。
 import { expect, test, type Page } from '@playwright/test'
 
 const runId = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
@@ -27,65 +27,83 @@ test('注册到报表全链路冒烟', async ({ page }) => {
   await page.goto('/login')
   await page.getByText('注册', { exact: true }).click()
   await page.getByPlaceholder('张三').fill('冒烟用户')
-  await page.getByPlaceholder('Acme Inc.').fill('冒烟租户')
+  await page.getByPlaceholder('如 卧龙科技').fill('冒烟租户')
   await page.getByPlaceholder('acme', { exact: true }).fill(slug)
   await page.getByPlaceholder('you@acme.io').fill(email)
   await page.getByPlaceholder('••••••••').fill(password)
+  await page.getByPlaceholder('再次输入密码').fill(password)
   await page.getByRole('button', { name: '创建团队' }).click()
   await page.waitForURL(`**/t/${slug}/dashboard`)
-  await expect(page.getByText('当前租户还没有项目')).toBeVisible()
+  await expect(page.getByText('还没有项目，请先创建项目')).toBeVisible()
+  // 顶栏「新建」在无项目时禁用（P1：以前是死按钮）
+  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeDisabled()
 
-  // ---------- 2. Admin 页建项目 ----------
-  await nav(page, '租户管理 Admin')
-  await page.getByLabel('项目 Key').fill(PROJECT_KEY)
-  await page.getByLabel('项目名称').fill('冒烟项目')
-  await page.getByRole('button', { name: '新建项目' }).click()
-  await expect(page.getByText('冒烟项目').first()).toBeVisible()
+  // ---------- 2. 空态主按钮「创建第一个项目」直接弹建项目对话框 ----------
+  await page.getByRole('button', { name: '创建第一个项目' }).click()
+  const projDialog = page.getByRole('dialog', { name: '新建项目' })
+  await projDialog.getByLabel('项目键').fill(PROJECT_KEY)
+  await projDialog.getByLabel('项目名称').fill('冒烟项目')
+  await projDialog.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.getByText('项目已创建')).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建', exact: true })).toBeEnabled()
 
   // ---------- 3. Backlog 建 3 任务 ----------
-  await nav(page, 'Backlog')
+  await nav(page, '待办')
 
   // 估点校验：points=6 超出 0.5-5 范围被前端拒绝（toast 提示 + 不创建）
   await page.getByLabel('任务标题').fill('非法估点任务')
-  await page.getByLabel('points').fill('6')
+  await page.getByLabel('天数').fill('6')
   await page.getByRole('button', { name: '添加', exact: true }).click()
-  await expect(page.getByText('单任务估点 0.5-5，过大请拆分').first()).toBeVisible()
+  await expect(page.getByText('单任务估算天数 0.5-5，过大请拆分').first()).toBeVisible()
   await expect(page.getByText('非法估点任务')).toHaveCount(0)
 
   // points=0.5 成功（冒烟任务三即 0.5，见 TASKS）
   for (const t of TASKS) {
     await page.getByLabel('任务标题').fill(t.title)
-    await page.getByLabel('points').fill(t.points)
+    await page.getByLabel('天数').fill(t.points)
     await page.getByRole('button', { name: '添加', exact: true }).click()
     await expect(page.getByText(t.title)).toBeVisible()
   }
 
   // ---------- 4. All Sprints 建 Sprint 并启动 ----------
-  await nav(page, '所有 Sprint')
-  await page.getByRole('button', { name: '新建 Sprint' }).click()
-  await expect(page.getByText('Sprint 1', { exact: true })).toBeVisible()
+  await nav(page, '所有迭代')
+  await page.getByRole('button', { name: '新建迭代' }).click()
+  await page.getByRole('dialog', { name: '新建迭代' }).getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.getByText('迭代 1', { exact: true })).toBeVisible()
   // 启动走 ConfirmDialog：先点分组卡上的「启动」，再在确认框里确认
   await page.getByRole('button', { name: '启动', exact: true }).click()
-  await page.getByRole('dialog', { name: '启动该 Sprint？' })
+  await page.getByRole('dialog', { name: '启动该迭代？' })
     .getByRole('button', { name: '启动', exact: true })
     .click()
-  await expect(page.getByText('ACTIVE', { exact: true })).toBeVisible()
+  await expect(page.getByText('迭代已启动')).toBeVisible()
+  await expect(page.getByText('进行中', { exact: true }).first()).toBeVisible()
+
+  // 第二个迭代：已有进行中的迭代时确认框提示「请先关闭」且启动键禁用（P1）
+  await page.getByRole('button', { name: '新建迭代' }).click()
+  await page.getByRole('dialog', { name: '新建迭代' }).getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.getByText('迭代 2', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '启动', exact: true }).click()
+  const startDialog = page.getByRole('dialog', { name: '启动该迭代？' })
+  await expect(startDialog.getByText('已有进行中的迭代「迭代 1」')).toBeVisible()
+  await expect(startDialog.getByRole('button', { name: '启动', exact: true })).toBeDisabled()
+  await startDialog.getByRole('button', { name: '取消' }).click()
 
   // ---------- 5. Backlog 三任务移入当前 Sprint ----------
-  await nav(page, 'Backlog')
+  await nav(page, '待办')
   for (let i = 0; i < TASKS.length; i++) {
-    // 每次移走一个后 backlog 重新渲染，始终操作第一行的「移入 Sprint」按钮
-    const moveBtn = page.getByLabel(/^移入 Sprint（/).first()
+    // 每次移走一个后 backlog 重新渲染，始终操作第一行的「移入迭代」按钮
+    const moveBtn = page.getByLabel(/^移入迭代（/).first()
     await expect(moveBtn).toBeVisible()
     await moveBtn.click()
     // 移入后该任务从 backlog 消失
-    await expect(page.getByLabel(/^移入 Sprint（/)).toHaveCount(TASKS.length - 1 - i)
+    await expect(page.getByLabel(/^移入迭代（/)).toHaveCount(TASKS.length - 1 - i)
   }
-  await expect(page.getByText('Backlog 是空的', { exact: false })).toBeVisible()
+  await expect(page.getByText('待办列表是空的', { exact: false })).toBeVisible()
 
   // ---------- 6. 看板拖「冒烟任务一」到 DONE ----------
-  await nav(page, '看板 Board')
-  await expect(page.getByText('Sprint 1')).toBeVisible()
+  await nav(page, '看板')
+  await expect(page.getByRole('heading', { name: '看板' })).toBeVisible()
+  await expect(page.getByText('迭代 1')).toBeVisible()
   const card = page.getByText('冒烟任务一')
   await expect(card).toBeVisible()
   const cardBox = (await card.boundingBox())!
@@ -105,7 +123,7 @@ test('注册到报表全链路冒烟', async ({ page }) => {
   await patchDone
 
   // ---------- 7. Dashboard 计数正确 ----------
-  await nav(page, 'Dashboard')
+  await nav(page, '概览')
   await expect(page.getByText(/剩余/)).toBeVisible()
   // API 真值校验：TODO=2, DONE=1；donePct = 3/6 = 50%
   const dashboard = await page.evaluate(async (args) => {
@@ -124,11 +142,11 @@ test('注册到报表全链路冒烟', async ({ page }) => {
   await expect(doneGroup.getByText('冒烟任务一')).toBeVisible()
 
   // ---------- 8. 报表燃尽图 SVG 存在 ----------
-  await nav(page, '报表 Reports')
-  await expect(page.getByRole('img', { name: 'Sprint 燃尽图' })).toBeVisible({ timeout: 15_000 })
+  await nav(page, '报表')
+  await expect(page.getByRole('img', { name: '燃尽图' })).toBeVisible({ timeout: 15_000 })
 
   // ---------- 9. All Sprints 出现该 Sprint（含任务） ----------
-  await nav(page, '所有 Sprint')
-  await expect(page.getByText('Sprint 1')).toBeVisible()
+  await nav(page, '所有迭代')
+  await expect(page.getByText('迭代 1', { exact: true })).toBeVisible()
   await expect(page.getByText('冒烟任务二')).toBeVisible()
 })

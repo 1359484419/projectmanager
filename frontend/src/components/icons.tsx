@@ -51,6 +51,7 @@ const IC = {
     '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/><path d="M8 21h8"/>',
   send:
     '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
 } as const
 
 export type IconName = keyof typeof IC

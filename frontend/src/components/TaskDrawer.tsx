@@ -2,6 +2,7 @@
 // 行内编辑 title/description/type/points/status/assignee/epic（每项改动即 PATCH /tasks/{id}）；
 // 下方 Tab：评论（提交/列表）与变更历史（时间线，MCP 来源带 via MCP 小标记）。
 // 打开时用列表页已有的 TaskBrief 作 seed 立即渲染，同时 GET /tasks/{id} 拉全量字段（description/epicId 等）。
+import { apiErrorMessage } from '../api/errors'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   useActivities,
@@ -12,6 +13,7 @@ import {
   useDeleteTask,
   useEpics,
   useMembers,
+  useSprints,
   useSubtasks,
   useTask,
   useUpdateSubtask,
@@ -19,6 +21,7 @@ import {
 } from '../api/hooks'
 import type {
   Activity,
+  Sprint,
   Task,
   TaskBrief,
   TaskStatus,
@@ -146,7 +149,7 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
     <div>
       {comments.isLoading && <SkeletonLines rows={2} />}
       {comments.isError && (
-        <div style={{ ...errorStyle, marginBottom: 14 }}>{t.commentsLoadFailed(comments.error.message)}</div>
+        <div style={{ ...errorStyle, marginBottom: 14 }}>{t.commentsLoadFailed(apiErrorMessage(comments.error, t))}</div>
       )}
       {comments.data && comments.data.length === 0 && (
         <div style={{ ...hintStyle, marginBottom: 14 }}>{t.noComments}</div>
@@ -231,7 +234,7 @@ function CommentsTab({ slug, taskId }: { slug: string; taskId: number }) {
         </button>
       </div>
       {createComment.isError && (
-        <div style={{ ...errorStyle, marginTop: 8 }}>{t.sendFailed(createComment.error.message)}</div>
+        <div style={{ ...errorStyle, marginTop: 8 }}>{t.sendFailed(apiErrorMessage(createComment.error, t))}</div>
       )}
     </div>
   )
@@ -343,7 +346,7 @@ function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
       </div>
 
       {subtasks.isError && (
-        <div style={{ ...errorStyle, marginBottom: 8 }}>{subtasks.error.message}</div>
+        <div style={{ ...errorStyle, marginBottom: 8 }}>{apiErrorMessage(subtasks.error, t)}</div>
       )}
       {subtasks.data && list.length === 0 && (
         <div style={{ ...hintStyle, fontSize: 12.5, marginBottom: 8 }}>{t.noSubtasks}</div>
@@ -447,7 +450,7 @@ function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
       />
       {createSubtask.isError && (
         <div style={{ ...errorStyle, marginTop: 6 }}>
-          {t.subtaskAddFailed(createSubtask.error.message)}
+          {t.subtaskAddFailed(apiErrorMessage(createSubtask.error, t))}
         </div>
       )}
     </div>
@@ -461,7 +464,7 @@ function ActivitiesTab({ slug, taskId }: { slug: string; taskId: number }) {
   const activities = useActivities(slug, taskId)
   if (activities.isLoading) return <SkeletonLines rows={3} />
   if (activities.isError)
-    return <div style={errorStyle}>{t.historyLoadFailed(activities.error.message)}</div>
+    return <div style={errorStyle}>{t.historyLoadFailed(apiErrorMessage(activities.error, t))}</div>
   const list = activities.data ?? []
   if (list.length === 0) return <div style={hintStyle}>{t.noHistory}</div>
   return (
@@ -520,6 +523,7 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
   const deleteTask = useDeleteTask(slug)
   const members = useMembers(slug)
   const epics = useEpics(slug, projectKey)
+  const sprintsQuery = useSprints(slug, projectKey)
   const t = useT()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -574,6 +578,14 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
   }
 
   const displayId = `${projectKey}-${seed.seq}`
+
+  // 迭代下拉：待办（空）+ 进行中/计划中的迭代；任务已挂在已关闭迭代上时也把它列出来以便正确显示
+  const sprintChoices = useMemo(() => {
+    const list = ((sprintsQuery.data ?? []) as Sprint[]).filter(
+      (s) => s.status !== 'CLOSED' || s.id === task.sprintId,
+    )
+    return [...list].sort((a, b) => a.startDate.localeCompare(b.startDate))
+  }, [sprintsQuery.data, task.sprintId])
 
   // points 下拉（0.5-5，0.5 步进）：规则之外的存量值（如旧数据 8）也要能显示
   const pointsValue = task.points != null ? String(task.points) : ''
@@ -638,12 +650,12 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
             <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
               {isConflictError(updateTask.error)
                 ? t.conflictError
-                : t.saveFailed(updateTask.error.message)}
+                : t.saveFailed(apiErrorMessage(updateTask.error, t))}
             </span>
           )}
           {deleteTask.isError && (
             <span style={{ fontSize: 11, color: 'var(--type-bug)' }}>
-              {t.deleteFailed(deleteTask.error instanceof Error ? deleteTask.error.message : t.unknownError)}
+              {t.deleteFailed(apiErrorMessage(deleteTask.error, t))}
             </span>
           )}
           {!confirmDelete ? (
@@ -841,6 +853,26 @@ export default function TaskDrawer({ slug, projectKey, task: seed, onClose }: Ta
                 ))}
               </select>
             </SelectWrap>
+
+            {task.type !== 'RECORD' && (<>
+            <span style={dimLabelStyle}>{t.fieldSprint}</span>
+            <SelectWrap>
+              <select
+                aria-label={t.fieldSprint}
+                value={task.sprintId != null ? String(task.sprintId) : ''}
+                onChange={(e) => patch({ sprintId: e.target.value ? Number(e.target.value) : null })}
+                style={selStyle}
+              >
+                <option value="">{t.backlog}</option>
+                {sprintChoices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.status === 'ACTIVE' ? `（${t.sprintInProgress}）` : s.status === 'CLOSED' ? `（${t.sprintEnded}）` : ''}
+                  </option>
+                ))}
+              </select>
+            </SelectWrap>
+            </>)}
 
             <span style={dimLabelStyle}>{t.epic}</span>
             <SelectWrap>

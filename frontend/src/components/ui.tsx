@@ -158,6 +158,8 @@ export const pageTitleStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 650,
   margin: 0,
+  // 窄屏下标题容器被压窄时不能逐字竖排
+  whiteSpace: 'nowrap',
 }
 
 /** 表单 label */
@@ -354,6 +356,8 @@ export interface ConfirmDialogProps {
   actionLabel?: string
   /** 执行按钮是否危险色（默认 true，同设计稿 var(--type-bug)） */
   danger?: boolean
+  /** 前置条件不满足（如已有进行中的迭代）时禁用执行键，只留取消 */
+  confirmDisabled?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -364,6 +368,7 @@ export function ConfirmDialog({
   message,
   actionLabel,
   danger = true,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -411,7 +416,11 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            style={danger ? btnDanger : { ...btnDanger, background: 'var(--accent)' }}
+            disabled={confirmDisabled}
+            style={{
+              ...(danger ? btnDanger : { ...btnDanger, background: 'var(--accent)' }),
+              ...(confirmDisabled ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
+            }}
             className="btn-primary"
           >
             {resolvedActionLabel}

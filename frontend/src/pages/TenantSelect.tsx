@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../api/errors'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMyTenants } from '../api/hooks'
@@ -59,7 +60,7 @@ export default function TenantSelect() {
               marginBottom: 12,
             }}
           >
-            P
+            跬
           </div>
           <div style={{ fontSize: 16, fontWeight: 650 }}>{t.selectTeam}</div>
           <div style={{ fontSize: 13, color: 'var(--faint)', marginTop: 3 }}>
@@ -93,7 +94,7 @@ export default function TenantSelect() {
                 textAlign: 'center',
               }}
             >
-              {t.tenantsLoadFailed(error instanceof Error ? error.message : t.unknownError)}
+              {t.tenantsLoadFailed(apiErrorMessage(error, t))}
             </div>
           )}
 

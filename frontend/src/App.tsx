@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
+import RequireAuth from './components/RequireAuth'
 import { ToastProvider } from './components/ui'
 import Login from './pages/Login'
 import AcceptInvite from './pages/AcceptInvite'
@@ -28,19 +29,22 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
-          <Route path="/tenants" element={<TenantSelect />} />
-          <Route path="/t/:slug" element={<Layout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="backlog" element={<Backlog />} />
-            <Route path="board" element={<Board />} />
-            <Route path="sprints" element={<AllSprints />} />
-            <Route path="planning" element={<Planning />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="roadmap" element={<Roadmap />} />
-            <Route path="records" element={<Records />} />
-            <Route path="admin" element={<TenantAdmin />} />
-            <Route path="settings" element={<Settings />} />
+          {/* 需登录的路由：无 accessToken 直接去 /login?returnTo=，不再渲染外壳等 401 */}
+          <Route element={<RequireAuth />}>
+            <Route path="/tenants" element={<TenantSelect />} />
+            <Route path="/t/:slug" element={<Layout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="backlog" element={<Backlog />} />
+              <Route path="board" element={<Board />} />
+              <Route path="sprints" element={<AllSprints />} />
+              <Route path="planning" element={<Planning />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="roadmap" element={<Roadmap />} />
+              <Route path="records" element={<Records />} />
+              <Route path="admin" element={<TenantAdmin />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
