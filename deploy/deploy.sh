@@ -17,8 +17,9 @@ AGENT_TGZ="$ROOT/backend/target/pm-agent.tgz"
 STAMP=$(date +%Y%m%d-%H%M%S)
 
 echo "==> 上传初始化脚本与 unit"
-$SCP "$ROOT/deploy/remote-setup.sh" "$ROOT/deploy/pm.service" "$ROOT/deploy/pm-agent.service" "$PM_HOST:/tmp/"
-$SSH "$PM_HOST" "sudo bash -c 'mkdir -p /opt/pm && mv /tmp/remote-setup.sh /tmp/pm.service /tmp/pm-agent.service /opt/pm/ && bash /opt/pm/remote-setup.sh'"
+$SCP "$ROOT/deploy/remote-setup.sh" "$ROOT/deploy/pm.service" "$ROOT/deploy/pm-agent.service" \
+     "$ROOT/deploy/db-backup.sh" "$ROOT/deploy/pm-db-backup.service" "$ROOT/deploy/pm-db-backup.timer" "$PM_HOST:/tmp/"
+$SSH "$PM_HOST" "sudo bash -c 'mkdir -p /opt/pm && mv /tmp/remote-setup.sh /tmp/pm.service /tmp/pm-agent.service /tmp/db-backup.sh /tmp/pm-db-backup.service /tmp/pm-db-backup.timer /opt/pm/ && bash /opt/pm/remote-setup.sh'"
 
 echo "==> 备份旧 jar 并上传新 jar: ${JAR}"
 $SSH "$PM_HOST" "sudo bash -c '[ -f /opt/pm/app.jar ] && cp /opt/pm/app.jar /opt/pm/backups/app-$STAMP.jar || true'"

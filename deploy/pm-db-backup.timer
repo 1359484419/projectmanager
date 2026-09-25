@@ -1,0 +1,12 @@
+# systemd timer —— 每日 03:00 触发 pm-db-backup.service；Persistent 保证停机错过后开机补跑
+[Unit]
+Description=Daily timer for projectmanager PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=pm-db-backup.service
+
+[Install]
+WantedBy=timers.target

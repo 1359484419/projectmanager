@@ -31,6 +31,7 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 3. 在已有 PG 实例上建独立 `pm` 角色（随机密码）与 `pm` 库（已存在跳过，绝不动其他库）
 4. 生成 `/opt/pm/env`（`DB_URL/DB_USER/DB_PASS/JWT_SECRET`，secret 用 `openssl rand` 生成，权限 600，已存在则保留）
 5. 安装 `pm.service`（模板见本目录）
+6. 安装数据库每日备份：`/opt/pm/db-backup.sh` + `pm-db-backup.service/.timer`（每日 03:00 `pg_dump -Fc pm`，保留 14 天，见下文「数据库备份与恢复」）
 
 ## 环境变量（/opt/pm/env）
 
@@ -45,23 +46,64 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 
 ## 自然语言助手服务 pm-agent
 
-同机第二个 systemd 服务（Python，FastAPI + LangGraph），只监听 `127.0.0.1:${PM_AGENT_PORT}`（`remote-setup.sh` 首次安装时从 8090 起自动选空闲端口写入 `/opt/pm-agent/env`；线上 8090 被其它项目占用，实际为 8091），由 Java 反代 `/api/t/{slug}/assistant/**` 转发；助手不可用时反代返回 503，主应用功能不受影响。
+同机第二个 systemd 服务（Python，FastAPI + LangGraph + MCP server），只监听 `127.0.0.1:${PM_AGENT_PORT}`（`remote-setup.sh` 首次安装时从 8090 起自动选空闲端口写入 `/opt/pm-agent/env`；线上 8090 被其它项目占用，实际为 8091）。Java 反代两条路径到它：`/api/t/{slug}/assistant/**`（页内助手，JWT）与 `/mcp`（外部 AI 工具，PAT）。pm-agent 不可用时两者都返回 503（`ASSISTANT_UNAVAILABLE` / `MCP_UNAVAILABLE`），主应用功能不受影响；只是模型网关不可达时 MCP 照常可用（它不依赖 LLM）。
 
 - `build.sh` 额外产出 `backend/target/pm-agent.tgz`（`agent/` 的 `app migrations pyproject.toml uv.lock`，先 `uv lock --check`）。
 - `remote-setup.sh`（幂等）追加：装 `uv` 到 `/usr/local/bin`、建 `/opt/pm-agent`、生成 `/opt/pm-agent/env`（`AGENT_DB_URL` 复用 pm 库密码；`LLM_*` 为占位值，**需手工填写**）、给 `/opt/pm/env` 追加 `PM_ASSISTANT_URL`、安装 `pm-agent.service`。
 - `deploy.sh` 追加：上传 tgz → 解压到 `/opt/pm-agent` → 以 `pm` 用户 `uv sync --frozen --no-dev`（venv 与缓存都在 `/opt/pm-agent` 下）→ `systemctl restart pm-agent` → `curl 127.0.0.1:${PM_AGENT_PORT}/health`。
 - 环境变量模板：`agent-env.example`。首次部署后填好 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 再 `sudo systemctl restart pm-agent`。
-- 健康：`curl http://127.0.0.1:$(grep PM_AGENT_PORT /opt/pm-agent/env | cut -d= -f2)/health` → `{"status":"ok","llm":"ok"}`；`degraded` 表示模型网关不可达（服务本身在跑）。
+- 健康：`curl http://127.0.0.1:$(grep PM_AGENT_PORT /opt/pm-agent/env | cut -d= -f2)/health` → `{"status":"ok","llm":"ok","mcp":"ok"}`；`degraded` + `llm: unreachable` 表示模型网关不可达（服务本身在跑，MCP 仍可用）。
+- MCP 对外只走 Java 的 8080 `/mcp`（PAT 鉴权后反代），客户端接入命令见 `skill/SKILL.md`；pm-agent 端口不对外开放。
 - 数据：与主应用同一 PG 实例，独立 schema `agent`（LangGraph checkpoint 表 + `agent.runs / agent.tool_calls` 审计表），由服务启动时自建，Flyway 不管。
 - 日志：`sudo journalctl -u pm-agent -f`（每行一个 JSON）。
 
 ## 运维
 
 ```bash
-sudo systemctl status pm            # 状态
+sudo systemctl status pm pm-agent   # 状态（主应用 / 助手+MCP）
 sudo journalctl -u pm -f            # 日志
-sudo systemctl restart pm           # 重启
+sudo journalctl -u pm-agent -f      # 助手/MCP 日志（每行一个 JSON）
+sudo systemctl restart pm           # 重启主应用
+sudo systemctl restart pm-agent     # 重启助手/MCP（改 LLM_* 后）
 ```
+
+## 数据库备份与恢复
+
+`remote-setup.sh` 幂等安装 systemd timer `pm-db-backup.timer`：每日 03:00（随机延迟 ≤5 分钟，停机错过则开机补跑）以 `postgres` 用户执行 `/opt/pm/db-backup.sh` → `pg_dump -Fc --no-owner pm` 写到 `/opt/pm/backups/db/pm-<YYYYmmdd-HHMM>.dump`（先写 `.part` 再原子改名，600 权限），保留 14 天。助手的 `agent` schema 与主应用同库，一并覆盖。
+
+```bash
+sudo systemctl list-timers pm-db-backup.timer          # 下次/上次触发时间
+sudo systemctl start pm-db-backup.service              # 立即手动备份一次
+sudo journalctl -u pm-db-backup -n 20                  # 备份日志（文件名、大小、保留份数）
+sudo ls -lh /opt/pm/backups/db/                        # 备份清单
+```
+
+**恢复步骤**（先恢复到新库验证，再切换，全程不覆盖当前库）：
+
+```bash
+# 1. 选择备份并校验可读
+sudo -u postgres pg_restore --list /opt/pm/backups/db/pm-20260925-0300.dump | head
+
+# 2. 恢复到一个新库 pm_restore（与线上 pm 库并存）
+sudo -u postgres createdb -O pm pm_restore
+sudo -u postgres pg_restore --no-owner --role=pm -d pm_restore /opt/pm/backups/db/pm-20260925-0300.dump
+
+# 3. 抽查数据（租户/任务数量、最近一条活动时间）
+sudo -u postgres psql -d pm_restore -c "select count(*) from tenants" -c "select count(*), max(updated_at) from tasks"
+
+# 4. 切换：停应用与助手 → 改名对调 → 起服务（DB_URL 不用改，库名仍是 pm）
+sudo systemctl stop pm pm-agent
+sudo -u postgres psql -c "ALTER DATABASE pm RENAME TO pm_broken_$(date +%Y%m%d)" -c "ALTER DATABASE pm_restore RENAME TO pm"
+sudo systemctl start pm pm-agent
+curl -sf http://localhost:8080/api/health
+
+# 5. 确认无误后再删旧库（保留几天更稳妥）
+# sudo -u postgres dropdb pm_broken_20260925
+```
+
+只恢复单表（例如误删任务的评论）：`pg_restore -d pm_restore -t comments <dump>` 再用 SQL 从 `pm_restore` 挑行插回 `pm`。Flyway 版本随数据一起恢复；若备份早于当前 jar 的迁移，启动时 Flyway 会自动补跑增量迁移（本项目迁移均为前向增量）。
+
+建议每季度演练一次步骤 1-3（恢复到 `pm_restore` 后 `dropdb pm_restore`），确认备份真的可用。
 
 ## 回滚
 

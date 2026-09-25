@@ -112,4 +112,18 @@ echo "==> 11. systemd unit pm-agent（与仓库 deploy/pm-agent.service 同步�
 cp "$(dirname "$0")/pm-agent.service" /etc/systemd/system/pm-agent.service
 systemctl daemon-reload
 
+echo "==> 12. 数据库每日备份 pm-db-backup（timer 03:00，pg_dump -Fc，保留 14 天；幂等）"
+mkdir -p /opt/pm/backups/db
+# 备份目录归 postgres（pg_dump 以 postgres 用户走 peer 认证），仅属主可读
+chown postgres:postgres /opt/pm/backups/db
+chmod 700 /opt/pm/backups/db
+cp "$(dirname "$0")/db-backup.sh" /opt/pm/db-backup.sh
+chown root:root /opt/pm/db-backup.sh
+chmod 755 /opt/pm/db-backup.sh
+cp "$(dirname "$0")/pm-db-backup.service" /etc/systemd/system/pm-db-backup.service
+cp "$(dirname "$0")/pm-db-backup.timer" /etc/systemd/system/pm-db-backup.timer
+systemctl daemon-reload
+systemctl enable --now pm-db-backup.timer >/dev/null 2>&1
+systemctl list-timers pm-db-backup.timer --no-pager 2>/dev/null | sed -n '1,2p' || true
+
 echo "==> 初始化完成。下一步：上传 app.jar 到 /opt/pm/ 并 systemctl enable --now pm；pm-agent.tgz 解压到 /opt/pm-agent 并 uv sync --frozen"
