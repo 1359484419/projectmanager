@@ -39,11 +39,11 @@ public class InviteService {
         this.baseUrl = baseUrl;
     }
 
-    /** 仅 ADMIN；MEMBER 视为管理资源不存在 → 404。 */
+    /** 仅 ADMIN；MEMBER → 403（REST 由 @RequireRole 先挡，这里兜底）。 */
     @Transactional
     public InviteView create(Membership.Role role, long createdBy) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw ApiException.notFound();
+            throw ApiException.forbiddenAdminOnly();
         }
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
@@ -60,7 +60,8 @@ public class InviteService {
      * 失败路径（密码错等）随事务回滚不消费，同一 token 可再试。
      */
     @Transactional
-    public AuthService.TokenPair accept(String token, String email, String password, String displayName) {
+    public AuthService.TokenPair accept(String token, String rawEmail, String password, String displayName) {
+        String email = AuthService.normalizeEmail(rawEmail);
         Invite invite = invites.findByToken(token).orElseThrow(ApiException::notFound);
         if (invite.getExpiresAt().isBefore(Instant.now())) {
             throw ApiException.gone("INVITE_EXPIRED", "invite link expired");

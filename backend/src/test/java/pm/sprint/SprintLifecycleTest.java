@@ -82,6 +82,7 @@ class SprintLifecycleTest extends IntegrationTest {
                 base + "/sprints/" + s2.get("id") + "/start", null);
         assertThat(start2.getStatusCode().value()).isEqualTo(409);
         assertThat(start2.getBody().get("code")).isEqualTo("ACTIVE_SPRINT_EXISTS");
+        assertThat(start2.getBody().get("message")).isEqualTo("已有进行中的迭代「迭代 1」，请先关闭");
     }
 
     @Test
@@ -189,10 +190,11 @@ class SprintLifecycleTest extends IntegrationTest {
                 .filter(id -> !id.equals(adminUserId))
                 .findFirst().orElseThrow();
 
-        // MEMBER 改他人容量 → 404（管理操作不暴露）
+        // MEMBER 改他人容量 → 403（角色不足统一 403）
         ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.PUT,
                 base + "/sprints/" + sprintId + "/capacity/" + adminUserId, Map.of("capacity", 3));
-        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getBody().get("code")).isEqualTo("FORBIDDEN");
 
         // MEMBER 改自己 → 200
         ResponseEntity<Map> self = fx.exchange(memberToken, HttpMethod.PUT,

@@ -97,10 +97,11 @@ class MemberRemovalTest extends IntegrationTest {
     }
 
     @Test
-    void memberCallsRemove_404() {
+    void memberCallsRemove_403() {
         ResponseEntity<Map> resp = fx.exchange(memberToken, HttpMethod.DELETE,
                 base + "/members/" + adminUserId, null);
-        assertThat(resp.getStatusCode().value()).isEqualTo(404);
+        assertThat(resp.getStatusCode().value()).isEqualTo(403);
+        assertThat(resp.getBody().get("code")).isEqualTo("FORBIDDEN");
     }
 
     @Test

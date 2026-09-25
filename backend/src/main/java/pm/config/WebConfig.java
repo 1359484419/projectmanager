@@ -7,6 +7,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
+import pm.common.RequireRoleInterceptor;
 import pm.tenant.TenantInterceptor;
 
 import java.io.IOException;
@@ -15,9 +16,11 @@ import java.io.IOException;
 public class WebConfig implements WebMvcConfigurer {
 
     private final TenantInterceptor tenantInterceptor;
+    private final RequireRoleInterceptor requireRoleInterceptor;
 
-    public WebConfig(TenantInterceptor tenantInterceptor) {
+    public WebConfig(TenantInterceptor tenantInterceptor, RequireRoleInterceptor requireRoleInterceptor) {
         this.tenantInterceptor = tenantInterceptor;
+        this.requireRoleInterceptor = requireRoleInterceptor;
     }
 
     @Override
@@ -25,6 +28,10 @@ public class WebConfig implements WebMvcConfigurer {
         // 保持最低优先级：先让其他 interceptor（若有）跑完，再做租户解析与 TenantContext 注入。
         // （JPA 时代此顺序是为排在 OSIV 之后；MyBatis 迁移后无 OSIV，顺序保留无副作用。）
         registry.addInterceptor(tenantInterceptor)
+                .addPathPatterns("/api/t/**")
+                .order(Ordered.LOWEST_PRECEDENCE - 1);
+        // 权限矩阵：必须在租户解析之后（依赖 TenantContext 里的角色），所以 order 更靠后
+        registry.addInterceptor(requireRoleInterceptor)
                 .addPathPatterns("/api/t/**")
                 .order(Ordered.LOWEST_PRECEDENCE);
     }

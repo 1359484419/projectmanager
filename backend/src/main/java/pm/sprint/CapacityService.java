@@ -76,13 +76,13 @@ public class CapacityService {
                 .toList();
     }
 
-    /** 仅 ADMIN 或本人可改；MEMBER 改他人视为管理操作不存在 → 404；目标须为本租户成员。 */
+    /** 仅 ADMIN 或本人可改；MEMBER 改他人 → 403；目标须为本租户成员。 */
     @Transactional
     public CapacityRow upsertOverride(Long sprintId, Long userId, int capacity) {
         sprintService.requireById(sprintId); // 归属校验（跨租户 404）
         if (TenantContext.requireRole() != Membership.Role.ADMIN
                 && (userId == null || userId != CurrentUser.id())) {
-            throw ApiException.notFound();
+            throw ApiException.forbiddenAdminOnly();
         }
         if (memberships.findByUserIdAndTenantId(userId, TenantContext.require()).isEmpty()) {
             throw ApiException.badRequest("INVALID_MEMBER", "该用户不是本租户成员");

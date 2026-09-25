@@ -28,7 +28,7 @@ public class MemberService {
     }
 
     /**
-     * 移除成员（仅 ADMIN；MEMBER 视为管理资源不存在 → 404）。
+     * 移除成员（仅 ADMIN；MEMBER → 403，REST 由 @RequireRole 先挡，这里兜底）。
      * 约束：不能移除自己（409 CANNOT_REMOVE_SELF）；不能移除租户最后一个 ADMIN（409 LAST_ADMIN，
      * REST 正常流程撞不到——操作者本人是 ADMIN 且不能删自己——留作数据异常/并发下的防御）。
      * 执行：删 membership、删该用户在本租户的 PAT、其非 DONE 任务 assignee 置 NULL 并逐条留痕
@@ -37,7 +37,7 @@ public class MemberService {
     @Transactional
     public void remove(Long targetUserId, Long actorUserId) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw ApiException.notFound();
+            throw ApiException.forbiddenAdminOnly();
         }
         long tenantId = TenantContext.require();
         Membership target = memberships.findByUserIdAndTenantId(targetUserId, tenantId)

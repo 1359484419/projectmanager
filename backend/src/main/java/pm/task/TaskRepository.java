@@ -86,8 +86,12 @@ public interface TaskRepository {
     default Task save(Task task) {
         if (task.getId() == null) {
             Long tenantId = task.getTenantId() != null ? task.getTenantId() : TenantContext.require();
+            if (task.getUpdatedAt() == null) {
+                task.setUpdatedAt(task.getCreatedAt());
+            }
             insert(task, tenantId);
         } else {
+            task.setUpdatedAt(java.time.Instant.now()); // 任何写路径都推进 updated_at
             int rows = update(task, TenantContext.require());
             if (rows == 0) {
                 throw new org.springframework.dao.OptimisticLockingFailureException(
@@ -128,9 +132,9 @@ public interface TaskRepository {
         return findDueRecordsT(userId, now, TenantContext.require());
     }
 
-    /** 关闭提醒（幂等；独立字段直写，不与乐观锁编辑冲突）。 */
-    default int dismissReminder(Long id) {
-        return dismissReminderT(id, TenantContext.require());
+    /** 关闭提醒（幂等；独立字段直写，不与乐观锁编辑冲突）。只命中 userId 自己创建的记录，他人 0 行。 */
+    default int dismissReminder(Long id, Long userId) {
+        return dismissReminderT(id, userId, TenantContext.require());
     }
 
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
@@ -178,5 +182,5 @@ public interface TaskRepository {
     List<DueRecordRow> findDueRecordsT(@Param("userId") Long userId, @Param("now") java.time.Instant now,
                                        @Param("tenantId") long tenantId);
 
-    int dismissReminderT(@Param("id") Long id, @Param("tenantId") long tenantId);
+    int dismissReminderT(@Param("id") Long id, @Param("userId") Long userId, @Param("tenantId") long tenantId);
 }

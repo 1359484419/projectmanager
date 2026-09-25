@@ -6,8 +6,8 @@
 
     <sql id="columns">
         id, tenant_id, version, project_id, sprint_id, epic_id, type, seq, title,
-        description, points, assignee_id, status, rank, created_by, created_at, done_at,
-        remind_at, reminder_dismissed
+        description, points, assignee_id, status, rank, created_by, created_at, updated_at,
+        done_at, remind_at, reminder_dismissed
     </sql>
 
     <select id="findOneByIdT" resultType="pm.task.Task">
@@ -30,17 +30,21 @@
         ORDER BY rank ASC
     </select>
 
+    <!-- 看板/迭代列表/仪表盘/容量：记录（RECORD）是创建者私有数据，即使历史脏数据挂了 sprint 也不显示 -->
     <select id="findBySprintIdT" resultType="pm.task.Task">
         SELECT <include refid="columns"/>
         FROM tasks
         WHERE sprint_id = #{sprintId} AND tenant_id = #{tenantId}
+          AND type != 'RECORD'
         ORDER BY rank ASC
     </select>
 
+    <!-- 路线图：同上，记录不进 Epic 进度 -->
     <select id="findByEpicIdInT" resultType="pm.task.Task">
         SELECT <include refid="columns"/>
         FROM tasks
         WHERE tenant_id = #{tenantId}
+          AND type != 'RECORD'
           AND epic_id IN
         <foreach collection="epicIds" item="eid" open="(" separator="," close=")">
             #{eid}
@@ -94,10 +98,10 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="t.id">
         INSERT INTO tasks (tenant_id, project_id, sprint_id, epic_id, type, seq, title,
                            description, points, assignee_id, status, rank, created_by,
-                           created_at, done_at, remind_at, reminder_dismissed)
+                           created_at, updated_at, done_at, remind_at, reminder_dismissed)
         VALUES (#{tenantId}, #{t.projectId}, #{t.sprintId}, #{t.epicId}, #{t.type}, #{t.seq},
                 #{t.title}, #{t.description}, #{t.points}, #{t.assigneeId}, #{t.status},
-                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.doneAt}, #{t.remindAt},
+                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.updatedAt}, #{t.doneAt}, #{t.remindAt},
                 #{t.reminderDismissed})
     </insert>
 
@@ -117,6 +121,7 @@
             status      = #{t.status},
             rank        = #{t.rank},
             created_by  = #{t.createdBy},
+            updated_at  = #{t.updatedAt},
             done_at     = #{t.doneAt},
             remind_at   = #{t.remindAt},
             reminder_dismissed = #{t.reminderDismissed}
@@ -143,7 +148,8 @@
     <!-- Epic 删除：解除任务与该 Epic 的关联（任务保留） -->
     <update id="clearEpicT">
         UPDATE tasks
-        SET epic_id = NULL
+        SET epic_id = NULL,
+            updated_at = now()
         WHERE epic_id = #{epicId} AND tenant_id = #{tenantId}
     </update>
 
@@ -170,11 +176,14 @@
         ORDER BY t.remind_at ASC
     </select>
 
-    <!-- 关闭提醒：独立字段直写，不走 version 乐观锁（与内容编辑互不冲突） -->
+    <!-- 关闭提醒：独立字段直写，不走 version 乐观锁（与内容编辑互不冲突）。
+         与 findRecordsT/findDueRecordsT 一致带 created_by：只能关自己记录的提醒，他人 0 行命中 → 404
+         （204/404 不得成为「该 id 是否为 RECORD」的存在性预言机） -->
     <update id="dismissReminderT">
         UPDATE tasks
-        SET reminder_dismissed = true
-        WHERE id = #{id} AND type = 'RECORD' AND tenant_id = #{tenantId}
+        SET reminder_dismissed = true,
+            updated_at = now()
+        WHERE id = #{id} AND type = 'RECORD' AND created_by = #{userId} AND tenant_id = #{tenantId}
     </update>
 
 </mapper>

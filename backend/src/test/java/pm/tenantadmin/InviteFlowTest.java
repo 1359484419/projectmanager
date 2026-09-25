@@ -169,7 +169,8 @@ class InviteFlowTest extends IntegrationTest {
         String memberToken = (String) accept.getBody().get("accessToken");
 
         ResponseEntity<Map> resp = createInvite(memberToken, "MEMBER");
-        assertThat(resp.getStatusCode().value()).isEqualTo(404);
+        assertThat(resp.getStatusCode().value()).isEqualTo(403);
+        assertThat(resp.getBody().get("code")).isEqualTo("FORBIDDEN");
     }
 
     @Test
@@ -185,7 +186,7 @@ class InviteFlowTest extends IntegrationTest {
         String token1 = (String) createInvite(adminToken, "MEMBER").getBody().get("token");
         ResponseEntity<Map> bad = rest.postForEntity("/api/auth/accept-invite", Map.of(
                 "token", token1, "email", u + "@example.com",
-                "password", "wrong", "displayName", "E"), Map.class);
+                "password", "wrongpass1", "displayName", "E"), Map.class); // 8 位以上才进密码比对
         assertThat(bad.getStatusCode().value()).isEqualTo(401);
 
         ResponseEntity<Map> ok = rest.postForEntity("/api/auth/accept-invite", Map.of(

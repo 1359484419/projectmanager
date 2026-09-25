@@ -49,7 +49,7 @@ class ProfileAndTenantRenameTest extends IntegrationTest {
     }
 
     @Test
-    void renameTenant_adminOnly_memberGets404() {
+    void renameTenant_adminOnly_memberGets403() {
         var fx = new TwoTenantsFixture(rest);
         String path = "/api/t/" + fx.slugA;
         // ADMIN 改名成功
@@ -60,11 +60,12 @@ class ProfileAndTenantRenameTest extends IntegrationTest {
         // 反映到 /api/me/tenants
         var tenants = fx.getList(fx.adminTokenA, "/api/me/tenants").getBody();
         assertThat(tenants).anyMatch(t -> "新团队名".equals(((Map<?, ?>) t).get("name")));
-        // MEMBER 改名 → 404
+        // MEMBER 改名 → 403
         String memberToken = fx.addMemberToA();
         ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.PATCH, path,
                 Map.of("name", "黑客改名"));
-        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getBody().get("code")).isEqualTo("FORBIDDEN");
         // 空名 → 400
         Map<String, Object> blank = new HashMap<>();
         blank.put("name", "");

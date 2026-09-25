@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-「跬步 Kuibu」：自托管多租户 mini-Jira（5-20 人团队）。单仓三端：`backend/`（Java 21 + Spring Boot 3.3 + MyBatis + PostgreSQL 16 + 内置 MCP server）、`frontend/`（React 19 + Vite 8 + TypeScript + TanStack Query + dnd-kit）与 `agent/`（Python 3.12 + FastAPI + LangGraph 的自然语言助手，可选进程）。生产形态是前端 `dist/` 打进 Spring Boot `static/` 的单个 fat jar，systemd 托管；助手是同机第二个 systemd 服务 `pm-agent`（见 `deploy/README.md`）。代码注释、提交信息、UI 文案均为中文。
+「跬步 Kuibu」：自托管多租户 mini-Jira（5-20 人团队）。单仓三端：`backend/`（Java 21 + Spring Boot 3.3 + MyBatis + PostgreSQL 16，`/mcp` 为 PAT 鉴权反代）、`frontend/`（React 19 + Vite 8 + TypeScript + TanStack Query + dnd-kit）与 `agent/`（Python 3.12 + FastAPI + LangGraph 的自然语言助手 + MCP server，可选进程）。生产形态是前端 `dist/` 打进 Spring Boot `static/` 的单个 fat jar，systemd 托管；助手是同机第二个 systemd 服务 `pm-agent`（见 `deploy/README.md`）。代码注释、提交信息、UI 文案均为中文。
 
 ## 常用命令
 
@@ -55,7 +55,7 @@ uv sync                                        # 依赖（uv.lock 锁定；CI/�
 uv run pytest -q                               # 单测 + 假模型图测试；pg 标记用例需要本地 PG（不可达自动 skip）；默认排除 real_llm
 uv run pytest -m real_llm -q tests/smoke       # 真模型冒烟：需要 .env、后端与 uvicorn 都在跑，会注册临时租户
 uv run uvicorn app.main:app --port 8090        # 本地服务；后端需 PM_ASSISTANT_URL=http://localhost:8090
-curl http://localhost:8090/health              # {"status":"ok","llm":"ok"}（llm 探活缓存 60s）
+curl http://localhost:8090/health              # {"status":"ok","llm":"ok","mcp":"ok"}（llm 探活缓存 60s；mcp 只看子应用是否启动）
 ```
 
 配置只从 `app/settings.py`（pydantic-settings）读 `agent/.env`（gitignored，只放变量名到 `.env.example`）。Java 反代 `/api/t/{slug}/assistant/**` → `http://127.0.0.1:8090/assistant/**`（`AssistantProxyController`，钉死 HTTP/1.1，注入 `X-PM-Tenant`/`X-PM-User`，查询参数 `?project=` → `X-PM-Project`、`?page=` → `X-PM-Page`；客户端自带的这四个头一律丢弃；请求体 >64KB 直接 413）。
@@ -79,25 +79,26 @@ curl http://<IP>:8080/api/health                    # {"status":"ok"}
 - **`MapperTenantGuardTest` 是兜底架构测试**：扫描全部 Mapper XML，凡 `<select|update|delete>` 涉及租户表却不含 `tenant_id` 就失败。确属跨租户的语句在语句内或紧邻前加 `<!-- tenant-guard-exempt: 理由 -->`。**新增租户表时必须把表名加进该测试的 `TENANT_TABLES`**，否则守卫对它无效。全局表只有 `users/tenants/refresh_tokens`。
 - 租户内实体继承 `TenantEntity`；INSERT 由 Mapper 显式写入 tenant_id（实体已有值优先，否则 `TenantContext.require()`）。
 - 无 HTTP 上下文的线程（`SprintRotationJob` 每日 00:05 自动轮转）要逐项目手动 `TenantContext.set(...)` 并在 finally 清理。
-- 角色校验约定：`TenantContext.requireRole() != Membership.Role.ADMIN` → 抛 `ApiException.notFound()`（同样是 404 而非 403）。
+- 角色校验约定（权限矩阵 harness）：管理动作在控制器方法上标 `@RequireRole`（`pm.common`，默认 ADMIN），`RequireRoleInterceptor` 在 `TenantInterceptor` 之后统一校验，角色不足一律 **403** `{code:"FORBIDDEN", message:"仅管理员可操作"}`（`ApiException.forbiddenAdminOnly()`；Service 内的兜底判定也抛它）。跨租户/非成员仍是 404。矩阵：迭代 start/close/delete、Epic delete、项目 create/update/delete、邀请/移除成员/租户改名 = ADMIN；任务/评论/子任务/Epic 创建编辑、迭代创建 = 全员；删除任务 = 创建者或 ADMIN（`TaskService.delete` 判）；容量覆盖 = ADMIN 或本人（`CapacityService` 判）。**新增 `/api/t/**` 写端点必须二选一**：标 `@RequireRole`，或加进 `WritePermissionMatrixTest.ALL_MEMBERS_WRITABLE` 白名单，否则架构测试失败。
 
 ### 认证
 
-- 浏览器：`JwtAuthFilter`，HS256 access token 30 分钟 + refresh token 表；`CurrentUser.id()` 取当前用户。`JwtService` 启动守卫：非 dev profile 仍用 `application.yml` 默认 secret 则 fail-fast。
+- 浏览器：`JwtAuthFilter`，HS256 access token 30 分钟 + refresh token 表；`CurrentUser.id()` 取当前用户。 邮箱一律经 `AuthService.normalizeEmail()`（strip + 小写）后存储与查找；密码策略 `AuthService.MIN_PASSWORD_LENGTH`（8）由注册/接受邀请/改密共用。`JwtService` 启动守卫：非 dev profile 仍用 `application.yml` 默认 secret 则 fail-fast。
 - AI 工具：PAT（`pmt_` 前缀，存 sha256）。`PatAuthFilter` 挂在 JWT filter 之前，只对 `/mcp/**` 与 `/api/t/**` 生效，同时设置 SecurityContext 与 TenantContext（PAT 天然绑租户，`TenantInterceptor` 只校验路径租户一致）。
 - `SecurityConfig`：`/api/health`、`/api/auth/**` 放行；`/api/**`、`/mcp/**` 需认证；其余全部放行给 SPA 静态资源。
 
 ### 错误与并发
 
-- 业务错误统一抛 `ApiException`（工厂方法 notFound/conflict/forbidden/badRequest/gone），`GlobalExceptionHandler` 转成 `{code, message}`。
+- 业务错误统一抛 `ApiException`（工厂方法 notFound/conflict/forbidden/badRequest/gone），`GlobalExceptionHandler` 转成 `{code, message}`。框架级请求错误也统一 `{code, message}` 中文：坏 JSON/非法枚举/缺参数/路径类型错 → 400 `VALIDATION`，方法不支持 → 405 `METHOD_NOT_ALLOWED`，内容类型不支持 → 415 `UNSUPPORTED_MEDIA_TYPE`；Bean Validation 注解一律写中文 `message`。
 - `tasks.version` 乐观锁：`TaskRepository.save` 的 UPDATE 带 version 条件，0 行命中抛 `OptimisticLockingFailureException` → 409 `CONFLICT`。前端 `isConflictError()` 识别后刷新数据并 toast（`CONFLICT_TOAST`）。
 - 任务排序用 `RankService` 的 36 进制字典序中点算法（rank 永不以 `0` 结尾）。
 - 「今天/日界」一律 `BizTime.today()`（固定 Asia/Shanghai），业务代码禁止 `LocalDate.now()` / `ZoneId.systemDefault()`。
 
-### 内置 MCP server
+### 内置 MCP server（Java `/mcp` 反代 → Python `agent/app/mcp/`）
 
-- 端点 `/mcp`，MCP Java SDK 2.0 的 `HttpServletStreamableServerTransportProvider` 注册为独立 Servlet（不经 DispatcherServlet），`immediateExecution(true)` 让工具在请求线程同步执行，从而看得到 filter 设的 ThreadLocal。
-- 工具定义（名称/描述/JSON schema）在 `McpConfig.toolSpecs`，实现在 `McpTools`；`ApiException` 被包装成 `isError` 结果。`McpToolSchemaTest` 校验 schema。新增/改工具需同步 `skill/SKILL.md` 的工具表与 README。
+- **Java 侧只是 harness**：`McpProxyController`（`pm.mcp`）把 `POST /mcp`、`/mcp/` 直通到 `{pm.assistant.url}/mcp/`（复用 `AssistantProperties`，JDK HttpClient 钉死 HTTP/1.1）。前置条件 `requirePatUser()`：`Authorization` 以 `Bearer pmt_` 开头 + principal 为 `Long userId` + `TenantContext.isSet()`（由 `PatAuthFilter` 设置），否则 401 `UNAUTHENTICATED`——浏览器 JWT 打 `/mcp` 同样 401（无租户绑定）。请求头只透传白名单 `Authorization / Content-Type / Accept / Mcp-Protocol-Version / Mcp-Session-Id / Last-Event-ID`，注入 `X-PM-Tenant`(slug) / `X-PM-User` / `X-PM-Source: MCP`，客户端自带的 `X-PM-*` 一律丢弃；响应透传状态码、`Content-Type`、`Mcp-Session-Id`；请求体 >512KB → 413；上游未配置/不可达 → 503 `MCP_UNAVAILABLE`；GET/DELETE/PUT/PATCH → 405 JSON-RPC 形状错误体（无状态，不支持会话流）。旧的 Java 内置 MCP 服务（工具定义与实现都写在 Java 里）已下线，Java 不再实现任何 MCP 协议。
+- **MCP 协议与工具在 Python**：`agent/app/mcp/server.py` 用 `mcp>=2.2,<3` 的 `MCPServer`（name=`kuibu`，中文 `instructions`）以 `stateless_http=True, json_response=True` 挂在 FastAPI `/mcp`（裸路径另加精确路由，不 307）。工具目录在 `app/mcp/tools.py::mcp_profile()`：从 `tool_guard.REGISTRY` 精选 15 个（读 7 / L1 3 / L2 3 / L3 2）+ 3 个旧名别名（`list_sprints / list_epics / list_my_tasks`），`create_tasks` 的 `projectKey/target`、`update_task_status` 的 `taskSeq` 以参数别名接受。每个工具自带 title / annotations（读 readOnlyHint、L2 idempotentHint、L3 destructiveHint）/ outputSchema，入参 `additionalProperties:false` 且无内部 id。执行统一走 `app/mcp/_exec.py::run_tool`：缺 `Authorization / X-PM-Tenant / X-PM-User` 任一头即 `isError {code: BAD_GATEWAY_HEADERS}`（fail-closed），业务异常映射为 `{code, message}`、未知异常只记日志对外 `INTERNAL`（永不泄堆栈），输出经 `_wire.strip_internal` 清洗。外部 agent 没有确认卡：L3 工具 `confirm: true` 必填（`CONFIRM_REQUIRED`）+ `destructiveHint` + `create_tasks` 的 `dry_run` 预览三者叠加；`delete_*` / 成员管理 / RECORD 不对外开放。资源 `pm://projects`、`pm://me/work`、`pm://projects/{key}/sprints/current`（`KuibuServer.read_resource` 接管 `pm://` 以拿到请求头）；提示词 `daily_report / weekly_report / plan_from_notes`（`app/mcp/prompts.py`）。
+- 生命周期：`main.py` 的 lifespan 先启动 MCP 会话管理器再初始化 LLM / checkpointer / 审计，后者失败只记日志、`/mcp` 照常，`/health` 分开报告 `{llm, mcp}`。测试 `tests/test_mcp.py`（mcp 2.x 客户端经 ASGI 直连）。**新增/改 MCP 工具必须同步 `skill/SKILL.md` 工具表与 README 工具清单**，`tests/test_docs_sync.py` 会比对 `mcp_profile()` 与文档。
 
 ### 自然语言助手（`agent/`）的硬约束
 
@@ -115,7 +116,7 @@ Flyway 迁移在 `backend/src/main/resources/db/migration/V*.sql`，前向增量
 
 ### 任务模型
 
-`Task.Type`：STORY/BUG/TASK/RECORD；`Status` 四态 TODO → IN_PROGRESS → COMPLETED → DONE（允许回退）。points 为 0.5-5、0.5 步进的人天（`numeric(2,1)`），前端 `utils/points.ts` 与后端 `TaskService.validatePoints` 规则对齐。RECORD 是「记录」：创建者私有、可带到期提醒与图片（bytea 入库），不进待办/规划/看板，待办与搜索等列表 SQL 需过滤 `type != 'RECORD'`（参考 `TaskMapper.xml` 现有语句）。
+`Task.Type`：STORY/BUG/TASK/RECORD；`Status` 四态 TODO → IN_PROGRESS → COMPLETED → DONE（允许回退）。points 为 0.5-5、0.5 步进的人天（`numeric(2,1)`），前端 `utils/points.ts` 与后端 `TaskService.validatePoints` 规则对齐。RECORD 是「记录」：创建者私有、可带到期提醒与图片（bytea 入库），不进待办/规划/看板/路线图；`TaskService` 对 RECORD 强制 sprintId/assigneeId/epicId 为空（400 `INVALID_RECORD_FIELD`），待办/搜索/迭代/Epic 等列表 SQL 均过滤 `type != 'RECORD'`（参考 `TaskMapper.xml` 现有语句）。`tasks.updated_at` 由 `TaskRepository.save` 在每次 UPDATE 时推进（日报取数用）。
 
 ### 前端结构
 
@@ -129,5 +130,5 @@ Flyway 迁移在 `backend/src/main/resources/db/migration/V*.sql`，前向增量
 
 - 设计 spec / 实施计划：`docs/superpowers/specs/`、`docs/superpowers/plans/`（新功能沿用此处放 spec）
 - UI 设计稿与说明：`docs/design/`
-- MCP skill（配套 AI 助手用法与安全规则）：`skill/SKILL.md`
+- MCP：实现 `agent/app/mcp/`（`agent/README.md` 的「MCP 子应用」节）、Java 反代 `backend/src/main/java/pm/mcp/McpProxyController.java`；配套 skill（工具表、流程、安全规则）：`skill/SKILL.md`
 - 自然语言助手：spec `docs/superpowers/specs/2026-09-24-nl-assistant-agent-design.md`、`agent/README.md`、部署 `deploy/README.md` 的 pm-agent 章节

@@ -32,6 +32,11 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.FORBIDDEN, code, message);
     }
 
+    /** 角色不足的统一报文（权限矩阵 harness 与各 Service 的 ADMIN 判定共用）。 */
+    public static ApiException forbiddenAdminOnly() {
+        return forbidden("FORBIDDEN", "仅管理员可操作");
+    }
+
     public static ApiException badRequest(String code, String message) {
         return new ApiException(HttpStatus.BAD_REQUEST, code, message);
     }

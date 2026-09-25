@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pm.common.ApiException;
+import pm.common.RequireRole;
 import pm.project.Project;
 import pm.project.ProjectRepository;
 import pm.task.TaskRepository;
@@ -102,8 +103,9 @@ public class EpicController {
         return EpicView.from(epics.save(epic));
     }
 
-    /** 删除 Epic：其下任务不删除，仅解除关联（epic_id 置空）。 */
+    /** 删除 Epic（仅 ADMIN）：其下任务不删除，仅解除关联（epic_id 置空）。 */
     @DeleteMapping("/api/t/{slug}/projects/{key}/epics/{id}")
+    @RequireRole
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     public void delete(@PathVariable String slug, @PathVariable String key, @PathVariable Long id) {

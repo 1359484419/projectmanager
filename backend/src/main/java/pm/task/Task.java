@@ -43,6 +43,9 @@ public class Task extends TenantEntity {
 
     private Instant createdAt = Instant.now();
 
+    /** 最近一次写入时间（任何写路径都推进；日报按此取「今天改过的任务」）。 */
+    private Instant updatedAt = createdAt;
+
     private Instant doneAt;
 
     /** 记录（RECORD）可选提醒：到期后前端右上角弹框，手动关闭置 reminderDismissed。 */
@@ -163,6 +166,14 @@ public class Task extends TenantEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public Instant getDoneAt() {

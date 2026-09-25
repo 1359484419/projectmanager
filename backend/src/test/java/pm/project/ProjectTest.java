@@ -78,12 +78,13 @@ class ProjectTest extends IntegrationTest {
     }
 
     @Test
-    void createProject_adminOnly_member404() {
-        // MEMBER 建项目视为管理操作不存在 → 404（与项目 PATCH 一致）
+    void createProject_adminOnly_member403() {
+        // MEMBER 建项目 → 403 FORBIDDEN（角色不足统一 403）
         String memberToken = fx.addMemberToA();
         ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.POST,
                 "/api/t/" + fx.slugA + "/projects", Map.of("key", "MB", "name", "member project"));
-        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getBody().get("code")).isEqualTo("FORBIDDEN");
         // ADMIN 仍可建
         assertThat(createProject(fx.adminTokenA, fx.slugA, "AD", "admin project")
                 .getStatusCode().value()).isEqualTo(200);
@@ -99,10 +100,11 @@ class ProjectTest extends IntegrationTest {
         assertThat(patched.getBody().get("name")).isEqualTo("new");
         assertThat(patched.getBody().get("defaultSprintLength")).isEqualTo("WEEK_1");
         assertThat(patched.getBody().get("autoRotate")).isEqualTo(false);
-        // MEMBER 改项目设置 → 404（管理资源不暴露）
+        // MEMBER 改项目设置 → 403
         String memberToken = fx.addMemberToA();
         ResponseEntity<Map> denied = fx.exchange(memberToken, HttpMethod.PATCH,
                 "/api/t/" + fx.slugA + "/projects/PM", Map.of("name", "hack"));
-        assertThat(denied.getStatusCode().value()).isEqualTo(404);
+        assertThat(denied.getStatusCode().value()).isEqualTo(403);
+        assertThat(denied.getBody().get("code")).isEqualTo("FORBIDDEN");
     }
 }

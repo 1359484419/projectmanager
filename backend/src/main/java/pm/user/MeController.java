@@ -77,8 +77,10 @@ public class MeController {
     @PutMapping("/password")
     @Transactional
     void changePassword(@RequestBody ChangePasswordRequest req) {
-        if (req.newPassword() == null || req.newPassword().length() < 6) {
-            throw ApiException.badRequest("VALIDATION", "新密码至少 6 位");
+        if (req.newPassword() == null
+                || req.newPassword().length() < pm.auth.AuthService.MIN_PASSWORD_LENGTH) {
+            throw ApiException.badRequest("VALIDATION",
+                    "新密码至少 " + pm.auth.AuthService.MIN_PASSWORD_LENGTH + " 位");
         }
         User user = users.findById(CurrentUser.id()).orElseThrow(ApiException::notFound);
         if (req.oldPassword() == null || !auth.passwordMatches(req.oldPassword(), user.getPasswordHash())) {

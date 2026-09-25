@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import pm.auth.CurrentUser;
+import pm.common.RequireRole;
 import pm.tenant.TenantContext;
 import pm.user.User;
 import pm.user.UserRepository;
@@ -46,7 +47,9 @@ public class TenantAdminController {
                              Membership.Role role) {
     }
 
+    /** 生成邀请链接（仅 ADMIN）。 */
     @PostMapping("/api/t/{slug}/invites")
+    @RequireRole
     InviteService.InviteView createInvite(@PathVariable String slug,
                                           @RequestBody @Validated CreateInviteRequest req) {
         return inviteService.create(req.role(), CurrentUser.id());
@@ -69,8 +72,9 @@ public class TenantAdminController {
                 .toList();
     }
 
-    /** 移除成员：仅 ADMIN（MEMBER → 404）；约束与副作用见 MemberService.remove。 */
+    /** 移除成员：仅 ADMIN（MEMBER → 403）；约束与副作用见 MemberService.remove。 */
     @DeleteMapping("/api/t/{slug}/members/{userId}")
+    @RequireRole
     void removeMember(@PathVariable String slug, @PathVariable Long userId) {
         memberService.remove(userId, CurrentUser.id());
     }
@@ -81,12 +85,13 @@ public class TenantAdminController {
     public record TenantView(String slug, String name) {
     }
 
-    /** 改租户名：仅 ADMIN（MEMBER → 404，与其他管理动作一致）。slug 不可改。 */
+    /** 改租户名：仅 ADMIN（MEMBER → 403，与其他管理动作一致）。slug 不可改。 */
     @org.springframework.web.bind.annotation.PatchMapping("/api/t/{slug}")
+    @RequireRole
     @Transactional
     TenantView updateTenant(@PathVariable String slug, @RequestBody UpdateTenantRequest req) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw pm.common.ApiException.notFound();
+            throw pm.common.ApiException.forbiddenAdminOnly(); // 拦截器已挡，此处为纵深防御
         }
         Tenant tenant = tenants.findById(TenantContext.require())
                 .orElseThrow(pm.common.ApiException::notFound);

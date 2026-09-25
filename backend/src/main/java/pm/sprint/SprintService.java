@@ -76,7 +76,7 @@ public class SprintService {
         sprints.findByProjectIdAndStatus(sprint.getProjectId(), Sprint.Status.ACTIVE)
                 .ifPresent(active -> {
                     throw ApiException.conflict("ACTIVE_SPRINT_EXISTS",
-                            "project already has an active sprint: " + active.getName());
+                            "已有进行中的迭代「" + active.getName() + "」，请先关闭");
                 });
         sprint.setStatus(Sprint.Status.ACTIVE);
         sprints.save(sprint); // MyBatis 无 JPA 脏检查，显式落库

@@ -51,14 +51,14 @@ public class TaskService {
     public record TaskView(Long id, Long projectId, int seq, String displayKey, Task.Type type,
                            String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
-                           Instant createdAt, Instant doneAt, Long createdBy,
+                           Instant createdAt, Instant updatedAt, Instant doneAt, Long createdBy,
                            Instant remindAt, boolean reminderDismissed) {
         public static TaskView from(Task t, String projectKey) {
             return new TaskView(t.getId(), t.getProjectId(), t.getSeq(),
                     projectKey + "-" + t.getSeq(), t.getType(), t.getTitle(), t.getDescription(),
                     t.getPoints(), t.getEpicId(), t.getSprintId(), t.getAssigneeId(),
-                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getDoneAt(), t.getCreatedBy(),
-                    t.getRemindAt(), t.isReminderDismissed());
+                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getUpdatedAt(), t.getDoneAt(),
+                    t.getCreatedBy(), t.getRemindAt(), t.isReminderDismissed());
         }
     }
 
@@ -104,6 +104,9 @@ public class TaskService {
         pm.common.FieldLimits.check(req.title(), pm.common.FieldLimits.TASK_TITLE, "任务标题");
         pm.common.FieldLimits.check(req.description(), pm.common.FieldLimits.TASK_DESCRIPTION, "任务描述");
         validatePoints(req.points());
+        if (req.type() == Task.Type.RECORD) {
+            requireRecordFieldsEmpty(req.sprintId(), req.assigneeId(), req.epicId());
+        }
         Project project = projects.findByKeyForUpdate(projectKey).orElseThrow(ApiException::notFound);
         validateEpicRef(req.epicId(), project.getId());
         validateSprintRef(req.sprintId(), project.getId());
@@ -148,6 +151,12 @@ public class TaskService {
     @Transactional
     public TaskView update(Long taskId, UpdateTaskRequest req, Long actor, Activity.Source source) {
         Task task = requireById(taskId);
+        if (task.getType() == Task.Type.RECORD) {
+            requireRecordFieldsEmpty(
+                    req.sprintId() == null ? null : req.sprintId().value(),
+                    req.assigneeId() == null ? null : req.assigneeId().value(),
+                    req.epicId() == null ? null : req.epicId().value());
+        }
         if (req.status() != null) {
             changeStatus(task, req.status(), actor, source);
         }
@@ -225,6 +234,9 @@ public class TaskService {
         if (Objects.equals(task.getSprintId(), newSprintId)) {
             return;
         }
+        if (task.getType() == Task.Type.RECORD) {
+            requireRecordFieldsEmpty(newSprintId, null, null);
+        }
         validateSprintRef(newSprintId, task.getProjectId());
         recorder.record(task, actor, "SPRINT_CHANGED",
                 toStr(task.getSprintId()), toStr(newSprintId), source);
@@ -255,10 +267,10 @@ public class TaskService {
         return tasks.findDueRecords(userId, Instant.now());
     }
 
-    /** 关闭提醒（幂等）：关闭后不再弹。 */
+    /** 关闭提醒（幂等，关闭后不再弹）：只作用于当前用户自己创建的记录；他人/非 RECORD/不存在一律 404（不暴露有无）。 */
     @Transactional
     public void dismissReminder(Long taskId) {
-        if (tasks.dismissReminder(taskId) == 0) {
+        if (tasks.dismissReminder(taskId, pm.auth.CurrentUser.id()) == 0) {
             throw ApiException.notFound();
         }
     }
@@ -330,6 +342,17 @@ public class TaskService {
      * sprint/epic 必须属于任务所在项目（跨租户经 tenantFilter 查不到，同样 400），
      * assignee 必须是当前租户成员。防同租户跨项目污染看板/路线图与跨租户悬挂引用。
      */
+    /**
+     * 记录（RECORD）是创建者私有数据，不进迭代/看板/路线图，也不指派给别人：
+     * sprintId/assigneeId/epicId 任一非空即 400 INVALID_RECORD_FIELD（显式置 null 放行）。
+     */
+    private static void requireRecordFieldsEmpty(Long sprintId, Long assigneeId, Long epicId) {
+        if (sprintId != null || assigneeId != null || epicId != null) {
+            throw ApiException.badRequest("INVALID_RECORD_FIELD",
+                    "记录是创建者私有的，不能加入迭代、指派负责人或关联长期计划");
+        }
+    }
+
     private void validateSprintRef(Long sprintId, Long projectId) {
         if (sprintId == null) {
             return;

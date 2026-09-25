@@ -17,7 +17,9 @@ import java.util.List;
 
 /**
  * 子任务 REST（与评论一致：租户成员即可操作，无创建者限制）。
- * 子任务只挂在主任务下，taskId 经 TaskService.requireById 做租户归属校验（跨租户 404）。
+ * 子任务只挂在主任务下，四个端点都经 TaskService.requireById 校验主任务归属（跨租户 404；
+ * 主任务是他人的私有记录 RECORD 也 404）。按 id 直达的 PATCH/DELETE 同样要过这一关：
+ * 子任务 id 全局自增可枚举，否则会成为读改删私有记录子任务的旁路（审查 2026-09-25 #1）。
  */
 @RestController
 public class SubtaskController {
@@ -70,6 +72,7 @@ public class SubtaskController {
     public SubtaskView update(@PathVariable String slug, @PathVariable Long id,
                               @RequestBody UpdateSubtaskRequest req) {
         Subtask subtask = subtasks.findOneById(id).orElseThrow(ApiException::notFound);
+        taskService.requireById(subtask.getTaskId()); // 主任务归属校验（他人 RECORD → 404）
         if (req != null && req.title() != null) {
             if (req.title().isBlank()) {
                 throw ApiException.badRequest("VALIDATION", "title must not be blank");
@@ -89,6 +92,7 @@ public class SubtaskController {
     @Transactional
     public void delete(@PathVariable String slug, @PathVariable Long id) {
         Subtask subtask = subtasks.findOneById(id).orElseThrow(ApiException::notFound);
+        taskService.requireById(subtask.getTaskId()); // 主任务归属校验（他人 RECORD → 404）
         subtasks.delete(subtask);
     }
 }

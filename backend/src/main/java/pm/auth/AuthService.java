@@ -25,7 +25,10 @@ import java.util.regex.Pattern;
 public class AuthService {
 
     static final Duration REFRESH_TTL = Duration.ofDays(30);
-    private static final Pattern SLUG = Pattern.compile("^[a-z0-9-]{3,32}$");
+    /** 密码策略：注册 / 接受邀请 / 改密共用。 */
+    public static final int MIN_PASSWORD_LENGTH = 8;
+    public static final String SLUG_REGEX = "^[a-z0-9-]{3,32}$";
+    private static final Pattern SLUG = Pattern.compile(SLUG_REGEX);
 
     private final UserRepository users;
     private final TenantRepository tenants;
@@ -48,11 +51,17 @@ public class AuthService {
         this.jwt = jwt;
     }
 
+    /** 邮箱归一化：去首尾空白 + 全小写；存储与所有查找统一走这里，杜绝大小写不同的重复账号。 */
+    public static String normalizeEmail(String email) {
+        return email == null ? null : email.strip().toLowerCase(java.util.Locale.ROOT);
+    }
+
     @Transactional
-    public TokenPair register(String email, String password, String displayName,
+    public TokenPair register(String rawEmail, String password, String displayName,
                               String tenantName, String tenantSlug) {
+        String email = normalizeEmail(rawEmail);
         if (!SLUG.matcher(tenantSlug).matches()) {
-            throw ApiException.badRequest("INVALID_SLUG", "slug must match ^[a-z0-9-]{3,32}$");
+            throw ApiException.badRequest("INVALID_SLUG", "团队标识只能是 3-32 位小写字母、数字或短横线");
         }
         if (tenants.existsBySlug(tenantSlug)) {
             throw ApiException.conflict("SLUG_TAKEN", "tenant slug already taken");
@@ -67,8 +76,8 @@ public class AuthService {
     }
 
     @Transactional
-    public TokenPair login(String email, String password) {
-        User user = users.findByEmail(email)
+    public TokenPair login(String rawEmail, String password) {
+        User user = users.findByEmail(normalizeEmail(rawEmail))
                 .filter(u -> passwordEncoder.matches(password, u.getPasswordHash()))
                 .orElseThrow(() -> ApiException.unauthorized("BAD_CREDENTIALS", "invalid email or password"));
         return issueTokens(user.getId());

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import pm.common.RequireRole;
 
 import java.util.List;
 
@@ -29,6 +30,7 @@ public class ProjectController {
     }
 
     @PostMapping("/api/t/{slug}/projects")
+    @RequireRole
     ProjectService.ProjectView create(@PathVariable String slug,
                                       @RequestBody CreateProjectRequest req) {
         return projectService.create(req.key(), req.name());
@@ -40,12 +42,14 @@ public class ProjectController {
     }
 
     @PatchMapping("/api/t/{slug}/projects/{key}")
+    @RequireRole
     ProjectService.ProjectView update(@PathVariable String slug, @PathVariable String key,
                                       @RequestBody UpdateProjectRequest req) {
         return projectService.update(key, req.name(), req.defaultSprintLength(), req.autoRotate());
     }
 
     @DeleteMapping("/api/t/{slug}/projects/{key}")
+    @RequireRole
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@PathVariable String slug, @PathVariable String key) {
         projectService.delete(key);

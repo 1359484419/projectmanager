@@ -51,11 +51,11 @@ public class ProjectService {
         this.notifications = notifications;
     }
 
-    /** 仅 ADMIN；MEMBER 视为管理操作不存在 → 404（与 PATCH 一致）。 */
+    /** 仅 ADMIN；MEMBER → 403（REST 由 @RequireRole 先挡，这里兜底 MCP 等直调路径）。 */
     @Transactional
     public ProjectView create(String key, String name) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw ApiException.notFound();
+            throw ApiException.forbiddenAdminOnly();
         }
         if (key == null || !KEY_PATTERN.matcher(key).matches()) {
             throw ApiException.badRequest("INVALID_KEY", "key must be 2-6 uppercase letters");
@@ -80,12 +80,12 @@ public class ProjectService {
         return projects.findByKey(key).orElseThrow(ApiException::notFound);
     }
 
-    /** 仅 ADMIN；MEMBER 视为管理操作不存在 → 404。 */
+    /** 仅 ADMIN；MEMBER → 403。 */
     @Transactional
     public ProjectView update(String key, String name, Project.SprintLength defaultSprintLength,
                               Boolean autoRotate) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw ApiException.notFound();
+            throw ApiException.forbiddenAdminOnly();
         }
         Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
         if (name != null) {
@@ -111,7 +111,7 @@ public class ProjectService {
     @Transactional
     public void delete(String key) {
         if (TenantContext.requireRole() != Membership.Role.ADMIN) {
-            throw ApiException.forbidden("FORBIDDEN", "仅管理员可以删除项目");
+            throw ApiException.forbiddenAdminOnly();
         }
         Project project = projects.findByKey(key).orElseThrow(ApiException::notFound);
         List<Long> taskIds = tasks.findIdsByProjectId(project.getId());

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pm.auth.CurrentUser;
+import pm.common.RequireRole;
 import pm.project.Project;
 import pm.task.TaskBrief;
 import pm.task.TaskRepository;
@@ -59,19 +60,24 @@ public class SprintController {
         return sprintService.create(key, req);
     }
 
-    /** 删除 Sprint：ACTIVE 不可删；其下任务移回 Backlog。 */
+    /** 删除 Sprint（仅 ADMIN）：ACTIVE 不可删；其下任务移回 Backlog。 */
     @DeleteMapping("/api/t/{slug}/sprints/{id}")
+    @RequireRole
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@PathVariable String slug, @PathVariable Long id) {
         sprintService.delete(id, CurrentUser.id());
     }
 
+    /** 启动迭代（仅 ADMIN）。 */
     @PostMapping("/api/t/{slug}/sprints/{id}/start")
+    @RequireRole
     SprintService.SprintView start(@PathVariable String slug, @PathVariable Long id) {
         return sprintService.start(id);
     }
 
+    /** 关闭迭代（仅 ADMIN）：会把所有人的未完成任务退回 Backlog 或搬到目标迭代。 */
     @PostMapping("/api/t/{slug}/sprints/{id}/close")
+    @RequireRole
     SprintService.SprintView close(@PathVariable String slug, @PathVariable Long id,
                                    @RequestBody(required = false) SprintService.CloseSprintRequest req) {
         return sprintService.close(id, req, CurrentUser.id());
