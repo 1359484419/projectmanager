@@ -1,11 +1,18 @@
 """reason 节点：裁剪历史 → 前置系统提示 → 调模型 → 追加 assistant 消息（Thought + Action 或最终回答）。
 
 纯业务：不判等级、不审批、不重试（重试在 llm.py，审批在 guard）。
+
+观测（评审 2026-09-25 M6 + 冒烟实测）：模型没发 tool_calls、本轮没有任何 tool 消息、回复文本却断言
+"不存在/找不到/NOT_FOUND"（否定型）或"已完成/已挪到/已修改…"（肯定型）→ 结构化日志 + 审计 runs.flags 记
+UNVERIFIED_NEGATIVE_CLAIM / UNVERIFIED_POSITIVE_CLAIM。启发式（多轮里"上一步已经完成"也会命中肯定型），只量化频率，不拦截。
 """
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime
+
+from langgraph.config import get_config
 
 from app.harness.auth import current_ctx
 from app.llm import LLM, strip_reasoning
@@ -15,8 +22,48 @@ from app.settings import Settings
 from app.state import AgentState
 from app.tools._params import SHANGHAI
 
+log = logging.getLogger("pm.agent.reason")
+
 DISPLAY_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
 _DATA_RE = re.compile(r"^\s*<data>(.*)</data>\s*$", re.S)
+NEGATIVE_CLAIM_RE = re.compile(r"不存在|找不到|没有找到|没找到|NOT_FOUND")
+POSITIVE_CLAIM_RE = re.compile(r"已(?:经)?(?:完成|创建|新建|建好|修改|改为|改成|更新|删除|删掉|挪到|移到|移回|移动|标记|标为|标成|设为|设置|开始|关闭|提交|执行|添加|加上)")
+FLAG_UNVERIFIED_NEGATIVE = "UNVERIFIED_NEGATIVE_CLAIM"
+FLAG_UNVERIFIED_POSITIVE = "UNVERIFIED_POSITIVE_CLAIM"
+
+
+def _no_tool_this_round(messages: list[dict]) -> bool:
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            break
+        if m.get("role") == "tool":
+            return False
+    return True
+
+
+def unverified_claim_flag(messages: list[dict], reply: dict) -> str | None:
+    """模型最终回复（无 tool_calls）命中否定型/肯定型断言，且本轮（最后一条 user 之后）没有任何 tool 消息 → flag 名。"""
+    if reply.get("tool_calls"):
+        return None
+    content = reply.get("content")
+    if not isinstance(content, str) or not _no_tool_this_round(messages):
+        return None
+    if NEGATIVE_CLAIM_RE.search(content):
+        return FLAG_UNVERIFIED_NEGATIVE
+    if POSITIVE_CLAIM_RE.search(content):
+        return FLAG_UNVERIFIED_POSITIVE
+    return None
+
+
+def is_unverified_negative_claim(messages: list[dict], reply: dict) -> bool:
+    return unverified_claim_flag(messages, reply) == FLAG_UNVERIFIED_NEGATIVE
+
+
+def _thread_id() -> str:
+    try:
+        return str((get_config().get("configurable") or {}).get("thread_id") or "")
+    except RuntimeError:
+        return ""
 
 
 def _split_rounds(messages: list[dict]) -> list[list[dict]]:
@@ -91,10 +138,12 @@ def trim_messages(messages: list[dict], keep_rounds: int, *, max_items: int = 30
     return out
 
 
-def make_reason_node(llm: LLM, tools: list[dict], settings: Settings) -> Callable[[AgentState], Awaitable[dict]]:
+def make_reason_node(llm: LLM, tools: list[dict], settings: Settings,
+                     audit=None) -> Callable[[AgentState], Awaitable[dict]]:
     async def reason(state: AgentState) -> dict:
         ctx = current_ctx()
-        history = trim_messages(state.get("messages", []), settings.context_keep_rounds,
+        messages = state.get("messages", [])
+        history = trim_messages(messages, settings.context_keep_rounds,
                                 max_items=settings.context_summary_max_items,
                                 max_chars=settings.context_summary_max_chars)
         prompt = [{"role": "system", "content": system_prompt(ctx, datetime.now(SHANGHAI))}, *history]
@@ -105,6 +154,13 @@ def make_reason_node(llm: LLM, tools: list[dict], settings: Settings) -> Callabl
         # 流式模型（OpenAILLM.streams_text）已逐 token 发过 text_delta，这里不再整段重发
         if msg.get("content") and not getattr(llm, "streams_text", False):
             emit({"type": "text_delta", "text": msg["content"]})
+        if flag := unverified_claim_flag(messages, msg):
+            run_id, thread_id = state.get("run_id", ""), _thread_id()
+            log.warning("%s run=%s thread=%s: 未调用工具却断言（否定型=不存在/找不到，肯定型=已完成/已挪到）", flag, run_id,
+                        thread_id, extra={"flag": flag, "run_id": run_id, "thread_id": thread_id,
+                                          "tenant": ctx.tenant, "user_id": ctx.user_id})
+            if audit is not None:
+                await audit.flag_run(run_id, flag)
         p_tok = int(usage.get("prompt_tokens", 0) or 0)
         c_tok = int(usage.get("completion_tokens", 0) or 0)
         return {"messages": [msg], "round": state.get("round", 0) + 1,

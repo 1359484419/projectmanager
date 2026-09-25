@@ -75,3 +75,22 @@ def test_ctx_contextvar_roundtrip():
     auth.reset_ctx(token)
     with pytest.raises(RuntimeError):
         auth.current_ctx()
+
+
+def test_tool_schema_keeps_property_named_title():
+    """回归：_strip_titles 只删 pydantic 元数据 title，不能把名为 title 的属性（任务标题）一起删掉。"""
+    from pydantic import BaseModel, ConfigDict, Field
+
+    class Item(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        title: str = Field(description="标题")
+
+    class P(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        title: str = Field(description="标题")
+        items: list[Item] = Field(default_factory=list)
+
+    schema = tg._strip_titles(P.model_json_schema())
+    assert schema["properties"]["title"] == {"description": "标题", "type": "string"}
+    assert schema["$defs"]["Item"]["properties"]["title"] == {"description": "标题", "type": "string"}
+    assert "title" not in schema and "title" not in schema["$defs"]["Item"]

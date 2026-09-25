@@ -86,9 +86,12 @@ async def test_migration_is_idempotent_and_pg_audit_writes():
         await audit.start_run("r-pg", "t_acme_7_pg", "acme", 7, "输入")
         await audit.tool_call("r-pg", "c1", "update_task_status", "L2", {"task_key": "PM-12"}, "approve", 200, "ok", 5)
         await audit.end_run("r-pg", "ok", 10, None)
+        await audit.flag_run("r-pg", "UNVERIFIED_NEGATIVE_CLAIM")
+        await audit.flag_run("r-pg", "CREATE_THEN_DELETE:delete_task:PM-12")
+        await audit.flag_run("r-missing", "X")   # 不存在的 run：无事发生、不抛
         async with await psycopg.AsyncConnection.connect(dsn) as conn:
-            cur = await conn.execute("select status, tokens from agent.runs where run_id=%s", ("r-pg",))
-            assert await cur.fetchone() == ("ok", 10)
+            cur = await conn.execute("select status, tokens, flags from agent.runs where run_id=%s", ("r-pg",))
+            assert await cur.fetchone() == ("ok", 10, ["UNVERIFIED_NEGATIVE_CLAIM", "CREATE_THEN_DELETE:delete_task:PM-12"])
             cur = await conn.execute("select tool, risk, decision, http_status, args->>'task_key' from agent.tool_calls where run_id=%s", ("r-pg",))
             assert await cur.fetchone() == ("update_task_status", "L2", "approve", 200, "PM-12")
             await conn.execute("delete from agent.tool_calls where run_id=%s", ("r-pg",))

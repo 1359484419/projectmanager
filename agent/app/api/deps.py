@@ -35,6 +35,12 @@ class ApiError(Exception):
         return to_wire({"code": self.code, "message": self.message, **self.extra})
 
 
+def require_assistant(request: Request) -> None:
+    """lifespan 里 LLM / DB 初始化失败时 graph 为 None：助手路由统一 503（MCP 子应用不受影响）。"""
+    if getattr(request.app.state, "graph", None) is None:
+        raise ApiError(503, "ASSISTANT_UNAVAILABLE", "助手未就绪（模型或数据库初始化失败）")
+
+
 def not_found() -> ApiError:
     """线程不存在 / 不属于当前用户：统一 404，不泄露存在性。"""
     return ApiError(404, "NOT_FOUND", "会话不存在")

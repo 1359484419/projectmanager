@@ -65,6 +65,8 @@ def _target(before: dict | None, args: BaseModel) -> str:
     b = before or {}
     key = b.get("displayKey")
     name = b.get("title") or b.get("name") or b.get("displayName")
+    if name and b.get("startDate") and b.get("endDate"):   # 迭代：带起止日期，不可逆卡片上看得到是哪一段
+        name = f"{name}（{b['startDate']}～{b['endDate']}）"
     if key and name:
         return f"{key} {name}"
     if key or name:

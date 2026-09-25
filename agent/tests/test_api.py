@@ -248,15 +248,15 @@ async def test_health_degraded_and_cached(monkeypatch):
     monkeypatch.setattr(health_mod, "monotonic", lambda: clock["t"])
     llm = PingableLLM([], reachable=False)
     app = make_app(llm)
-    async with client(app) as c:
+    async with app.router.lifespan_context(app), client(app) as c:   # lifespan 起 MCP 会话管理器 → mcp=ok
         r = await c.get("/health")
-        assert r.status_code == 200 and r.json() == {"status": "degraded", "llm": "unreachable"}
+        assert r.status_code == 200 and r.json() == {"status": "degraded", "llm": "unreachable", "mcp": "ok"}
         llm.reachable = True
         r = await c.get("/health")
         assert r.json()["status"] == "degraded"          # 60s 内走缓存
         clock["t"] += get_settings().health_cache_seconds + 1
         r = await c.get("/health")
-        assert r.json() == {"status": "ok", "llm": "ok"}
+        assert r.json() == {"status": "ok", "llm": "ok", "mcp": "ok"}
 
 
 # 8. 模型不可用（重试用尽）→ error{LLM_UNAVAILABLE} + 手动入口；审计 status=error

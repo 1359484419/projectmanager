@@ -10,6 +10,7 @@ from app.tools._params import (ProjectKeyField, SprintRefField, StrictModel, Tas
                                title_of, validate_points)
 from app.tools._resolve import (brief_with_key, is_self, resolve_epic, resolve_member, resolve_project_key,
                                 resolve_sprint, resolve_task, task_project_key)
+from app.tools._wire import comment_to_wire, load_name_index, strip_internal, subtask_to_wire, task_to_wire, tasks_to_wire
 
 Status = Literal["TODO", "IN_PROGRESS", "COMPLETED", "DONE"]
 STATUS_LABEL = {"TODO": "待办", "IN_PROGRESS": "进行中", "COMPLETED": "已完成", "DONE": "已归档"}
@@ -36,7 +37,7 @@ class SearchTasksParams(StrictModel):
 
 class CreateTaskParams(StrictModel):
     project_key: str | None = ProjectKeyField
-    type: Literal["STORY", "BUG", "TASK"] = Field(description="任务类型")
+    type: Literal["STORY", "BUG", "TASK"] = Field(default="TASK", description="任务类型；用户没说类型就用缺省 TASK，不要追问")
     title: str = Field(min_length=1, description="标题")
     description: str | None = None
     points: float | None = Field(default=None, description="天数：0.5-5，步进 0.5")
@@ -91,20 +92,25 @@ class MoveTaskParams(StrictModel):
 # ---------- L0 ----------
 
 @pm_tool(name="list_backlog", risk="L0", params=ListBacklogParams, label="查询待办",
-         description="列出项目待办（不属于任何迭代的任务）。")
+         description="列出项目所有人的待办（不属于任何迭代的任务，含别人负责的）。"
+                     "用户问「我的/我在待办里/我手头」的任务时不要用本工具，请用 list_my_tasks(sprint=\"backlog\")。")
 async def list_backlog(p: ListBacklogParams) -> dict:
     key = await resolve_project_key(p.project_key)
-    return {"projectKey": key, "tasks": await client().get(f"/projects/{key}/backlog")}
+    rows = await client().get(f"/projects/{key}/backlog") or []
+    idx = await load_name_index(key, with_sprints=False)
+    return {"projectKey": key, "tasks": tasks_to_wire(rows, idx, key)}
 
 
 @pm_tool(name="list_my_tasks", risk="L0", params=ListMyTasksParams, label="查询我的任务",
-         description="列出指派给我的任务：当前迭代 / 下一迭代 / 待办。")
+         description="列出指派给我（当前用户）的任务：当前迭代 / 下一迭代 / 待办（sprint=backlog）。"
+                     "用户说「我的」「我手头」「我在…里」「指派给我的」一律用本工具，不要用 list_backlog / get_board。")
 async def list_my_tasks(p: ListMyTasksParams) -> dict:
     key = await resolve_project_key(p.project_key)
     me = current_ctx().user_id
     if p.sprint == "backlog":
         rows = await client().get(f"/projects/{key}/backlog") or []
-        mine = [t for t in rows if t.get("assigneeId") == me]
+        idx = await load_name_index(key, with_sprints=False)
+        mine = tasks_to_wire([t for t in rows if t.get("assigneeId") == me], idx, key)
     else:
         s = await resolve_sprint(p.sprint, key)
         board = await client().get(f"/sprints/{s['id']}/board") or {}
@@ -112,18 +118,20 @@ async def list_my_tasks(p: ListMyTasksParams) -> dict:
         for status, items in (board.get("columns") or {}).items():
             for t in items or []:
                 if t.get("assigneeId") == me:
-                    mine.append(brief_with_key(key, t, status))
+                    mine.append(strip_internal(brief_with_key(key, t, status)))   # TaskBrief 自带 assigneeName
     return {"projectKey": key, "sprint": p.sprint, "tasks": mine}
 
 
 @pm_tool(name="get_task", risk="L0", params=TaskKeyParams, label="查询任务详情",
-         description="任务详情（含子任务与评论）。")
+         description="任务详情（负责人/长期计划/迭代都是名称，含子任务与评论）。")
 async def get_task(p: TaskKeyParams) -> dict:
     t = await resolve_task(p.task_key)
     c = client()
     subtasks = await c.get(f"/tasks/{t['id']}/subtasks") or []
     comments = await c.get(f"/tasks/{t['id']}/comments") or []
-    return {"task": t, "subtasks": subtasks, "comments": comments}
+    idx = await load_name_index(task_project_key(t))
+    return {"task": task_to_wire(t, idx), "subtasks": [subtask_to_wire(s) for s in subtasks],
+            "comments": [comment_to_wire(cm, idx) for cm in comments]}
 
 
 @pm_tool(name="search_tasks", risk="L0", params=SearchTasksParams, label="搜索任务",

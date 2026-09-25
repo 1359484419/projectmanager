@@ -88,10 +88,15 @@ def needs_approval(risk: Risk) -> bool:
     return _RISK_ORDER[risk] >= _RISK_ORDER["L2"]
 
 
-def _strip_titles(node: Any) -> Any:
-    """递归删掉 pydantic 生成的 title（对模型是噪音）。"""
+# 这些键的值是「名称 → schema」映射：里面的 "title" 是属性名（如任务标题），不是 pydantic 元数据
+_SCHEMA_MAPS: frozenset[str] = frozenset({"properties", "$defs", "definitions"})
+
+
+def _strip_titles(node: Any, *, in_map: bool = False) -> Any:
+    """递归删掉 pydantic 生成的 title 元数据（对模型是噪音），但保留 properties/$defs 里名为 title 的属性。"""
     if isinstance(node, dict):
-        return {k: _strip_titles(v) for k, v in node.items() if k != "title"}
+        return {k: _strip_titles(v, in_map=(k in _SCHEMA_MAPS and not in_map))
+                for k, v in node.items() if in_map or k != "title"}
     if isinstance(node, list):
         return [_strip_titles(v) for v in node]
     return node

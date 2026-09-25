@@ -17,6 +17,7 @@ class Audit(Protocol):
     async def end_run(self, run_id: str, status: str, tokens: int, error_code: str | None) -> None: ...
     async def tool_call(self, run_id: str, call_id: str, tool: str, risk: str, args: dict, decision: str,
                         http_status: int | None, summary: str, ms: int) -> None: ...
+    async def flag_run(self, run_id: str, flag: str) -> None: ...
 
 
 class MemoryAudit:
@@ -27,11 +28,14 @@ class MemoryAudit:
     async def start_run(self, run_id, thread_id, tenant, user_id, input_text) -> None:
         self.runs[run_id] = {"thread_id": thread_id, "tenant": tenant, "user_id": user_id, "input_text": input_text,
                              "started_at": datetime.now(UTC), "ended_at": None, "status": None, "tokens": None,
-                             "error_code": None}
+                             "error_code": None, "flags": []}
 
     async def end_run(self, run_id, status, tokens, error_code) -> None:
         self.runs.setdefault(run_id, {}).update(status=status, tokens=tokens, error_code=error_code,
                                                 ended_at=datetime.now(UTC))
+
+    async def flag_run(self, run_id, flag) -> None:
+        self.runs.setdefault(run_id, {}).setdefault("flags", []).append(flag)
 
     async def tool_call(self, run_id, call_id, tool, risk, args, decision, http_status, summary, ms) -> None:
         self.tool_calls.append({"run_id": run_id, "call_id": call_id, "tool": tool, "risk": risk, "args": dict(args),
@@ -77,6 +81,12 @@ class PgAudit:
         await self._exec(
             f"UPDATE {self._schema}.runs SET ended_at = now(), status = %s, tokens = %s, error_code = %s WHERE run_id = %s",
             (status, tokens, error_code, run_id))
+
+    async def flag_run(self, run_id, flag) -> None:
+        """观测标记追加到 runs.flags（jsonb 数组）；run 行不存在时无事发生。"""
+        await self._exec(
+            f"UPDATE {self._schema}.runs SET flags = flags || to_jsonb(%s::text) WHERE run_id = %s",
+            (str(flag)[:200], run_id))
 
     async def tool_call(self, run_id, call_id, tool, risk, args, decision, http_status, summary, ms) -> None:
         from psycopg.types.json import Jsonb

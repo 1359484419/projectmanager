@@ -7,7 +7,9 @@
 import base64
 import json
 import os
+import re
 import uuid
+import warnings
 from pathlib import Path
 
 import httpx
@@ -136,7 +138,9 @@ def world():
     jwt = r.json()["accessToken"]
     backend = Backend(backend_url, slug, jwt)
     backend.call("POST", "/projects", json={"key": PROJECT_KEY, "name": "冒烟项目"})
-    return {"backend": backend, "agent": Agent(AGENT_URL, slug, _jwt_subject(jwt), jwt), "task": None}
+    uid = _jwt_subject(jwt)
+    return {"backend": backend, "agent": Agent(AGENT_URL, slug, uid, jwt), "task": None,
+            "new_agent": lambda: Agent(AGENT_URL, slug, uid, jwt)}   # 多轮指代类用例各开新线程，避免历史串扰
 
 
 # 1. 查询：必须真的调了 list_projects 才能回答，并以 done 结束
@@ -193,7 +197,8 @@ def test_4_delete_nonexistent_no_confirm(world):
     events = world["agent"].say(f"把 {PROJECT_KEY}-999 删掉")
     assert "confirm" not in types(events), types(events)
     assert events[-1]["type"] == "done", types(events)
-    assert "不存在" in text_of(events) or "找不到" in text_of(events), text_of(events)
+    # 规则 8 要求用人话（"没找到这个任务号"），不绑固定措辞，只要求是否定型如实告知
+    assert re.search(r"不存在|找不到|没找到|没有找到", text_of(events)), text_of(events)
 
 
 # 5. 指代 + 术语表：「标记完成」→ COMPLETED（不是 DONE）；reject → 状态不变
@@ -211,3 +216,130 @@ def test_5_mark_complete_uses_glossary_then_reject(world):
     assert events[-1]["type"] == "done", types(events)
     assert "confirm" not in types(events), "被拒绝后模型不得重发同一调用"
     assert world["backend"].task(task["id"])["status"] == "IN_PROGRESS"
+
+
+# ---------- 评审 2026-09-25 多轮语义测试里的失败场景（断言只看工具序列/参数/后端副作用，不绑文案） ----------
+
+INTERNAL_ID_RE = re.compile(r"(assignee|epic|sprint|project|author)Id|(用户|ID|id)\s*[:：]?\s*\d{1,6}\b")
+
+
+def cards_of(events: list[dict]) -> list[dict]:
+    return [e for e in events if e["type"] == "confirm"]
+
+
+def reject_all(agent: Agent, events: list[dict]) -> list[dict]:
+    """把本轮所有确认卡拒掉（状态不变），返回 resume 事件。"""
+    cards = cards_of(events)
+    return agent.resume([{"callId": c["callId"], "type": "reject"} for c in cards]) if cards else []
+
+
+# 6. M5/X5：确认卡上改了参数并执行后，模型不得按原参数重发第二张卡，也不得说成未执行
+def test_6_edit_decision_is_final_no_resend(world):
+    task = world["task"]
+    assert task, "依赖用例 2"
+    events = world["agent"].say(f"把 {task['displayKey']} 改成 3 天")
+    confirm = confirm_of(events)
+    assert confirm["card"]["tool"] == "update_task" and confirm["card"]["args"]["points"] == 3.0
+    events = world["agent"].resume([{"callId": confirm["callId"], "type": "edit", "args": {"points": 2.5}}])
+    assert "confirm" not in types(events), f"edit 执行后不得再出卡：{types(events)}\n{text_of(events)}"
+    results = [e for e in events if e["type"] == "tool_result" and e["callId"] == confirm["callId"]]
+    assert results and results[0]["ok"] is True
+    assert events[-1]["type"] == "done", types(events)
+    assert float(world["backend"].task(task["id"])["points"]) == 2.5
+    # 回复不得把已执行说成"待确认/未执行"
+    assert "请在确认卡" not in text_of(events) and "未执行" not in text_of(events), text_of(events)
+
+
+# 7. M6 及冒烟实测的肯定型变体：「把 X 挪到下个迭代」必须真的调工具出卡；未调工具就断言"不存在/已挪到"是幻觉。
+#    低频（评审 1/4，本次实测 1/5 与 0/24），按评审建议跑 N 次统计失败率：>1/4 判失败，>0 给 warning 让人看到频率
+HALLU_N = 4
+
+
+def test_7_move_to_next_sprint_never_claims_without_tool(world):
+    task = world["task"]
+    assert task, "依赖用例 2"
+    world["backend"].call("POST", f"/projects/{PROJECT_KEY}/sprints", json={"name": "冒烟迭代 2"})
+    bad: list[str] = []
+    for i in range(HALLU_N):
+        agent = world["new_agent"]()
+        events = agent.say(f"把 {task['displayKey']} 挪到下个迭代")
+        cards = cards_of(events)
+        if not tools_started(events) and not cards:
+            bad.append(f"第 {i + 1} 次：未调工具就回复 → {text_of(events)!r}")
+            continue
+        assert cards and cards[-1]["card"]["tool"] == "move_task_to_sprint", (types(events), text_of(events))
+        assert task["displayKey"] in cards[-1]["card"]["target"]
+        reject_all(agent, events)
+    assert world["backend"].task(task["id"])["sprintId"] is None
+    if bad:
+        warnings.warn(f"未调工具即断言 {len(bad)}/{HALLU_N}：" + " | ".join(bad), stacklevel=1)
+    assert len(bad) <= 1, "\n".join(bad)
+
+
+# 8. R2/X4a：「我在待办里有哪些任务」走 list_my_tasks(backlog)，不是全项目 list_backlog
+def test_8_my_backlog_uses_list_my_tasks(world):
+    other = world["backend"].call("POST", f"/projects/{PROJECT_KEY}/tasks",
+                                  json={"type": "TASK", "title": "无人认领的待办任务"})   # 不指派
+    world["other"] = other
+    agent = world["new_agent"]()
+    events = agent.say("我在待办里有哪些任务")
+    started = tools_started(events)
+    assert "list_my_tasks" in started and "list_backlog" not in started, (started, text_of(events))
+    assert events[-1]["type"] == "done", types(events)
+    assert other["displayKey"] not in text_of(events), "未指派给我的任务不该出现在「我的待办」里"
+
+
+# 9. R4：先看 A 再看 B，「上一个」应指 A（或追问），不得盲目改 B
+def test_9_previous_one_refers_to_second_last(world):
+    a, b = world["task"], world.get("other")
+    assert a and b, "依赖用例 2/8"
+    agent = world["new_agent"]()
+    ev1 = agent.say(f"看一下 {a['displayKey']}")
+    assert "get_task" in tools_started(ev1) and ev1[-1]["type"] == "done"
+    ev2 = agent.say(f"再看一下 {b['displayKey']}")
+    assert "get_task" in tools_started(ev2) and ev2[-1]["type"] == "done"
+    ev3 = agent.say("上一个改成进行中")
+    cards = cards_of(ev3)
+    if cards:   # 出卡：必须是 A
+        assert len(cards) == 1 and cards[0]["card"]["tool"] == "update_task_status"
+        assert a["displayKey"] in cards[0]["card"]["target"] and b["displayKey"] not in cards[0]["card"]["target"], cards
+        reject_all(agent, ev3)
+    else:       # 追问也合理：但不能什么都没做还说改好了
+        assert ev3[-1]["type"] == "done" and "已" not in text_of(ev3)[:2], text_of(ev3)
+    assert world["backend"].task(b["id"])["status"] == "TODO"
+
+
+# 10. R1：多轮指代链里建任务不追问类型，且不得无端创建/删除子任务
+def test_10_anaphora_chain_creates_no_stray_subtasks(world):
+    title = "整理接口文档（冒烟）"
+    agent = world["new_agent"]()
+    ev1 = agent.say(f"建个任务：{title}")
+    assert "create_task" in tools_started(ev1), f"没说类型也应默认 TASK 直接创建：{types(ev1)}\n{text_of(ev1)}"
+    assert ev1[-1]["type"] == "done"
+    created = world["backend"].find_task(title)
+    assert created and created["type"] == "TASK"
+    ev2 = agent.say("把它改成进行中")
+    c2 = confirm_of(ev2)
+    assert c2["card"]["tool"] == "update_task_status" and created["displayKey"] in c2["card"]["target"]
+    reject_all(agent, ev2)
+    ev3 = agent.say("它算 2 天")
+    c3 = confirm_of(ev3)
+    assert c3["card"]["tool"] == "update_task" and c3["card"]["args"]["points"] == 2.0
+    assert created["displayKey"] in c3["card"]["target"]
+    reject_all(agent, ev3)
+    all_started = tools_started(ev1) + tools_started(ev2) + tools_started(ev3)
+    assert not {"create_subtask", "delete_subtask"} & set(all_started), all_started
+    assert world["backend"].call("GET", f"/tasks/{created['id']}/subtasks") == []
+    assert world["backend"].task(created["id"])["status"] == "TODO"
+
+
+# 11. Q8/R4：任务详情不念内部数字 id（负责人/长期计划/迭代用名称）
+def test_11_task_details_do_not_leak_internal_ids(world):
+    task = world["task"]
+    assert task, "依赖用例 2"
+    agent = world["new_agent"]()
+    events = agent.say(f"看看 {task['displayKey']} 的详情")
+    assert "get_task" in tools_started(events) and events[-1]["type"] == "done", types(events)
+    reply = text_of(events)
+    assert not INTERNAL_ID_RE.search(reply), reply
+    assert "冒烟用户" in reply, reply   # 负责人以显示名出现

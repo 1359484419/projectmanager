@@ -11,14 +11,15 @@ from fastapi import APIRouter, Depends, Request
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
 
-from app.api.deps import ApiError, gateway_ctx, new_thread_id, require_own_thread
+from app.api.deps import ApiError, gateway_ctx, new_thread_id, require_assistant, require_own_thread
 from app.api.sse import (is_incomplete, new_run_input, pending_cards, reauth_pending, run_stream, sse_response,
                          thread_config)
 from app.harness.auth import RequestCtx
 from app.harness.thread_lock import ThreadLocks
+from app.nodes.act import is_ok_tool_content
 from app.schemas import Decision, ThreadCreated, ThreadSnapshot, from_wire, to_wire
 
-router = APIRouter(prefix="/assistant/threads")
+router = APIRouter(prefix="/assistant/threads", dependencies=[Depends(require_assistant)])
 
 
 class MessageIn(BaseModel):
@@ -45,9 +46,8 @@ def simplify_messages(messages: list[dict]) -> list[dict]:
                 out.append({"role": "assistant", "text": m["content"]})
         elif role == "tool":
             cid = m.get("tool_call_id", "")
-            content = m.get("content") or ""
             out.append({"role": "tool", "call_id": cid, "tool": tool_names.get(cid, ""),
-                        "ok": isinstance(content, str) and content.startswith("<data>")})
+                        "ok": is_ok_tool_content(m.get("content") or "")})
     return out
 
 

@@ -58,8 +58,41 @@ app/graph.py  state.py  schemas.py  prompts.py  llm.py  settings.py（唯一配�
 app/nodes/{reason,guard(prepare+guard),act(act+reauth),observe}.py
 app/harness/{auth,tool_guard,approval,retry,limiter,audit,fallback,retention}.py
 app/tools/…            工具目录（每个工具显式声明 L0-L3，未声明启动即失败）
+app/tools/_wire.py     输出清洗：内部 id → 名称（assigneeName/epicName/sprintName），剔除 id/projectId 等；MCP 输出复用
+app/mcp/{server,tools,_exec,prompts}.py   MCP 子应用（见下）
 migrations/001_audit.sql   agent.runs / agent.tool_calls（IF NOT EXISTS，幂等）
+migrations/002_run_flags.sql   agent.runs.flags（观测标记，见下）
 ```
+
+## MCP 子应用（`/mcp`，给 Claude Code / Cursor 等外部 agent）
+
+`mcp>=2.2` 的 `MCPServer`（name=`kuibu`）以无状态 Streamable HTTP + JSON 响应挂在 FastAPI 的 `/mcp`（裸路径与 `/mcp/` 都直接响应，不 307）。
+Java `/mcp` 只做 PAT 校验、注入 `Authorization`/`X-PM-Tenant`/`X-PM-User` 后直通 POST；Python 侧 `_exec.ctx_from_headers` 缺任一头即
+返回 `isError {code: BAD_GATEWAY_HEADERS}`（fail-closed，不泄堆栈）。工具用 PAT 经 `PmClient` 回调 Java REST，后端零改动。
+
+- 生命周期独立：`lifespan` 先启动 MCP 会话管理器，再初始化 LLM / checkpointer / 审计；后者失败只记日志，助手路由回 503 `ASSISTANT_UNAVAILABLE`，
+  `/health` 分开报告 `{"llm": ..., "mcp": ...}`。
+- 工具 18 个（`app/mcp/tools.py::mcp_profile`）：读 7（`list_projects / get_project_overview / list_my_work / get_task / search_tasks / get_board / list_members`，readOnlyHint）；
+  L1 3（`create_tasks`(批量 ≤20，`dry_run` 预览，返回 `created[]+failed[]`)`/ add_comment / create_subtask`）；L2 3（`update_task_status / update_task / move_task_to_sprint`，idempotentHint）；
+  L3 2（`close_sprint / start_sprint`：destructiveHint + `confirm:true` 必填 + 描述要求先向用户展示影响）；旧 Java 名别名 3（`list_sprints / list_epics / list_my_tasks(projectKey, sprint current|previous)`），
+  `create_tasks` 的 `projectKey/target`、`update_task_status` 的 `taskSeq` 以参数别名接受。每个工具有 title / 中文 description / outputSchema，
+  入参 schema 全部 `additionalProperties:false` 且不含内部 id；tools/list 入参 schema 合计约 6.7K 字符。
+- 输出经 `_wire` 清洗（名称替代 id）；客户端会按 outputSchema 校验 structuredContent，可能为 null 的对象要写成 `["object","null"]`。
+- resources：`pm://projects`、`pm://projects/{key}/sprints/current`、`pm://me/work`（静态资源拿不到 Context，`KuibuServer.read_resource` 接管 `pm://`）；
+  prompts：`daily_report / weekly_report / plan_from_notes`（`skill/SKILL.md` 的模板）。
+- 测试：`tests/test_mcp.py` 用 mcp 2.x 客户端经 ASGI 直连（`streamable_http_client(url, http_client=httpx2.AsyncClient(transport=ASGITransport(app)))`）。
+
+## 观测标记（`agent.runs.flags`）
+
+模型语义层的问题不拦截、先量化（评审 2026-09-25）。命中时结构化日志 WARNING + 追加到 `runs.flags`（jsonb 数组）：
+
+- `UNVERIFIED_NEGATIVE_CLAIM` / `UNVERIFIED_POSITIVE_CLAIM`：reason 没发 tool_calls、本轮没有任何 tool 消息，回复文本却断言"不存在/找不到/NOT_FOUND"（否定型）或"已完成/已挪到/已修改…"（肯定型）。启发式，多轮里"上一步已经完成"也会命中肯定型，只用于量化频率。
+- `CREATE_THEN_DELETE:<delete 工具>:<对象>`：同一次运行里 create_X 成功后紧跟 delete_X 同一对象（模型为占位/试探而创建再删除）。
+
+查询：`select run_id, input_text, flags from agent.runs where flags <> '[]'::jsonb order by started_at desc;`
+
+edit 决策执行成功后的 tool 消息以固定模板开头「用户在确认卡上把参数改为 <data>…</data> 后已执行 …」（`act.EDITED_TEXT`），
+告诉模型改动来自用户、是最终意图，不要按原参数重发。
 
 ## 配置（`settings.py`，环境变量或 `agent/.env`）
 

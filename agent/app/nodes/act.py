@@ -34,6 +34,10 @@ from app.tools._client import PmApiError, TokenExpired
 from app.tools._resolve import Ambiguous, NotFound
 
 REJECT_TEXT = "用户拒绝了 {name}，未执行，除非用户再次要求否则不要重发。"
+# edit 决策执行成功：固定模板告诉模型「参数已被用户改过」（评审 M5/X5：否则模型对比自己的 tool_call 参数发现
+# 不一致就当成失败去补救——重发原值的卡或谎称未执行）。参数值包 <data>，模板文案固定。
+EDITED_PREFIX = "用户在确认卡上把参数改为 "
+EDITED_TEXT = EDITED_PREFIX + "{args} 后已执行，以下是结果；这是用户的最终意图，不要按原参数重发。\n{result}"
 
 # pending_results[cid]["phase"]
 PHASE_STARTED = "started"          # 已落标记、请求可能已发出
@@ -76,9 +80,29 @@ def data_block(data: Any) -> str:
     return f"<data>{payload}</data>"
 
 
+def is_ok_tool_content(content: Any) -> bool:
+    """tool 消息是否为成功结果（前端历史的 ok 标记用）：<data> 开头，或 edit 决策的固定前缀。"""
+    return isinstance(content, str) and (content.startswith("<data>") or content.startswith(EDITED_PREFIX))
+
+
+def tool_data(content: Any) -> Any:
+    """从 tool 消息内容里取出最后一段 <data>…</data> 的 JSON（成功结果）；不是成功结果 → None。"""
+    if not is_ok_tool_content(content):
+        return None
+    start, end = content.rfind("<data>"), content.rfind("</data>")
+    if start < 0 or end < start:
+        return None
+    try:
+        return json.loads(content[start + len("<data>"):end])
+    except ValueError:
+        return None
+
+
 def tool_message(call_id: str, r: CallResult) -> dict:
     if r.ok:
         content = data_block(r.data)
+        if r.decision == "edit":
+            content = EDITED_TEXT.format(args=data_block(r.args), result=content)
     elif r.user_rejected:
         content = REJECT_TEXT.format(name=r.tool)
     else:

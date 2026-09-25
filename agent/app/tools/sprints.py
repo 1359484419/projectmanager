@@ -1,13 +1,19 @@
-"""迭代：查询、创建、容量、删除、开始、关闭。"""
+"""迭代：查询、创建、容量、删除、开始、关闭。
+
+L3（删除/开始/关闭）带 before：出卡前解析真实迭代（只 GET），卡片标题与 target 显示迭代名与起止日期，
+而不是模型传的 current/next（评审 S1：红色不可逆卡片写着「关闭迭代「current」」）。
+"""
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
 from app.harness.tool_guard import pm_tool
 from app.tools._client import client
-from app.tools._params import ProjectKeyField, SprintRefField, StrictModel, validate_date
+from app.tools._params import SHANGHAI, ProjectKeyField, SprintRefField, StrictModel, validate_date
 from app.tools._resolve import (groups_with_keys, require_sprint_id, resolve_member, resolve_project_key,
                                 resolve_sprint)
+from app.tools._wire import strip_internal
 
 
 # ---------- 参数 ----------
@@ -26,7 +32,8 @@ class CreateSprintParams(StrictModel):
     project_key: str | None = ProjectKeyField
     name: str | None = Field(default=None, description="迭代名称，缺省由系统按序号命名")
     length: Literal["WEEK_1", "WEEK_2", "MONTH_1"] | None = Field(default=None, description="时长，缺省用项目默认")
-    start_date: str | None = Field(default=None, description="开始日期 yyyy-MM-dd，缺省紧接上一个迭代")
+    start_date: str | None = Field(default=None,
+                                   description="开始日期 yyyy-MM-dd；缺省为上一个迭代结束日的次日（不早于今天），没有迭代时为今天")
 
     _d = field_validator("start_date")(classmethod(lambda cls, v: validate_date(v)))
 
@@ -73,13 +80,27 @@ async def get_board(p: GetBoardParams) -> dict:
     key = await resolve_project_key(p.project_key)
     s = await require_sprint_id(p.sprint, key)
     data = await client().get(f"/sprints/{s['id']}/board") or {}
-    return {"projectKey": key, **data, "columns": groups_with_keys(key, data.get("columns"))}
+    return {"projectKey": key, **strip_internal({k: v for k, v in data.items() if k != "columns"}),
+            "columns": strip_internal(groups_with_keys(key, data.get("columns")))}
 
 
 # ---------- L1 ----------
 
+def _today() -> date:
+    return datetime.now(SHANGHAI).date()
+
+
+def default_start_date(sprints: list[dict], today: date) -> str | None:
+    """缺省开始日期 = 最晚结束日的次日，但不早于今天；没有任何带结束日的迭代 → None（交给后端缺省=今天）。"""
+    ends = [date.fromisoformat(str(s["endDate"])) for s in sprints or [] if s.get("endDate")]
+    if not ends:
+        return None
+    return max(max(ends) + timedelta(days=1), today).isoformat()
+
+
 @pm_tool(name="create_sprint", risk="L1", params=CreateSprintParams, label="创建迭代",
-         description="创建一个已计划（PLANNED）的迭代；名称/时长/开始日期都可缺省。")
+         description="创建一个已计划（PLANNED）的迭代；名称/时长/开始日期都可缺省，"
+                     "开始日期缺省为上一个迭代结束日的次日（不早于今天）。")
 async def create_sprint(p: CreateSprintParams) -> dict:
     key = await resolve_project_key(p.project_key)
     body: dict = {}
@@ -89,6 +110,10 @@ async def create_sprint(p: CreateSprintParams) -> dict:
         body["length"] = p.length
     if p.start_date:
         body["startDate"] = p.start_date
+    else:
+        existing = await client().get(f"/projects/{key}/sprints") or []
+        if start := default_start_date(existing, _today()):
+            body["startDate"] = start
     return await client().post(f"/projects/{key}/sprints", json=body)
 
 
@@ -117,8 +142,27 @@ async def set_capacity(p: SetCapacityParams) -> dict:
 
 # ---------- L3 ----------
 
-@pm_tool(name="delete_sprint", risk="L3", params=SprintNameParams, label="删除迭代",
-         summarize=lambda p, b: f"删除迭代「{p.sprint_name}」（其下任务移回待办）",
+def _sprint_label(b: dict | None, fallback: str) -> str:
+    """卡片标题用真实迭代名（before 解析到的），解析不到才退回模型传的引用。"""
+    return str((b or {}).get("name") or fallback)
+
+
+async def _before_sprint(p: SprintNameParams) -> dict:
+    """出卡前解析迭代（只 GET）：不存在/多义在出卡前就报，卡片显示真实名称与日期。"""
+    key = await resolve_project_key(p.project_key)
+    return await require_sprint_id(p.sprint_name, key)
+
+
+async def _before_close(p: CloseSprintParams) -> dict:
+    key = await resolve_project_key(p.project_key)
+    s = dict(await require_sprint_id(p.sprint, key))
+    if p.unfinished == "move":
+        s["targetSprintName"] = (await require_sprint_id(p.target_sprint or "next", key)).get("name")
+    return s
+
+
+@pm_tool(name="delete_sprint", risk="L3", params=SprintNameParams, label="删除迭代", before=_before_sprint,
+         summarize=lambda p, b: f"删除迭代「{_sprint_label(b, p.sprint_name)}」（其下任务移回待办）",
          description="删除一个迭代（进行中的迭代不可删）；其下任务自动移回待办。")
 async def delete_sprint(p: SprintNameParams) -> dict:
     key = await resolve_project_key(p.project_key)
@@ -127,8 +171,8 @@ async def delete_sprint(p: SprintNameParams) -> dict:
     return {"deleted": s.get("name"), "projectKey": key}
 
 
-@pm_tool(name="start_sprint", risk="L3", params=SprintNameParams, label="开始迭代",
-         summarize=lambda p, b: f"开始迭代「{p.sprint_name}」",
+@pm_tool(name="start_sprint", risk="L3", params=SprintNameParams, label="开始迭代", before=_before_sprint,
+         summarize=lambda p, b: f"开始迭代「{_sprint_label(b, p.sprint_name)}」",
          description="把一个已计划的迭代设为进行中（同一项目同时只能有一个进行中的迭代）。")
 async def start_sprint(p: SprintNameParams) -> dict:
     key = await resolve_project_key(p.project_key)
@@ -136,8 +180,9 @@ async def start_sprint(p: SprintNameParams) -> dict:
     return await client().post(f"/sprints/{s['id']}/start")
 
 
-@pm_tool(name="close_sprint", risk="L3", params=CloseSprintParams, label="关闭迭代",
-         summarize=lambda p, b: f"关闭迭代「{p.sprint}」，未完成任务{'移到 ' + str(p.target_sprint) if p.unfinished == 'move' else '移回待办'}",
+@pm_tool(name="close_sprint", risk="L3", params=CloseSprintParams, label="关闭迭代", before=_before_close,
+         summarize=lambda p, b: f"关闭迭代「{_sprint_label(b, p.sprint)}」，未完成任务"
+                                f"{'移到 ' + str((b or {}).get('targetSprintName') or p.target_sprint) if p.unfinished == 'move' else '移回待办'}",
          description="关闭迭代；未完成任务移回待办（backlog）或移到目标迭代（move + target_sprint）。不可逆。")
 async def close_sprint(p: CloseSprintParams) -> dict:
     key = await resolve_project_key(p.project_key)

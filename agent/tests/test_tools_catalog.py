@@ -1,3 +1,4 @@
+import json
 import httpx, pytest, respx
 from pydantic import ValidationError
 from app.harness import tool_guard as tg
@@ -371,3 +372,55 @@ async def test_create_task_defaults_assignee_to_current_user():
     assert tg.effective_risk(spec, spec.params(type="TASK", title="x", unassigned=True), CTX) == "L1"
     # 卡片/结果摘要里不再出现 "指派给 None"
     assert "None" not in spec.summarize(spec.params(type="TASK", title="x"), None)
+
+
+# ---------- 评审 2026-09-25 P2：迭代 L3 卡片显示真实迭代名与日期；create_sprint 缺省开始日期 ----------
+
+@respx.mock
+async def test_sprint_l3_cards_show_real_sprint_name_and_dates():
+    """S1：close_sprint(sprint=current) 卡标题显示「current」、target 为空。before 解析真实迭代。"""
+    from datetime import UTC, datetime
+    from app.harness.approval import build_card
+    mock_common()
+    now = datetime(2026, 9, 24, 10, 0, tzinfo=UTC)
+    close = tg.REGISTRY["close_sprint"]
+    card = await build_card(close, close.params(sprint="current", unfinished="move", target_sprint="next"),
+                            "c1", CTX, now, 600)
+    assert "Sprint 2" in card.title and "current" not in card.title
+    assert "Sprint 3" in card.title                                  # 目标迭代也解析成真实名
+    assert card.target.startswith("Sprint 2") and "2026-09-21" in card.target and "2026-10-04" in card.target
+    start = tg.REGISTRY["start_sprint"]
+    card = await build_card(start, start.params(sprint_name="next"), "c2", CTX, now, 600)
+    assert "Sprint 3" in card.title and "next" not in card.title and "2026-10-05" in card.target
+    delete = tg.REGISTRY["delete_sprint"]
+    card = await build_card(delete, delete.params(sprint_name="Sprint 3"), "c3", CTX, now, 600)
+    assert "Sprint 3" in card.title and "2026-10-05" in card.target
+    # 解析不到 → 出卡前就 NotFound（不出「关闭迭代「xxx」」的假卡）
+    with pytest.raises(NotFound):
+        await build_card(close, close.params(sprint="Sprint 9", unfinished="backlog"), "c4", CTX, now, 600)
+    with pytest.raises(NotFound):
+        await build_card(close, close.params(sprint="current", unfinished="move", target_sprint="Sprint 9"),
+                         "c5", CTX, now, 600)
+
+
+def test_default_sprint_start_date_is_day_after_latest_end_but_not_before_today():
+    from datetime import date
+    from app.tools.sprints import default_start_date
+    sprints = fx("sprints")   # 最晚 endDate 2026-10-18
+    assert default_start_date(sprints, date(2026, 9, 25)) == "2026-10-19"
+    assert default_start_date(sprints, date(2026, 11, 1)) == "2026-11-01"      # 都过期了 → 今天
+    assert default_start_date([], date(2026, 9, 25)) is None                   # 没有迭代 → 交给后端缺省
+    assert default_start_date([{"name": "x", "endDate": None}], date(2026, 9, 25)) is None
+
+
+@respx.mock
+async def test_create_sprint_fills_default_start_date(monkeypatch):
+    from datetime import date
+    from app.tools import sprints as sprints_mod
+    mock_common()
+    monkeypatch.setattr(sprints_mod, "_today", lambda: date(2026, 9, 25))
+    sp = respx.post(f"{BASE}/projects/PM/sprints").mock(return_value=ok(fx("sprints")[0]))
+    await run("create_sprint")
+    assert json.loads(sp.calls.last.request.read()) == {"startDate": "2026-10-19"}
+    await run("create_sprint", start_date="2026-12-01", name="Sprint 9")
+    assert json.loads(sp.calls.last.request.read()) == {"name": "Sprint 9", "startDate": "2026-12-01"}

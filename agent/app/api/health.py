@@ -1,4 +1,6 @@
-"""/health：存活 + LLM 网关连通性，结果缓存 settings.health_cache_seconds 秒（探活不能每次都打网关）。"""
+"""/health：存活 + LLM 网关连通性 + MCP 子应用状态，结果缓存 settings.health_cache_seconds 秒（探活不能每次都打网关）。
+
+status=ok 要求 llm 与 mcp 都 ok；llm 缺失（初始化失败）视为 unreachable。"""
 import logging
 from time import monotonic
 from typing import Any
@@ -7,6 +9,8 @@ log = logging.getLogger("pm.agent.health")
 
 
 async def _llm_reachable(llm: Any) -> bool:
+    if llm is None:
+        return False  # lifespan 里 make_llm 失败：助手不可用
     ping = getattr(llm, "ping", None)
     if ping is None:
         return True  # 没有探活能力的实现（测试假模型）视为可达
@@ -25,6 +29,8 @@ async def check_health(state: Any) -> dict:
     if cached and now - cached[0] < state.settings.health_cache_seconds:
         return cached[1]
     reachable = await _llm_reachable(getattr(state, "llm", None))
-    result = {"status": "ok" if reachable else "degraded", "llm": "ok" if reachable else "unreachable"}
+    mcp_ok = bool(getattr(state, "mcp_ready", False))
+    result = {"status": "ok" if reachable and mcp_ok else "degraded", "llm": "ok" if reachable else "unreachable",
+              "mcp": "ok" if mcp_ok else "unavailable"}
     state.health_cache = (now, result)
     return result
