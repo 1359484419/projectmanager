@@ -186,4 +186,11 @@
         WHERE id = #{id} AND type = 'RECORD' AND created_by = #{userId} AND tenant_id = #{tenantId}
     </update>
 
+    <!-- 子任务增删改时推进主任务 updated_at（日报取数）；独立字段直写，不走 version 乐观锁 -->
+    <update id="touchUpdatedAtT">
+        UPDATE tasks
+        SET updated_at = now()
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </update>
+
 </mapper>

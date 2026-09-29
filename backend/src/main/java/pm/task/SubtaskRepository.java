@@ -14,12 +14,26 @@ import java.util.Optional;
 @Mapper
 public interface SubtaskRepository {
 
-    default List<Subtask> findByTaskIdOrderByIdAsc(Long taskId) {
+    default List<Subtask> findByTaskIdOrderByRankAsc(Long taskId) {
         return findByTaskIdT(taskId, TenantContext.require());
     }
 
     default Optional<Subtask> findOneById(Long id) {
         return findOneByIdT(id, TenantContext.require());
+    }
+
+    /** 尾插用：当前任务下最大 rank。 */
+    default Optional<String> maxRank(Long taskId) {
+        return maxRankT(taskId, TenantContext.require());
+    }
+
+    /** 列表/看板角标：按任务批量聚合计数（调用方只传可见任务 id）。 */
+    default List<SubtaskCount> countByTaskIds(java.util.Collection<Long> taskIds) {
+        List<Long> list = new java.util.ArrayList<>(taskIds);
+        if (list.isEmpty()) {
+            return List.of();
+        }
+        return countByTaskIdsT(list, TenantContext.require());
     }
 
     default void deleteByTaskId(Long taskId) {
@@ -46,6 +60,11 @@ public interface SubtaskRepository {
     List<Subtask> findByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
 
     Optional<Subtask> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
+
+    Optional<String> maxRankT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
+
+    List<SubtaskCount> countByTaskIdsT(@Param("taskIds") List<Long> taskIds,
+                                       @Param("tenantId") long tenantId);
 
     void deleteByTaskIdT(@Param("taskId") Long taskId, @Param("tenantId") long tenantId);
 

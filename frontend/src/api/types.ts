@@ -64,6 +64,9 @@ export interface Task {
   doneAt: string | null
   remindAt: string | null
   reminderDismissed: boolean
+  /** 子任务进度角标（backlog/records 列表装配；单任务响应缺省） */
+  subtaskDone?: number | null
+  subtaskTotal?: number | null
 }
 
 /** 列表/看板/分组场景的精简任务（dashboard groups、roadmap tasks、withTasks 等） */
@@ -78,6 +81,9 @@ export interface TaskBrief {
   assigneeName?: string | null
   /** 描述摘要（后端截断到 200 字符，无描述为 null） */
   description?: string | null
+  /** 子任务进度角标（列表装配；无子任务时为 0，未装配的响应缺省/null） */
+  subtaskDone?: number | null
+  subtaskTotal?: number | null
 }
 
 /** 全租户关键词搜索命中（GET /api/t/{slug}/tasks/search?q=） */
@@ -118,6 +124,14 @@ export interface Subtask {
   taskId: number
   title: string
   done: boolean
+  /** 完成留痕：勾选完成时写入，取消完成时清空为 null */
+  doneAt: string | null
+  doneBy: number | null
+  /** 详情：抽屉内联展开编辑 */
+  description: string | null
+  assigneeId: number | null
+  /** yyyy-MM-dd */
+  dueDate: string | null
   createdAt: string
 }
 
@@ -334,3 +348,6 @@ export interface TaskImageMeta {
   contentType: string
   createdAt: string
 }
+
+/** 子任务图片元数据（字节流经 /subtask-images/{id} 以 blob 方式取） */
+export type SubtaskImageMeta = TaskImageMeta

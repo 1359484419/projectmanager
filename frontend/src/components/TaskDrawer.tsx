@@ -5,6 +5,17 @@
 import { apiErrorMessage } from '../api/errors'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  qk,
   useActivities,
   useComments,
   useCreateComment,
@@ -21,7 +32,9 @@ import {
 } from '../api/hooks'
 import type {
   Activity,
+  Member,
   Sprint,
+  Subtask,
   Task,
   TaskBrief,
   TaskStatus,
@@ -37,6 +50,7 @@ import TypeIcon from './TypeIcon'
 import { SelectWrap, selStyle, statusColor, statusOptions, typeOptions } from './ui'
 import { POINTS_CHOICES, fmtPoints } from '../utils/points'
 import { fetchImageUrl, uploadTaskImage, useTaskImages } from '../api/hooks'
+import { fetchSubtaskImageUrl, uploadSubtaskImage, useSubtaskImages } from '../api/hooks'
 import { useEffect as useEffectImg, useState as useStateImg } from 'react'
 
 export interface TaskDrawerProps {
@@ -79,6 +93,17 @@ function humanValue(v: string | null, t: Translations): string {
 function activityText(a: Activity, t: Translations): string {
   if (a.type === 'CREATED') return t.createdTask
   if (a.type === 'COMMENTED') return t.postedComment
+  // 子任务留痕：old/newValue 承载子任务标题
+  if (a.type === 'SUBTASK_CREATED') return t.activitySubtaskCreated(a.newValue ?? '')
+  if (a.type === 'SUBTASK_DONE') return t.activitySubtaskDone(a.newValue ?? '')
+  if (a.type === 'SUBTASK_UNDONE') return t.activitySubtaskUndone(a.newValue ?? '')
+  if (a.type === 'SUBTASK_RENAMED') return t.activitySubtaskRenamed(a.oldValue ?? '', a.newValue ?? '')
+  if (a.type === 'SUBTASK_DELETED') return t.activitySubtaskDeleted(a.oldValue ?? '')
+  // 详情留痕：ASSIGNED 承载显示名（空 = 取消指派）；DUE_CHANGED 承载 yyyy-MM-dd（空 = 清空）
+  if (a.type === 'SUBTASK_ASSIGNED')
+    return a.newValue ? t.activitySubtaskAssigned(a.newValue) : t.activitySubtaskUnassigned
+  if (a.type === 'SUBTASK_DUE_CHANGED')
+    return a.newValue ? t.activitySubtaskDueChanged(a.newValue) : t.activitySubtaskDueCleared
   const field = activityFieldLabel(t)[a.type]
   const oldV = humanValue(a.oldValue, t)
   const newV = humanValue(a.newValue, t)
@@ -317,20 +342,44 @@ function RecordImagesBlock({ slug, taskId }: { slug: string; taskId: number }) {
 
 function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
   const t = useT()
+  const qc = useQueryClient()
   const subtasks = useSubtasks(slug, taskId)
   const createSubtask = useCreateSubtask(slug, taskId)
   const updateSubtask = useUpdateSubtask(slug, taskId)
   const deleteSubtask = useDeleteSubtask(slug, taskId)
+  const members = useMembers(slug)
   const [title, setTitle] = useState('')
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   const list = subtasks.data ?? []
   const doneCount = list.filter((s) => s.done).length
+  const memberName = useMemo(() => {
+    const m = new Map<number, string>()
+    ;(members.data ?? []).forEach((u) => m.set(u.userId, u.displayName))
+    return m
+  }, [members.data])
 
   const submit = () => {
     const trimmed = title.trim()
     if (!trimmed || createSubtask.isPending) return
     createSubtask.mutate(trimmed, { onSuccess: () => setTitle('') })
+  }
+
+  /** 拖拽结束：本地乐观重排，再按新邻居发 rank 锚点由后端算中点 */
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const from = list.findIndex((s) => s.id === active.id)
+    const to = list.findIndex((s) => s.id === over.id)
+    if (from < 0 || to < 0) return
+    const reordered = arrayMove(list, from, to)
+    qc.setQueryData(qk.subtasks(slug, taskId), reordered)
+    updateSubtask.mutate({
+      id: active.id as number,
+      rank: { afterId: reordered[to - 1]?.id, beforeId: reordered[to + 1]?.id },
+    })
   }
 
   return (
@@ -352,78 +401,38 @@ function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
         <div style={{ ...hintStyle, fontSize: 12.5, marginBottom: 8 }}>{t.noSubtasks}</div>
       )}
       {list.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 8 }}>
-          {list.map((s) => (
-            <div
-              key={s.id}
-              onMouseEnter={() => setHoveredId(s.id)}
-              onMouseLeave={() => setHoveredId((cur) => (cur === s.id ? null : cur))}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-                padding: '5px 7px',
-                borderRadius: 7,
-                background: hoveredId === s.id ? 'var(--card)' : 'transparent',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => updateSubtask.mutate({ id: s.id, done: !s.done })}
-                aria-label={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
-                title={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
-                style={{
-                  width: 16,
-                  height: 16,
-                  flex: 'none',
-                  borderRadius: '50%',
-                  border: `1.5px solid ${s.done ? 'var(--accent)' : 'var(--border)'}`,
-                  background: s.done ? 'var(--accent)' : 'transparent',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  padding: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {s.done && <Icon name="check" size={10} />}
-              </button>
-              <span
-                style={{
-                  flex: 1,
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                  color: s.done ? 'var(--faint)' : 'var(--text)',
-                  textDecoration: s.done ? 'line-through' : 'none',
-                }}
-              >
-                {s.title}
-              </span>
-              <button
-                type="button"
-                onClick={() => deleteSubtask.mutate(s.id)}
-                aria-label={t.subtaskDelete}
-                title={t.subtaskDelete}
-                className="icon-btn"
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  padding: 0,
-                  width: 16,
-                  height: 16,
-                  flex: 'none',
-                  color: 'var(--dim)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  opacity: hoveredId === s.id ? 1 : 0,
-                }}
-              >
-                <Icon name="x" size={16} />
-              </button>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={list.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 8 }}>
+              {list.map((s) => (
+                <div key={s.id}>
+                  <SubtaskRow
+                    s={s}
+                    hovered={hoveredId === s.id}
+                    onHover={(on) => setHoveredId(on ? s.id : null)}
+                    doneByName={s.doneBy != null ? memberName.get(s.doneBy) ?? null : null}
+                    assigneeName={s.assigneeId != null ? memberName.get(s.assigneeId) ?? null : null}
+                    overdue={isSubtaskOverdue(s)}
+                    expanded={expandedId === s.id}
+                    onToggleExpand={() =>
+                      setExpandedId((cur) => (cur === s.id ? null : s.id))
+                    }
+                    onToggle={() => updateSubtask.mutate({ id: s.id, done: !s.done })}
+                    onDelete={() => deleteSubtask.mutate(s.id)}
+                  />
+                  {expandedId === s.id && (
+                    <SubtaskDetail
+                      slug={slug}
+                      s={s}
+                      members={members.data ?? []}
+                      onPatch={(input) => updateSubtask.mutate({ id: s.id, ...input })}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* 添加：输入框回车提交（同评论输入框风格） */}
@@ -453,6 +462,423 @@ function SubtasksBlock({ slug, taskId }: { slug: string; taskId: number }) {
           {t.subtaskAddFailed(apiErrorMessage(createSubtask.error, t))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 本地今天 yyyy-MM-dd（到期日逾期比较用；仅展示，不进业务判定） */
+function todayLocalStr(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function isSubtaskOverdue(s: Subtask): boolean {
+  return !s.done && s.dueDate != null && s.dueDate < todayLocalStr()
+}
+
+/** 单条子任务：拖拽柄（hover 出现）+ 两态勾选 + 标题（完成时划线并附「由谁完成」）+ 详情展开 + 删除 */
+function SubtaskRow({
+  s,
+  hovered,
+  onHover,
+  doneByName,
+  assigneeName,
+  overdue,
+  expanded,
+  onToggleExpand,
+  onToggle,
+  onDelete,
+}: {
+  s: Subtask
+  hovered: boolean
+  onHover: (on: boolean) => void
+  doneByName: string | null
+  assigneeName: string | null
+  overdue: boolean
+  expanded: boolean
+  onToggleExpand: () => void
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  const t = useT()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: s.id,
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 7px',
+        borderRadius: 7,
+        background: isDragging ? 'var(--card-2)' : hovered ? 'var(--card)' : 'transparent',
+        opacity: isDragging ? 0.7 : 1,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        transition,
+      }}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={t.subtaskDrag}
+        title={t.subtaskDrag}
+        style={{
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          width: 12,
+          height: 16,
+          flex: 'none',
+          color: 'var(--faint)',
+          cursor: 'grab',
+          display: 'flex',
+          alignItems: 'center',
+          opacity: hovered || isDragging ? 1 : 0,
+          touchAction: 'none',
+        }}
+      >
+        <Icon name="grip" size={12} />
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
+        title={s.done ? t.subtaskMarkUndone : t.subtaskMarkDone}
+        style={{
+          width: 16,
+          height: 16,
+          flex: 'none',
+          borderRadius: '50%',
+          border: `1.5px solid ${s.done ? 'var(--accent)' : 'var(--border)'}`,
+          background: s.done ? 'var(--accent)' : 'transparent',
+          color: '#fff',
+          cursor: 'pointer',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {s.done && <Icon name="check" size={10} />}
+      </button>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: 13,
+          lineHeight: 1.45,
+          color: s.done ? 'var(--faint)' : 'var(--text)',
+          textDecoration: s.done ? 'line-through' : 'none',
+        }}
+      >
+        {s.title}
+        {(assigneeName || s.dueDate) && (
+          <span
+            style={{
+              display: 'flex',
+              gap: 6,
+              marginTop: 2,
+              fontSize: 11,
+              textDecoration: 'none',
+              color: 'var(--faint)',
+              flexWrap: 'wrap',
+            }}
+          >
+            {assigneeName && (
+              <span
+                style={{
+                  padding: '0 6px',
+                  borderRadius: 6,
+                  background: 'var(--card-2)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {assigneeName}
+              </span>
+            )}
+            {s.dueDate && (
+              <span
+                style={{
+                  padding: '0 6px',
+                  borderRadius: 6,
+                  background: 'var(--card-2)',
+                  border: '1px solid var(--border)',
+                  color: overdue ? 'var(--type-bug)' : 'var(--faint)',
+                }}
+              >
+                {s.dueDate}
+                {overdue ? ` · ${t.subtaskOverdue}` : ''}
+              </span>
+            )}
+          </span>
+        )}
+        {s.done && doneByName && (
+          <span
+            style={{
+              display: 'block',
+              fontSize: 11,
+              textDecoration: 'none',
+              color: 'var(--faint)',
+              marginTop: 1,
+            }}
+          >
+            {t.subtaskDoneBy(doneByName)}
+          </span>
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={onToggleExpand}
+        aria-label={expanded ? t.subtaskCollapse : t.subtaskDetail}
+        title={expanded ? t.subtaskCollapse : t.subtaskDetail}
+        className="icon-btn"
+        style={{
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          width: 16,
+          height: 16,
+          flex: 'none',
+          color: expanded ? 'var(--accent)' : 'var(--dim)',
+          cursor: 'pointer',
+          display: 'flex',
+          opacity: hovered || expanded ? 1 : 0,
+          transform: expanded ? 'rotate(180deg)' : 'none',
+        }}
+      >
+        <Icon name="chevron" size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label={t.subtaskDelete}
+        title={t.subtaskDelete}
+        className="icon-btn"
+        style={{
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          width: 16,
+          height: 16,
+          flex: 'none',
+          color: 'var(--dim)',
+          cursor: 'pointer',
+          display: 'flex',
+          opacity: hovered ? 1 : 0,
+        }}
+      >
+        <Icon name="x" size={16} />
+      </button>
+    </div>
+  )
+}
+
+/** 子任务详情（内联展开）：描述（blur 保存）/ 负责人 / 到期日 / 图片附件。每项改动即 PATCH /subtasks/{id}。 */
+function SubtaskDetail({
+  slug,
+  s,
+  members,
+  onPatch,
+}: {
+  slug: string
+  s: Subtask
+  members: Member[]
+  onPatch: (input: { description?: string | null; assigneeId?: number | null; dueDate?: string | null }) => void
+}) {
+  const t = useT()
+  return (
+    <div
+      style={{
+        margin: '2px 0 8px 34px',
+        padding: '10px 12px',
+        borderRadius: 8,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <textarea
+        defaultValue={s.description ?? ''}
+        placeholder={t.subtaskDescriptionPlaceholder}
+        aria-label={t.fieldDescription}
+        rows={3}
+        onBlur={(e) => {
+          const v = e.target.value
+          if (v !== (s.description ?? '')) onPatch({ description: v === '' ? null : v })
+        }}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          resize: 'vertical',
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--card-2)',
+          color: 'var(--text)',
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          padding: '7px 10px',
+          outline: 'none',
+          fontFamily: 'inherit',
+        }}
+      />
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dim)' }}>
+          {t.assignee}
+          <SelectWrap>
+            <select
+              aria-label={t.assignee}
+              value={s.assigneeId != null ? String(s.assigneeId) : ''}
+              onChange={(e) =>
+                onPatch({ assigneeId: e.target.value ? Number(e.target.value) : null })
+              }
+              style={{ ...selStyle, fontSize: 12.5 }}
+            >
+              <option value="">{t.unassigned}</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.displayName}
+                </option>
+              ))}
+            </select>
+          </SelectWrap>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dim)' }}>
+          {t.subtaskDueDate}
+          <input
+            type="date"
+            aria-label={t.subtaskDueDate}
+            value={s.dueDate ?? ''}
+            onChange={(e) => onPatch({ dueDate: e.target.value || null })}
+            style={{
+              height: 28,
+              borderRadius: 7,
+              border: '1px solid var(--border)',
+              background: 'var(--card-2)',
+              color: isSubtaskOverdue(s) ? 'var(--type-bug)' : 'var(--text)',
+              fontSize: 12.5,
+              padding: '0 8px',
+              outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+        </label>
+      </div>
+      <SubtaskAttachmentsBlock slug={slug} subtaskId={s.id} />
+    </div>
+  )
+}
+
+/** 子任务附件：图片显示缩略图，文档显示文件芯片；fetch+blob 展示（img src 带不了 Authorization） */
+function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId: number }) {
+  const t = useT()
+  const images = useSubtaskImages(slug, subtaskId)
+  const [urls, setUrls] = useStateImg<Record<number, string>>({})
+  const [uploading, setUploading] = useStateImg(false)
+
+  useEffectImg(() => {
+    let cancelled = false
+    const metas = images.data ?? []
+    metas.forEach((m) => {
+      if (urls[m.id]) return
+      fetchSubtaskImageUrl(slug, m.id)
+        .then((u) => { if (!cancelled) setUrls((cur) => ({ ...cur, [m.id]: u })) })
+        .catch(() => {})
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.data, slug])
+
+  async function onPick(files: FileList | null) {
+    if (!files || uploading) return
+    setUploading(true)
+    for (const f of Array.from(files)) {
+      if (f.size > 5 * 1024 * 1024) continue
+      try {
+        await uploadSubtaskImage(slug, subtaskId, f)
+      } catch {
+        // 单个失败不阻断其余
+      }
+    }
+    setUploading(false)
+    images.refetch()
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 6 }}>{t.subtaskAttachments}</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        {(images.data ?? []).map((m) =>
+          m.contentType.startsWith('image/') ? (
+            <a key={m.id} href={urls[m.id]} target="_blank" rel="noreferrer" title={m.filename}>
+              <img
+                src={urls[m.id]}
+                alt={m.filename}
+                style={{
+                  width: 64, height: 64, objectFit: 'cover', borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--card-2)',
+                }}
+              />
+            </a>
+          ) : (
+            <a
+              key={m.id}
+              href={urls[m.id]}
+              target="_blank"
+              rel="noreferrer"
+              title={m.filename}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                maxWidth: 180,
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--card-2)',
+                color: 'var(--text)',
+                fontSize: 12,
+                textDecoration: 'none',
+              }}
+            >
+              <Icon name="file" size={14} style={{ flex: 'none', color: 'var(--dim)' }} />
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {m.filename}
+              </span>
+            </a>
+          )
+        )}
+        <label
+          style={{
+            width: 64, height: 64, borderRadius: 8, border: '1px dashed var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--faint)', fontSize: 11, cursor: 'pointer', textAlign: 'center',
+            opacity: uploading ? 0.5 : 1,
+          }}
+        >
+          + {t.addAttachment}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip"
+            multiple
+            onChange={(e) => { onPick(e.target.files); e.target.value = '' }}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
     </div>
   )
 }

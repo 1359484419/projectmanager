@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import pm.IntegrationTest;
@@ -148,5 +149,251 @@ class SubtaskTest extends IntegrationTest {
         // A 的数据未被影响
         assertThat(listSubtasks()).hasSize(1);
         assertThat(listSubtasks().get(0).get("done")).isEqualTo(false);
+    }
+
+    @Test
+    void progressCounts_inBacklog() {
+        Map s1 = createSubtask("一");
+        createSubtask("二");
+        createSubtask("三");
+        fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s1.get("id"), Map.of("done", true));
+
+        ResponseEntity<List> backlog = fx.getList(fx.adminTokenA, base + "/projects/PM/backlog");
+        assertThat(backlog.getStatusCode().value()).isEqualTo(200);
+        Map row = (Map) backlog.getBody().stream()
+                .filter(m -> ((Map) m).get("id").equals(taskId)).findFirst().orElseThrow();
+        assertThat(row.get("subtaskTotal")).isEqualTo(3);
+        assertThat(row.get("subtaskDone")).isEqualTo(1);
+    }
+
+    @Test
+    void activities_andTaskUpdatedAt() {
+        // 任务刚建时 updated_at == created_at
+        ResponseEntity<Map> before = fx.exchange(fx.adminTokenA, HttpMethod.GET,
+                base + "/tasks/" + taskId, null);
+        assertThat(before.getBody().get("updatedAt")).isEqualTo(before.getBody().get("createdAt"));
+
+        Map s = createSubtask("留痕");
+        fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("done", true));
+        fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("title", "留痕改名"));
+        fx.exchange(fx.adminTokenA, HttpMethod.DELETE, base + "/subtasks/" + s.get("id"), null);
+
+        ResponseEntity<List> acts = fx.getList(fx.adminTokenA, base + "/tasks/" + taskId + "/activities");
+        assertThat(acts.getBody()).extracting(m -> ((Map) m).get("type"))
+                .contains("SUBTASK_CREATED", "SUBTASK_DONE", "SUBTASK_RENAMED", "SUBTASK_DELETED");
+
+        // 子任务写操作推进主任务 updated_at（日报取数）
+        ResponseEntity<Map> after = fx.exchange(fx.adminTokenA, HttpMethod.GET,
+                base + "/tasks/" + taskId, null);
+        assertThat(after.getBody().get("updatedAt"))
+                .isNotEqualTo(after.getBody().get("createdAt"));
+    }
+
+    @Test
+    void doneTrail_doneAtDoneBy_setAndCleared() {
+        // 租户 A 只有 admin 一个成员，取其 userId 作断言基准
+        ResponseEntity<List> members = fx.getList(fx.adminTokenA, base + "/members");
+        Object adminId = ((Map) members.getBody().get(0)).get("userId");
+
+        Map s = createSubtask("勾选");
+        ResponseEntity<Map> done = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("done", true));
+        assertThat(done.getBody().get("doneAt")).isNotNull();
+        assertThat(done.getBody().get("doneBy")).isEqualTo(adminId);
+
+        ResponseEntity<Map> undone = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("done", false));
+        assertThat(undone.getBody().get("doneAt")).isNull();
+        assertThat(undone.getBody().get("doneBy")).isNull();
+    }
+
+    @Test
+    void reorder_byRankAnchors() {
+        Map a = createSubtask("甲");
+        Map b = createSubtask("乙");
+        Map c = createSubtask("丙");
+        assertThat(listSubtasks()).extracting(m -> m.get("title"))
+                .containsExactly("甲", "乙", "丙");
+
+        // 丙 提到最前（beforeId = 甲）
+        ResponseEntity<Map> toTop = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + c.get("id"),
+                Map.of("rank", Map.of("beforeId", a.get("id"))));
+        assertThat(toTop.getStatusCode().value()).isEqualTo(200);
+        assertThat(listSubtasks()).extracting(m -> m.get("title"))
+                .containsExactly("丙", "甲", "乙");
+
+        // 甲 移到 乙 之后（afterId = 乙）→ 丙、乙、甲
+        ResponseEntity<Map> afterB = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + a.get("id"),
+                Map.of("rank", Map.of("afterId", b.get("id"))));
+        assertThat(afterB.getStatusCode().value()).isEqualTo(200);
+        assertThat(listSubtasks()).extracting(m -> m.get("title"))
+                .containsExactly("丙", "乙", "甲");
+
+        // 锚点是别的任务的子任务 → 400
+        ResponseEntity<Map> t2 = fx.exchange(fx.adminTokenA, HttpMethod.POST,
+                base + "/projects/PM/tasks", Map.of("type", "TASK", "title", "另一个任务"));
+        ResponseEntity<Map> other = fx.exchange(fx.adminTokenA, HttpMethod.POST,
+                base + "/tasks/" + t2.getBody().get("id") + "/subtasks", Map.of("title", "外人"));
+        ResponseEntity<Map> bad = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + a.get("id"),
+                Map.of("rank", Map.of("afterId", other.getBody().get("id"))));
+        assertThat(bad.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    void details_descriptionAssigneeDue() {
+        ResponseEntity<List> members = fx.getList(fx.adminTokenA, base + "/members");
+        Object adminId = ((Map) members.getBody().get(0)).get("userId");
+
+        Map s = createSubtask("详情");
+        assertThat(s.get("description")).isNull();
+        assertThat(s.get("assigneeId")).isNull();
+        assertThat(s.get("dueDate")).isNull();
+
+        // 三字段一次更新
+        ResponseEntity<Map> up = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"),
+                Map.of("description", "详细说明", "assigneeId", adminId, "dueDate", "2026-10-01"));
+        assertThat(up.getStatusCode().value()).isEqualTo(200);
+        assertThat(up.getBody().get("description")).isEqualTo("详细说明");
+        assertThat(up.getBody().get("assigneeId")).isEqualTo(adminId);
+        assertThat(up.getBody().get("dueDate")).isEqualTo("2026-10-01");
+
+        // 显式 null 三态清空（Map.of 不收 null，用 HashMap）
+        Map<String, Object> clear = new java.util.HashMap<>();
+        clear.put("description", null);
+        clear.put("assigneeId", null);
+        clear.put("dueDate", null);
+        ResponseEntity<Map> cleared = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), clear);
+        assertThat(cleared.getBody().get("description")).isNull();
+        assertThat(cleared.getBody().get("assigneeId")).isNull();
+        assertThat(cleared.getBody().get("dueDate")).isNull();
+
+        // 字段缺省不改：只传 title，详情保持 null 且不回填
+        ResponseEntity<Map> untouched = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("title", "详情改名"));
+        assertThat(untouched.getBody().get("description")).isNull();
+
+        // 非本租户成员 → 400 INVALID_ASSIGNEE
+        ResponseEntity<Map> badAssignee = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("assigneeId", 999999));
+        assertThat(badAssignee.getStatusCode().value()).isEqualTo(400);
+        assertThat(badAssignee.getBody().get("code")).isEqualTo("INVALID_ASSIGNEE");
+
+        // 非法日期 → 400 VALIDATION
+        ResponseEntity<Map> badDate = fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"), Map.of("dueDate", "10月1日"));
+        assertThat(badDate.getStatusCode().value()).isEqualTo(400);
+        assertThat(badDate.getBody().get("code")).isEqualTo("VALIDATION");
+
+        // 指派/到期日留痕（清空也算）
+        fx.exchange(fx.adminTokenA, HttpMethod.PATCH,
+                base + "/subtasks/" + s.get("id"),
+                Map.of("assigneeId", adminId, "dueDate", "2026-10-01"));
+        ResponseEntity<List> acts = fx.getList(fx.adminTokenA, base + "/tasks/" + taskId + "/activities");
+        assertThat(acts.getBody()).extracting(m -> ((Map) m).get("type"))
+                .contains("SUBTASK_ASSIGNED", "SUBTASK_DUE_CHANGED");
+    }
+
+    @Test
+    void images_uploadListBytes_crossTenant404() throws Exception {
+        Map s = createSubtask("带图");
+        // 1x1 PNG
+        byte[] png = java.util.Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+        headers.setBearerAuth(fx.adminTokenA);
+        ByteArrayResource file = new ByteArrayResource(png) {
+            @Override
+            public String getFilename() {
+                return "a.png";
+            }
+        };
+        org.springframework.util.MultiValueMap<String, Object> body =
+                new org.springframework.util.LinkedMultiValueMap<>();
+        body.add("file", file);
+        ResponseEntity<Map> up = rest.exchange(base + "/subtasks/" + s.get("id") + "/images",
+                HttpMethod.POST, new org.springframework.http.HttpEntity<>(body, headers), Map.class);
+        assertThat(up.getStatusCode().value()).isEqualTo(200);
+        assertThat(up.getBody().get("filename")).isEqualTo("a.png");
+        Object imageId = up.getBody().get("id");
+
+        // 文档附件：PDF 也放行（附件不只图片）
+        byte[] pdf = "%PDF-1.4 fake".getBytes();
+        ByteArrayResource docFile = new ByteArrayResource(pdf) {
+            @Override
+            public String getFilename() {
+                return "spec.pdf";
+            }
+        };
+        org.springframework.util.MultiValueMap<String, Object> docBody =
+                new org.springframework.util.LinkedMultiValueMap<>();
+        docBody.add("file", docFile);
+        ResponseEntity<Map> docUp = rest.exchange(base + "/subtasks/" + s.get("id") + "/images",
+                HttpMethod.POST,
+                new org.springframework.http.HttpEntity<>(docBody, authHeadersMultipart(fx.adminTokenA)),
+                Map.class);
+        assertThat(docUp.getStatusCode().value()).isEqualTo(200);
+
+        // 可执行文件等未白名单类型 → 400
+        ByteArrayResource exeFile = new ByteArrayResource("MZ".getBytes()) {
+            @Override
+            public String getFilename() {
+                return "a.exe";
+            }
+        };
+        org.springframework.util.MultiValueMap<String, Object> exeBody =
+                new org.springframework.util.LinkedMultiValueMap<>();
+        exeBody.add("file", exeFile);
+        org.springframework.http.HttpHeaders exeHeaders = authHeaders(fx.adminTokenA);
+        exeHeaders.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+        ResponseEntity<Map> exeUp = rest.exchange(base + "/subtasks/" + s.get("id") + "/images",
+                HttpMethod.POST, new org.springframework.http.HttpEntity<>(exeBody, exeHeaders),
+                Map.class);
+        assertThat(exeUp.getStatusCode().value()).isEqualTo(400);
+        assertThat(exeUp.getBody().get("code")).isEqualTo("INVALID_ATTACHMENT");
+
+        // 元数据列表（图片 + 文档）
+        ResponseEntity<List> list = fx.getList(fx.adminTokenA,
+                base + "/subtasks/" + s.get("id") + "/images");
+        assertThat(list.getBody()).hasSize(2);
+
+        // 字节流一致
+        ResponseEntity<byte[]> bytes = rest.exchange(base + "/subtask-images/" + imageId,
+                HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(fx.adminTokenA)),
+                byte[].class);
+        assertThat(bytes.getStatusCode().value()).isEqualTo(200);
+        assertThat(bytes.getBody()).isEqualTo(png);
+
+        // 跨租户读字节 → 404
+        ResponseEntity<Map> cross = fx.exchange(fx.adminTokenB, HttpMethod.GET,
+                "/api/t/" + fx.slugB + "/subtask-images/" + imageId, null);
+        assertThat(cross.getStatusCode().value()).isEqualTo(404);
+        // 跨租户上传 → 404
+        ResponseEntity<Map> crossUp = rest.exchange(
+                "/api/t/" + fx.slugB + "/subtasks/" + s.get("id") + "/images",
+                HttpMethod.POST, new org.springframework.http.HttpEntity<>(body, authHeadersMultipart(fx.adminTokenB)),
+                Map.class);
+        assertThat(crossUp.getStatusCode().value()).isEqualTo(404);
+    }
+
+    private static org.springframework.http.HttpHeaders authHeaders(String token) {
+        org.springframework.http.HttpHeaders h = new org.springframework.http.HttpHeaders();
+        h.setBearerAuth(token);
+        return h;
+    }
+
+    private static org.springframework.http.HttpHeaders authHeadersMultipart(String token) {
+        org.springframework.http.HttpHeaders h = authHeaders(token);
+        h.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+        return h;
     }
 }

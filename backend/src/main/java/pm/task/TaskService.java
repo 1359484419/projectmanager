@@ -9,6 +9,7 @@ import pm.project.ProjectRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -52,13 +53,21 @@ public class TaskService {
                            String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
                            Instant createdAt, Instant updatedAt, Instant doneAt, Long createdBy,
-                           Instant remindAt, boolean reminderDismissed) {
+                           Instant remindAt, boolean reminderDismissed,
+                           Integer subtaskDone, Integer subtaskTotal) {
         public static TaskView from(Task t, String projectKey) {
+            return from(t, projectKey, null);
+        }
+
+        /** count 为 null 表示未装配计数（单任务响应）；列表接口统一走带计数的版本。 */
+        public static TaskView from(Task t, String projectKey, SubtaskCount count) {
             return new TaskView(t.getId(), t.getProjectId(), t.getSeq(),
                     projectKey + "-" + t.getSeq(), t.getType(), t.getTitle(), t.getDescription(),
                     t.getPoints(), t.getEpicId(), t.getSprintId(), t.getAssigneeId(),
                     t.getStatus(), t.getRank(), t.getCreatedAt(), t.getUpdatedAt(), t.getDoneAt(),
-                    t.getCreatedBy(), t.getRemindAt(), t.isReminderDismissed());
+                    t.getCreatedBy(), t.getRemindAt(), t.isReminderDismissed(),
+                    count == null ? null : (int) count.getDone(),
+                    count == null ? null : (int) count.getTotal());
         }
     }
 
@@ -249,16 +258,24 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskView> backlog(String projectKey) {
         Project project = projects.findByKey(projectKey).orElseThrow(ApiException::notFound);
-        return tasks.findByProjectIdAndSprintIdIsNullOrderByRankAsc(project.getId()).stream()
-                .map(t -> TaskView.from(t, project.getKey()))
-                .toList();
+        return withSubtaskCounts(
+                tasks.findByProjectIdAndSprintIdIsNullOrderByRankAsc(project.getId()),
+                project.getKey());
     }
 
     /** 记录模块：项目内我创建的 RECORD 列表（新的在前；记录是创建者私有数据）。 */
     public List<TaskView> records(String projectKey, Long userId) {
         Project project = projects.findByKey(projectKey).orElseThrow(ApiException::notFound);
-        return tasks.findRecords(project.getId(), userId).stream()
-                .map(t -> TaskView.from(t, project.getKey()))
+        return withSubtaskCounts(tasks.findRecords(project.getId(), userId), project.getKey());
+    }
+
+    /** 列表装配子任务进度角标：一次 GROUP BY 聚合查询覆盖整批，避免 N+1。 */
+    private List<TaskView> withSubtaskCounts(List<Task> list, String projectKey) {
+        Map<Long, SubtaskCount> counts = subtaskRepo
+                .countByTaskIds(list.stream().map(Task::getId).toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(SubtaskCount::getTaskId, c -> c));
+        return list.stream()
+                .map(t -> TaskView.from(t, projectKey, counts.get(t.getId())))
                 .toList();
     }
 

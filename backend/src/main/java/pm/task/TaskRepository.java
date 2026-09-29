@@ -137,6 +137,11 @@ public interface TaskRepository {
         return dismissReminderT(id, userId, TenantContext.require());
     }
 
+    /** 子任务增删改时推进主任务 updated_at（日报取数用；不动 version，不与编辑冲突）。 */
+    default void touchUpdatedAt(Long taskId) {
+        touchUpdatedAtT(taskId, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     Optional<Task> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
@@ -183,4 +188,6 @@ public interface TaskRepository {
                                        @Param("tenantId") long tenantId);
 
     int dismissReminderT(@Param("id") Long id, @Param("userId") Long userId, @Param("tenantId") long tenantId);
+
+    void touchUpdatedAtT(@Param("id") Long id, @Param("tenantId") long tenantId);
 }
