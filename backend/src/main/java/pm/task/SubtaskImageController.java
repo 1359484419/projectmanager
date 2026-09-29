@@ -1,11 +1,14 @@
 package pm.task;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import pm.common.ApiException;
@@ -94,6 +97,16 @@ public class SubtaskImageController {
                 .contentType(MediaType.parseMediaType(image.getContentType()))
                 .header("Cache-Control", "private, max-age=86400")
                 .body(image.getData());
+    }
+
+    /** 删除单个附件（传错不必删整个子任务）。 */
+    @DeleteMapping("/api/t/{slug}/subtask-images/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(@PathVariable String slug, @PathVariable Long imageId) {
+        SubtaskImage image = images.findOneById(imageId).orElseThrow(ApiException::notFound);
+        Subtask subtask = requireOwned(image.getSubtaskId());
+        images.delete(imageId);
+        taskRepo.touchUpdatedAt(subtask.getTaskId()); // 日报取数
     }
 
     /** 子任务存在且主任务归属当前用户可见（跨租户/他人 RECORD → 404）。 */

@@ -13,7 +13,8 @@ BASE = "http://pm/api/t/acme"
 
 
 def fx(name: str):
-    return json.loads((FIXTURES / f"{name}.json").read_text())
+    # 显式 utf-8：Windows 中文 fixture 在 ANSI 区域设置下 read_text() 默认 cp1252 会炸
+    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
 
 
 def ok(name_or_obj):

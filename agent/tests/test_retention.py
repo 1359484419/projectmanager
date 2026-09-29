@@ -103,5 +103,5 @@ def _sum(counts: dict[str, int]) -> int:
 def test_retention_setting_is_consumed_by_lifespan():
     """「声明未接线」守卫：settings.thread_retention_days 必须有消费点（main.py 定时清理）。"""
     import pathlib
-    src = (pathlib.Path(__file__).resolve().parents[1] / "app" / "main.py").read_text()
+    src = (pathlib.Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
     assert "thread_retention_days" in src and "cleanup_expired_threads" in src

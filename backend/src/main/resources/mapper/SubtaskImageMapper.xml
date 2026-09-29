@@ -24,4 +24,9 @@
         WHERE id = #{id} AND tenant_id = #{tenantId}
     </select>
 
+    <delete id="deleteByIdT">
+        DELETE FROM subtask_images
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
 </mapper>

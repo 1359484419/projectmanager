@@ -26,6 +26,10 @@ public interface SubtaskImageRepository {
         return findOneByIdT(id, TenantContext.require());
     }
 
+    default void delete(Long id) {
+        deleteByIdT(id, TenantContext.require());
+    }
+
     // ---- 以下为 XML 里的真正语句，Service 层不直接调用 ----
 
     void insertT(@Param("i") SubtaskImage image, @Param("tenantId") long tenantId);
@@ -34,4 +38,6 @@ public interface SubtaskImageRepository {
                                             @Param("tenantId") long tenantId);
 
     Optional<SubtaskImage> findOneByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
+
+    void deleteByIdT(@Param("id") Long id, @Param("tenantId") long tenantId);
 }

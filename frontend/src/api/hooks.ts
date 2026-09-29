@@ -466,6 +466,16 @@ export async function fetchSubtaskImageUrl(slug: string, imageId: number): Promi
   return URL.createObjectURL(await res.blob())
 }
 
+/** 删除单个子任务附件（传错不必删整个子任务） */
+export function useDeleteSubtaskImage(slug: string, _subtaskId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (imageId: number) =>
+      api(`${t(slug)}/subtask-images/${imageId}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
 // ---------- 项目删除 ----------
 
 /** 删除项目（仅 ADMIN）：级联删除项目下全部任务/Sprint/Epic/评论/历史。 */

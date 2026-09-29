@@ -76,7 +76,7 @@ async def test_migration_is_idempotent_and_pg_audit_writes():
     if not await _pg_available(dsn):
         pytest.skip("本地 PG 不可达，跳过 PG 审计测试")
     import psycopg
-    sql = MIGRATION.read_text()
+    sql = MIGRATION.read_text(encoding="utf-8")
     async with await psycopg.AsyncConnection.connect(dsn, autocommit=True) as conn:
         await conn.execute(sql)
         await conn.execute(sql)   # 第二次执行不报错

@@ -158,6 +158,7 @@ const en: typeof import('./zh').default = {
   subtaskOverdue: 'Overdue',
   subtaskAttachments: 'Attachments',
   addAttachment: 'Add file',
+  subtaskAttachmentDelete: 'Delete attachment',
   activitySubtaskCreated: (title: string) => `added subtask "${title}"`,
   activitySubtaskDone: (title: string) => `completed subtask "${title}"`,
   activitySubtaskUndone: (title: string) => `marked subtask "${title}" as not started`,

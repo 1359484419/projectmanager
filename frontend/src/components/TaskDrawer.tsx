@@ -50,7 +50,7 @@ import TypeIcon from './TypeIcon'
 import { SelectWrap, selStyle, statusColor, statusOptions, typeOptions } from './ui'
 import { POINTS_CHOICES, fmtPoints } from '../utils/points'
 import { fetchImageUrl, uploadTaskImage, useTaskImages } from '../api/hooks'
-import { fetchSubtaskImageUrl, uploadSubtaskImage, useSubtaskImages } from '../api/hooks'
+import { fetchSubtaskImageUrl, uploadSubtaskImage, useDeleteSubtaskImage, useSubtaskImages } from '../api/hooks'
 import { useEffect as useEffectImg, useState as useStateImg } from 'react'
 
 export interface TaskDrawerProps {
@@ -780,6 +780,8 @@ function SubtaskDetail({
 function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId: number }) {
   const t = useT()
   const images = useSubtaskImages(slug, subtaskId)
+  const deleteImage = useDeleteSubtaskImage(slug, subtaskId)
+  const [hoveredId, setHoveredId] = useStateImg<number | null>(null)
   const [urls, setUrls] = useStateImg<Record<number, string>>({})
   const [uploading, setUploading] = useStateImg(false)
 
@@ -815,52 +817,85 @@ function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId:
     <div>
       <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 6 }}>{t.subtaskAttachments}</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        {(images.data ?? []).map((m) =>
-          m.contentType.startsWith('image/') ? (
-            <a key={m.id} href={urls[m.id]} target="_blank" rel="noreferrer" title={m.filename}>
-              <img
-                src={urls[m.id]}
-                alt={m.filename}
+        {(images.data ?? []).map((m) => (
+          <span
+            key={m.id}
+            onMouseEnter={() => setHoveredId(m.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            style={{ position: 'relative', display: 'inline-flex' }}
+          >
+            {m.contentType.startsWith('image/') ? (
+              <a href={urls[m.id]} target="_blank" rel="noreferrer" title={m.filename}>
+                <img
+                  src={urls[m.id]}
+                  alt={m.filename}
+                  style={{
+                    width: 64, height: 64, objectFit: 'cover', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--card-2)',
+                    display: 'block',
+                  }}
+                />
+              </a>
+            ) : (
+              <a
+                href={urls[m.id]}
+                target="_blank"
+                rel="noreferrer"
+                title={m.filename}
                 style={{
-                  width: 64, height: 64, objectFit: 'cover', borderRadius: 8,
-                  border: '1px solid var(--border)', background: 'var(--card-2)',
-                }}
-              />
-            </a>
-          ) : (
-            <a
-              key={m.id}
-              href={urls[m.id]}
-              target="_blank"
-              rel="noreferrer"
-              title={m.filename}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                maxWidth: 180,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'var(--card-2)',
-                color: 'var(--text)',
-                fontSize: 12,
-                textDecoration: 'none',
-              }}
-            >
-              <Icon name="file" size={14} style={{ flex: 'none', color: 'var(--dim)' }} />
-              <span
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  maxWidth: 180,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--card-2)',
+                  color: 'var(--text)',
+                  fontSize: 12,
+                  textDecoration: 'none',
                 }}
               >
-                {m.filename}
-              </span>
-            </a>
-          )
-        )}
+                <Icon name="file" size={14} style={{ flex: 'none', color: 'var(--dim)' }} />
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {m.filename}
+                </span>
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => deleteImage.mutate(m.id)}
+              aria-label={t.subtaskAttachmentDelete}
+              title={t.subtaskAttachmentDelete}
+              className="icon-btn"
+              style={{
+                position: 'absolute',
+                top: -5,
+                right: -5,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                border: '1px solid var(--border)',
+                background: 'var(--card)',
+                color: 'var(--dim)',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: hoveredId === m.id ? 1 : 0,
+              }}
+            >
+              <Icon name="x" size={10} />
+            </button>
+          </span>
+        ))}
         <label
           style={{
             width: 64, height: 64, borderRadius: 8, border: '1px dashed var(--border)',

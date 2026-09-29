@@ -158,6 +158,7 @@ const zh = {
   subtaskOverdue: '已逾期',
   subtaskAttachments: '附件',
   addAttachment: '添加附件',
+  subtaskAttachmentDelete: '删除附件',
   activitySubtaskCreated: (title: string) => `添加了子任务「${title}」`,
   activitySubtaskDone: (title: string) => `完成了子任务「${title}」`,
   activitySubtaskUndone: (title: string) => `把子任务「${title}」标为未开始`,

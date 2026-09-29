@@ -383,6 +383,21 @@ class SubtaskTest extends IntegrationTest {
                 HttpMethod.POST, new org.springframework.http.HttpEntity<>(body, authHeadersMultipart(fx.adminTokenB)),
                 Map.class);
         assertThat(crossUp.getStatusCode().value()).isEqualTo(404);
+
+        // 删除单个附件：跨租户 404；本租户 204，字节流随之 404，列表只剩 PDF
+        ResponseEntity<Map> crossDel = fx.exchange(fx.adminTokenB, HttpMethod.DELETE,
+                "/api/t/" + fx.slugB + "/subtask-images/" + imageId, null);
+        assertThat(crossDel.getStatusCode().value()).isEqualTo(404);
+        ResponseEntity<Map> del = fx.exchange(fx.adminTokenA, HttpMethod.DELETE,
+                base + "/subtask-images/" + imageId, null);
+        assertThat(del.getStatusCode().value()).isEqualTo(204);
+        ResponseEntity<Map> gone = rest.exchange(base + "/subtask-images/" + imageId,
+                HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(fx.adminTokenA)),
+                Map.class);
+        assertThat(gone.getStatusCode().value()).isEqualTo(404);
+        ResponseEntity<List> afterDel = fx.getList(fx.adminTokenA,
+                base + "/subtasks/" + s.get("id") + "/images");
+        assertThat(afterDel.getBody()).hasSize(1);
     }
 
     private static org.springframework.http.HttpHeaders authHeaders(String token) {
