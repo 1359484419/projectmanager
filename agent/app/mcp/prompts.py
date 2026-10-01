@@ -33,8 +33,8 @@ WEEKLY_TEMPLATE = """## 周报 · {YYYY-Www} · {姓名}
 
 
 # 「今日完成」的唯一判定规则（skill/SKILL.md 流程 2 与这里逐字一致，tests/test_docs_sync.py 比对）：
-# 后端只在进入 DONE 时写 doneAt，COMPLETED 不写，所以 COMPLETED 的任务要靠 updatedAt 判断是不是今天完成的。
-DONE_TODAY_RULE = "doneAt 是今天，或状态为 COMPLETED 且 updatedAt 是今天 → 今日完成"
+# 后端 TaskView.statusChangedAt 只在状态变更时推进（改标题/描述不动它），比 updatedAt 准；doneAt 只在进入 DONE 时写，不够用。
+DONE_TODAY_RULE = "status 为 COMPLETED 或 DONE 且 statusChangedAt 是今天 → 今日完成"
 
 
 def _pk(project_key: str | None) -> str:
@@ -44,9 +44,11 @@ def _pk(project_key: str | None) -> str:
 def daily_report(project_key: str | None = None) -> str:
     return (
         "请帮我写今天的日报。步骤：\n"
-        f'1. 调 list_my_work(scope="current"{_pk(project_key)}) 取我在当前迭代的任务（进行中 / 待办从这里来）；'
-        f'再调 list_my_work(scope="all"{_pk(project_key)}, updated_since="今天的日期") 拉出今天变更过的任务'
-        "（包含 done_since 能筛到的，也包含只改了状态没有 doneAt 的 COMPLETED）。\n"
+        f'1. 调 list_my_work(scope="current"{_pk(project_key)}) 取我在当前迭代的任务（进行中 / 今日完成从这里来，'
+        f'每行带 statusChangedAt）；再调 list_my_work(scope="current"{_pk(project_key)}, '
+        'status_changed_since="今天的日期") 只拿今天状态变过的，作「今日完成」候选；'
+        f'待办池另调 list_my_work(scope="backlog"{_pk(project_key)})。'
+        '不要用 scope="all"：它会遍历全部已关闭迭代，迭代越多请求越多，只有要补更早迭代的任务时才用。\n'
         f"2. 归组：{DONE_TODAY_RULE}；迭代里早先就已 COMPLETED/DONE 的不算今天；IN_PROGRESS → 进行中"
         "（进展用 description 摘要、子任务进度 subtaskDone/subtaskTotal，需要更多细节再 get_task 看评论）；"
         "TODO → 待办 / 明日计划。\n"
@@ -57,9 +59,11 @@ def daily_report(project_key: str | None = None) -> str:
 def weekly_report(project_key: str | None = None) -> str:
     return (
         "请帮我写周报。步骤：\n"
-        f'1. 调 list_my_work(scope="current"{_pk(project_key)}) 与 list_my_work(scope="previous"{_pk(project_key)})'
-        " 汇总本周期与上周期；用 doneAt 判断哪些是本周完成的。\n"
-        "2. 「本周完成」以 DONE（或本周 doneAt）为准，天数小计 = 这些任务 points 之和；进行中的写进展与预计完成时间。\n"
+        f'1. 调 list_my_work(scope="current"{_pk(project_key)}, status_changed_since="本周一的日期") 与 '
+        f'list_my_work(scope="previous"{_pk(project_key)}, status_changed_since="本周一的日期") 拉出本周状态变过的任务；'
+        f'进行中 / 结转的再看 list_my_work(scope="current"{_pk(project_key)}) 全量。\n'
+        "2. 「本周完成」= status 为 COMPLETED 或 DONE 且 statusChangedAt 在本周，天数小计 = 这些任务 points 之和；"
+        "进行中的写进展与预计完成时间。\n"
         "3. 按下面模板只输出文字，不要创建或修改任何任务：\n\n" + WEEKLY_TEMPLATE
     )
 

@@ -16,6 +16,7 @@ from app.harness import tool_guard as tg
 from app.harness.approval import build_card, card_expired
 from app.harness.auth import current_ctx
 from app.nodes._calls import last_tool_calls, parse_args, raw_args, target_ids, validation_message
+from app.nodes.act import PAGE_HINTS
 from app.schemas import Card, to_wire
 from app.settings import Settings
 from app.state import AgentState
@@ -93,7 +94,7 @@ def make_prepare_node(settings: Settings, now_fn: Callable[[], datetime]) -> Cal
             try:
                 card = await build_card(spec, args, cid, ctx, now_fn(), settings.card_ttl_seconds, note=note, risk=risk)
             except NotFound as exc:
-                decisions[cid] = _system_reject("NOT_FOUND", exc.message)
+                decisions[cid] = _system_reject(exc.code, exc.hinted(PAGE_HINTS))
                 continue
             except Ambiguous as exc:
                 decisions[cid] = {**_system_reject("AMBIGUOUS", exc.message), "candidates": exc.candidates}

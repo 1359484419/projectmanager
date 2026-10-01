@@ -76,8 +76,9 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 1. 登录 Web → 右上角头像 → 个人设置 → 「个人访问令牌」→ 填名称、选绑定租户 → 生成 PAT（`pmt_` 前缀，明文只显示一次；一个 PAT 只绑一个租户）
 2. 注册 MCP server（Claude Code；其它客户端参考 `skill/mcp-config.example.json`）：
    ```bash
-   claude mcp add --transport http pm http://<host>:8080/mcp --header "Authorization: Bearer pmt_<令牌>"
+   claude mcp add --transport http pm https://<域名>/mcp --header "Authorization: Bearer pmt_<令牌>"
    ```
+   没有域名时才退回 `http://<host>:8080/mcp`（IP 直连 Java 的 8080，不是助手端口）——此时 PAT 会以**明文**在网络上传输，只建议内网使用。
 3. 安装配套 skill（可选，Claude Code）：把 `skill/` 目录复制为 `~/.claude/skills/pm-assistant/`。没装 skill 的客户端可直接用 server 自带的提示词模板 `daily_report` / `weekly_report` / `plan_from_notes`。
 4. 验证：对话里说「列出项目」，应调用 `list_projects` 返回项目列表。
 
@@ -87,7 +88,7 @@ curl http://<服务器IP>:8080/api/health   # → {"status":"ok"}
 
 | 级别 | 工具 |
 |---|---|
-| 读（readOnlyHint） | `list_projects`、`get_project_overview`、`list_my_work`（跨项目、`done_since` / `updated_since`，日报周报用）、`get_task`、`search_tasks`、`get_board`、`list_members` |
+| 读（readOnlyHint） | `list_projects`、`get_project_overview`、`list_my_work`（跨项目、`done_since` / `updated_since` / `status_changed_since`，日报周报按 `statusChangedAt` 判「今日完成」）、`get_task`、`search_tasks`、`get_board`、`list_members` |
 | 写 L1 创建 | `create_tasks`（批量 ≤20，`dry_run` 预览，`assignee` / `unassigned`，逐条 `created[]` + `failed[]`）、`add_comment`、`create_subtask` |
 | 写 L2 修改（idempotentHint） | `update_task_status`、`update_task`、`move_task_to_sprint` |
 | 写 L3 不可逆（destructiveHint） | `close_sprint`、`start_sprint` —— `confirm: true` 必填，调用前必须先向用户展示影响并获得确认 |

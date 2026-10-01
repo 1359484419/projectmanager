@@ -31,9 +31,11 @@ from app.schemas import ReauthInterrupt, ResultCard, to_wire
 from app.settings import Settings
 from app.state import AgentState
 from app.tools._client import PmApiError, TokenExpired
-from app.tools._resolve import Ambiguous, NotFound
+from app.tools._resolve import NEXT_SPRINT_MISSING, Ambiguous, NotFound
 
 REJECT_TEXT = "用户拒绝了 {name}，未执行，除非用户再次要求否则不要重发。"
+# NotFound 按 code 追加页内助手可用的补救手段（MCP 端的对应表在 app/mcp/_exec.py::MCP_HINTS，两边不互串）
+PAGE_HINTS = {NEXT_SPRINT_MISSING: "，可先 create_sprint"}
 # edit 决策执行成功：固定模板告诉模型「参数已被用户改过」（评审 M5/X5：否则模型对比自己的 tool_call 参数发现
 # 不一致就当成失败去补救——重发原值的卡或谎称未执行）。参数值包 <data>，模板文案固定。
 EDITED_PREFIX = "用户在确认卡上把参数改为 "
@@ -163,7 +165,8 @@ async def _execute(spec: tg.ToolSpec, args: BaseModel) -> CallResult:
         return CallResult(ok=False, status=exc.status, code=exc.code, message=exc.message,
                           ms=int((time.monotonic() - t0) * 1000))
     except NotFound as exc:
-        return CallResult(ok=False, code="NOT_FOUND", message=exc.message, ms=int((time.monotonic() - t0) * 1000))
+        return CallResult(ok=False, code=exc.code, message=exc.hinted(PAGE_HINTS),
+                          ms=int((time.monotonic() - t0) * 1000))
     except Ambiguous as exc:
         return CallResult(ok=False, code="AMBIGUOUS", message=exc.message, data=exc.candidates,
                           ms=int((time.monotonic() - t0) * 1000))

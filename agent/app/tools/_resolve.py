@@ -3,7 +3,7 @@
 解析失败给出可操作的中文提示（NotFound），多义名称返回候选（Ambiguous）让模型追问，不自动挑第一个。
 """
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from app.harness.auth import current_ctx
 from app.tools._client import PmApiError, client
 
@@ -14,10 +14,20 @@ SPRINT_NEXT: frozenset[str] = frozenset({"next", "下一个", "下个", "下一�
 SPRINT_BACKLOG: frozenset[str] = frozenset({"backlog", "待办", "none", "无"})
 
 
+NEXT_SPRINT_MISSING = "NEXT_SPRINT_MISSING"
+
+
 class NotFound(Exception):
-    def __init__(self, message: str):
+    """message 保持中性（不带工具名）：两条执行路径能用的补救手段不同（页内助手有 create_sprint，MCP 端只能去网页），
+    各自按 code 追加后缀（act.PAGE_HINTS / _exec.MCP_HINTS）。"""
+
+    def __init__(self, message: str, code: str = "NOT_FOUND"):
         super().__init__(message)
         self.message = message
+        self.code = code
+
+    def hinted(self, hints: Mapping[str, str]) -> str:
+        return self.message + hints.get(self.code, "")
 
 
 class Ambiguous(Exception):
@@ -142,7 +152,7 @@ async def resolve_sprint(ref: str, project_key: str) -> dict:
                          key=lambda s: (s.get("startDate") or "", s.get("id") or 0))
         if planned:
             return planned[0]
-        raise NotFound("没有下一个迭代，可先 create_sprint")
+        raise NotFound("没有已计划的下一个迭代", code=NEXT_SPRINT_MISSING)
     return _pick("迭代", q, sprints,
                  exact=lambda s: str(s.get("name", "")).lower() == low,
                  partial=lambda s: low in str(s.get("name", "")).lower(),

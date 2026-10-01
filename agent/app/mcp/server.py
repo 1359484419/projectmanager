@@ -107,7 +107,7 @@ def _register_resources(server: MCPServer) -> None:
     server.resource(RESOURCE_PROJECTS, name="projects", title="项目列表", mime_type=JSON_MIME,
                     description="当前租户的项目（key 与名称）")(_projects)
     server.resource(RESOURCE_ME_WORK, name="my_work", title="我的任务（跨项目）", mime_type=JSON_MIME,
-                    description="指派给我的全部任务：当前/下一/全部已关闭迭代 + 待办，含 doneAt/updatedAt")(_me_work)
+                    description="指派给我的全部任务：当前/下一/全部已关闭迭代 + 待办，含 doneAt/updatedAt/statusChangedAt")(_me_work)
     server.resource(RESOURCE_SPRINT_TEMPLATE, name="current_sprint_board", title="当前迭代看板", mime_type=JSON_MIME,
                     description="项目 {key} 当前进行中迭代的四列看板")(_current_sprint)
 

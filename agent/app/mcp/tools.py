@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from mcp_types import ToolAnnotations
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from app.harness import tool_guard as tg
 from app.harness.auth import current_ctx
@@ -71,6 +72,7 @@ TASK_OBJ = obj("任务（负责人/迭代/长期计划均为名称）", displayK
                doneAt=NSTR)
 WORK_ROW = obj("我的任务行", displayKey=STR, projectKey=STR, title=STR, type=STR, status=STR, points=NNUM,
                assigneeName=NSTR, sprintName=NSTR, epicName=NSTR, doneAt=NSTR, updatedAt=NSTR,
+               statusChangedAt={**NSTR, "description": "最近一次状态变更时间（ISO）；日报「今日完成」按它判"},
                description={**NSTR, "description": f"描述摘要（≤{DESC_MAX} 字）"}, subtaskDone=INT, subtaskTotal=INT)
 SUBTASK_OBJ = obj("子任务（负责人/完成人均为姓名）", title=STR, done=BOOL, description=NSTR,
                   assigneeName=NSTR, dueDate=NSTR, doneAt=NSTR, doneByName=NSTR, createdAt=NSTR)
@@ -111,9 +113,12 @@ class ListMyWorkParams(StrictModel):
                                     description="项目 key；缺省跨全部项目")
     done_since: str | None = Field(default=None, description="只要 doneAt ≥ 该日（yyyy-MM-dd，Asia/Shanghai）的任务")
     updated_since: str | None = Field(default=None, description="只要 updatedAt ≥ 该日（yyyy-MM-dd）的任务")
+    status_changed_since: str | None = Field(
+        default=None, description="只要 statusChangedAt ≥ 该日（yyyy-MM-dd）的任务；日报「今日完成」用今天")
 
     _d1 = field_validator("done_since")(classmethod(lambda cls, v: validate_date(v)))
     _d2 = field_validator("updated_since")(classmethod(lambda cls, v: validate_date(v)))
+    _d3 = field_validator("status_changed_since")(classmethod(lambda cls, v: validate_date(v)))
 
 
 class AliasListMyTasksParams(StrictModel):
@@ -128,15 +133,19 @@ class TaskItem(StrictModel):
     points: float | None = Field(default=None, description="天数 0.5-5，步进 0.5；不确定就留空")
     epic_name: str | None = Field(default=None, validation_alias=AliasChoices("epic_name", "epic"),
                                   description="所属长期计划名称")
+    # 旧 Java 客户端兼容：任务项带 epicId(整数) 直传后端；不进 schema（新客户端只用 epic_name），与 epic_name 二选一
+    epicId: SkipJsonSchema[int | None] = None
     assignee: str | None = Field(default=None, description="负责人姓名/邮箱/me；缺省指派给自己")
     unassigned: bool = Field(default=False, description="true=明确不指派")
 
     _p = field_validator("points")(classmethod(lambda cls, v: validate_points(v)))
 
     @model_validator(mode="after")
-    def _assignee_consistent(self):
+    def _consistent(self):
         if self.assignee and self.unassigned:
             raise ValueError("assignee 与 unassigned 不能同时给")
+        if self.epicId is not None and self.epic_name:
+            raise ValueError("epicId（旧形参）与 epic_name 只能给一个")
         return self
 
 
@@ -256,6 +265,7 @@ def _work_row(view: dict, subtasks: list[dict], idx: NameIndex, key: str) -> dic
             "points": view.get("points"), "assigneeName": idx.member_name(view.get("assigneeId")),
             "sprintName": idx.sprint_name(view.get("sprintId")), "epicName": idx.epic_name(view.get("epicId")),
             "doneAt": view.get("doneAt"), "updatedAt": view.get("updatedAt"),
+            "statusChangedAt": view.get("statusChangedAt"),
             "description": desc[:DESC_MAX] if isinstance(desc, str) else None,
             "subtaskDone": sum(1 for s in subtasks if s.get("done")), "subtaskTotal": len(subtasks)}
 
@@ -316,7 +326,9 @@ async def list_my_work(p: ListMyWorkParams) -> dict:
     for key in keys:
         rows.extend(await _my_work_in_project(key, scopes, me, members))
     done_since, updated_since = _day_start(p.done_since), _day_start(p.updated_since)
-    rows = [r for r in rows if _at_or_after(r["doneAt"], done_since) and _at_or_after(r["updatedAt"], updated_since)]
+    status_since = _day_start(p.status_changed_since)
+    rows = [r for r in rows if _at_or_after(r["doneAt"], done_since) and _at_or_after(r["updatedAt"], updated_since)
+            and _at_or_after(r["statusChangedAt"], status_since)]
     return {"scope": p.scope, "projects": keys, "count": len(rows), "tasks": rows}
 
 
@@ -345,6 +357,10 @@ async def create_tasks(p: CreateTasksParams) -> dict:
     members = await c.get("/members") or []
     me = current_ctx().user_id
     my_name = _member_label(next((m for m in members if m.get("userId") == me), None))
+    # 旧客户端的 epicId 直传，预览里仍尽量按名称展示（查不到就留空，不拦截——由后端校验）
+    legacy_epics: dict[int, str] = {}
+    if any(item.epicId is not None for item in p.tasks):
+        legacy_epics = {e["id"]: e.get("name") for e in await c.get(f"/projects/{key}/epics") or [] if "id" in e}
     preview: list[dict] = []
     bodies: list[tuple[int, dict]] = []
     failed: list[dict] = []
@@ -365,6 +381,8 @@ async def create_tasks(p: CreateTasksParams) -> dict:
             if item.epic_name:
                 e = await resolve_epic(item.epic_name, key)
                 body["epicId"], epic_name = e["id"], e.get("name")
+            elif item.epicId is not None:
+                body["epicId"], epic_name = item.epicId, legacy_epics.get(item.epicId)
             if sprint.get("id") is not None:
                 body["sprintId"] = sprint["id"]
         except NotFound as exc:
@@ -500,7 +518,8 @@ def mcp_profile() -> list[McpToolDef]:
                        counts=nullable(obj("四态计数")), donePct=NNUM, epics=arr(EPIC_OBJ))),
         McpToolDef("list_my_work", "我的任务",
                    "列出指派给我的任务（缺省跨全部项目）：当前/下一/最近关闭的迭代、待办，或 all=以上加全部已关闭迭代；"
-                   "含 doneAt/updatedAt/描述摘要/子任务进度，可按 done_since/updated_since 过滤。写日报、周报、standup 用这个。",
+                   "含 doneAt/updatedAt/statusChangedAt/描述摘要/子任务进度，可按 done_since/updated_since/"
+                   "status_changed_since 过滤。写日报、周报、standup 用这个。",
                    ListMyWorkParams, list_my_work, READ,
                    obj("我的任务", scope=STR, projects=arr(STR), count=INT, tasks=arr(WORK_ROW))),
         McpToolDef("get_task", "任务详情", "任务详情（负责人/长期计划/迭代均为名称），含子任务与评论。",

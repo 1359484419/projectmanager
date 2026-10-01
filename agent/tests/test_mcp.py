@@ -231,13 +231,13 @@ def _mock_my_work():
     t115 = {"id": 115, "projectId": 1, "seq": 15, "displayKey": "PM-15", "type": "TASK", "title": "写周报",
             "description": "x" * 300, "points": 0.5, "epicId": 7, "sprintId": 30, "assigneeId": 7, "status": "TODO",
             "rank": "n", "createdAt": "2026-09-21T01:00:00Z", "updatedAt": "2026-09-24T01:00:00Z", "doneAt": None,
-            "createdBy": 7}
+            "statusChangedAt": "2026-09-21T01:00:00Z", "createdBy": 7}
     t110 = {**t115, "id": 110, "seq": 10, "displayKey": "PM-10", "title": "初始化仓库", "description": None,
             "points": 1, "epicId": None, "status": "DONE", "updatedAt": "2026-09-25T02:00:00Z",
-            "doneAt": "2026-09-25T02:00:00Z"}
+            "doneAt": "2026-09-25T02:00:00Z", "statusChangedAt": "2026-09-25T02:00:00Z"}
     t100 = {**t115, "id": 100, "seq": 1, "displayKey": "PM-1", "title": "上迭代做完的", "description": None,
             "epicId": None, "sprintId": 29, "status": "DONE", "updatedAt": "2026-09-18T02:00:00Z",
-            "doneAt": "2026-09-18T02:00:00Z"}
+            "doneAt": "2026-09-18T02:00:00Z", "statusChangedAt": "2026-09-18T02:00:00Z"}
     for t in (t115, t110, t100):
         respx.get(f"{BASE}/tasks/{t['id']}").mock(return_value=ok(t))
     respx.get(f"{BASE}/tasks/115/subtasks").mock(return_value=ok([{"id": 1, "title": "a", "done": True},
@@ -272,6 +272,27 @@ async def test_list_my_work_scopes_and_fields():
     assert [r["displayKey"] for r in done_today.structured_content["tasks"]] == ["PM-10"]
     assert [r["displayKey"] for r in prev.structured_content["tasks"]] == ["PM-1"]
     assert prev.structured_content["projects"] == ["PM"]
+
+
+@respx.mock
+async def test_list_my_work_rows_carry_status_changed_at_and_filter_by_it():
+    """日报「今日完成」改用后端 TaskView.statusChangedAt：行里必须带出（缺失为 null），status_changed_since 按它过滤。"""
+    _mock_my_work()
+    async with mcp_session(make_app()) as s:
+        cur = await s.call_tool("list_my_work", {"scope": "current"})
+        today = await s.call_tool("list_my_work", {"scope": "current", "status_changed_since": "2026-09-25"})
+        backlog = await s.call_tool("list_my_work", {"scope": "backlog", "project_key": "PM"})
+        bad = await s.call_tool("list_my_work", {"scope": "current", "status_changed_since": "9月25日"})
+    assert cur.is_error is not True, _text(cur)
+    by = {r["displayKey"]: r for r in cur.structured_content["tasks"]}
+    assert by["PM-15"]["statusChangedAt"] == "2026-09-21T01:00:00Z"
+    assert by["PM-10"]["statusChangedAt"] == "2026-09-25T02:00:00Z"
+    assert [r["displayKey"] for r in today.structured_content["tasks"]] == ["PM-10"]
+    assert today.structured_content["tasks"][0]["status"] == "DONE"
+    # 旧后端 / 旧 fixture 没有该字段 → null，而不是 KeyError
+    assert backlog.structured_content["tasks"][0]["displayKey"] == "PM-13"
+    assert backlog.structured_content["tasks"][0]["statusChangedAt"] is None
+    assert bad.is_error is True and json.loads(_text(bad))["code"] == "VALIDATION"
 
 
 @respx.mock
@@ -385,6 +406,53 @@ async def test_create_tasks_partial_failure_reports_created_and_failed():
     assert res.is_error is not True
     assert [c["title"] for c in d["created"]] == ["一", "三"]
     assert d["failed"] == [{"index": 1, "title": "二", "code": "VALIDATION", "message": "标题过长"}]
+
+
+@respx.mock
+async def test_create_tasks_legacy_epic_id_passes_through_to_java_body():
+    """旧 Java 客户端的任务项带 epicId(整数)：不能整批 VALIDATION，直传后端 body；与 epic_name 同时给才拒绝。"""
+    mock_common()
+    bodies: list[dict] = []
+
+    def _create(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        return httpx.Response(200, json={"id": 400 + len(bodies), "seq": 40 + len(bodies),
+                                         "displayKey": f"PM-{40 + len(bodies)}", "title": body["title"],
+                                         "type": body["type"], "status": "TODO"})
+
+    respx.post(f"{BASE}/projects/PM/tasks").mock(side_effect=_create)
+    async with mcp_session(make_app()) as s:
+        tools = {t.name: t for t in (await s.list_tools()).tools}
+        old = await s.call_tool("create_tasks", {"projectKey": "PM", "target": "current_sprint",
+                                                 "tasks": [{"type": "TASK", "title": "旧客户端建的", "epicId": 7}]})
+        both = await s.call_tool("create_tasks", {"project_key": "PM", "dry_run": True,
+                                                  "tasks": [{"title": "两个都给", "epicId": 7, "epic_name": "报表"}]})
+    assert old.is_error is not True, _text(old)
+    assert bodies == [{"type": "TASK", "title": "旧客户端建的", "assigneeId": 7, "sprintId": 30, "epicId": 7}]
+    d = old.structured_content
+    assert d["created"][0]["displayKey"] == "PM-41" and d["failed"] == []
+    assert d["preview"][0]["epicName"] == "报表"            # 预览仍按名称展示
+    assert "epicId" not in json.dumps(d)                    # 输出不回显内部 id
+    assert both.is_error is True and json.loads(_text(both))["code"] == "VALIDATION"
+    assert "epic" in _text(both)
+    # schema 只展示新名：epicId 是兼容入口，不进 tools/list
+    assert "epicId" not in json.dumps(tools["create_tasks"].input_schema)
+
+
+@respx.mock
+async def test_create_tasks_next_sprint_missing_points_to_web_not_create_sprint():
+    """MCP 端没有 create_sprint：没有已计划迭代时提示去网页「所有迭代」页创建，带专用 code。"""
+    mock_common()
+    respx.get(f"{BASE}/projects/PM/sprints").mock(return_value=ok([s for s in fx("sprints") if s["status"] != "PLANNED"]))
+    async with mcp_session(make_app()) as s:
+        res = await s.call_tool("create_tasks", {"project_key": "PM", "sprint": "next", "dry_run": True,
+                                                 "tasks": [{"title": "x"}]})
+    assert res.is_error is True
+    body = json.loads(_text(res))
+    assert body["code"] == "NEXT_SPRINT_MISSING"
+    assert body["message"].startswith("没有已计划的下一个迭代")
+    assert "所有迭代" in body["message"] and "create_sprint" not in body["message"]
 
 
 async def test_create_tasks_rejects_unknown_item_field_and_over_20():

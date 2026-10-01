@@ -13,7 +13,7 @@ from pydantic import BaseModel, ValidationError
 from app.api.deps import TENANT_RE, clean_project
 from app.harness.auth import RequestCtx, reset_ctx, set_ctx
 from app.tools._client import PmApiError
-from app.tools._resolve import Ambiguous, NotFound
+from app.tools._resolve import NEXT_SPRINT_MISSING, Ambiguous, NotFound
 from app.tools._wire import strip_internal
 
 log = logging.getLogger("pm.agent.mcp")
@@ -45,6 +45,8 @@ def ctx_from_headers(headers: Mapping[str, str] | None) -> RequestCtx:
 
 
 CONFIRM_REQUIRED_MSG = "该操作不可逆：请先把影响展示给用户，取得明确同意后带 confirm=true 重新调用"
+# MCP 端没有 create_sprint：NotFound 按 code 追加外部 agent 能做的补救（页内助手的对应表在 app/nodes/act.py::PAGE_HINTS）
+MCP_HINTS = {NEXT_SPRINT_MISSING: "，请在网页「所有迭代」页创建"}
 
 
 def _missing_confirm(exc: ValidationError) -> bool:
@@ -68,7 +70,7 @@ async def with_ctx(headers: Mapping[str, str] | None, fn: Callable[[], Awaitable
     except McpFail:
         raise
     except NotFound as exc:
-        raise McpFail("NOT_FOUND", exc.message) from exc
+        raise McpFail(exc.code, exc.hinted(MCP_HINTS)) from exc
     except Ambiguous as exc:
         raise McpFail("AMBIGUOUS", exc.message, candidates=exc.candidates) from exc
     except PmApiError as exc:

@@ -172,3 +172,22 @@ def test_edited_tool_message_is_still_ok_for_frontend_history():
                                       args={"task_key": "XX-0", "points": 2.0}, tool="update_task"))
     rows = simplify_messages([calls(tool_call("update_task", {"task_key": "XX-0", "points": 3.0}, "c1")), m])
     assert rows == [{"role": "tool", "call_id": "c1", "tool": "update_task", "ok": True}]
+
+
+@respx.mock
+async def test_act_next_sprint_missing_hints_create_sprint_not_web(_ctx):
+    """页内助手有 create_sprint 工具：act 的错误 tool 消息追加「可先 create_sprint」，不出现 MCP 端的「网页」指引。"""
+    from app.harness import tool_guard as tg
+    from app.nodes.act import _execute, tool_message
+    mock_common()
+    respx.get(f"{BASE}/projects/PM/sprints").mock(return_value=ok([s for s in fx("sprints") if s["status"] != "PLANNED"]))
+    spec = tg.REGISTRY["move_task_to_sprint"]
+    r = await _execute(spec, spec.params(task_key="PM-12", sprint="next"))
+    assert r.ok is False and r.code == "NEXT_SPRINT_MISSING"
+    assert r.message == "没有已计划的下一个迭代，可先 create_sprint"
+    assert "所有迭代" not in r.message and "网页" not in r.message
+    content = tool_message("c1", r)["content"]
+    assert json.loads(content)["error"] == {"code": "NEXT_SPRINT_MISSING", "message": r.message}
+    # 普通 NotFound 不受影响
+    r2 = await _execute(spec, spec.params(task_key="PM-12", sprint="Sprint 9"))
+    assert r2.code == "NOT_FOUND" and r2.message == "迭代「Sprint 9」不存在"

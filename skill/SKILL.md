@@ -15,22 +15,22 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 2. **注册 MCP server**（Claude Code；其它客户端参考同目录 `mcp-config.example.json`）：
 
    ```bash
-   claude mcp add --transport http pm http://<host>:8080/mcp --header "Authorization: Bearer pmt_<你的令牌>"
+   claude mcp add --transport http pm https://<域名>/mcp --header "Authorization: Bearer pmt_<你的令牌>"
    ```
 
-   `<host>` 是跬步服务器地址（无域名时直接用 IP，端点是 Java 的 8080，不是助手端口）；加 `--scope user` 可对所有项目生效。
+   `<域名>` 是跬步的 HTTPS 地址（反代到 Java 的 `/mcp`）；加 `--scope user` 可对所有项目生效。没有域名时才退回 `http://<host>:8080/mcp`（IP 直连 Java 的 8080，不是助手端口）——此时 PAT 会以**明文**在网络上传输，只建议内网使用。
 3. **安装本 skill**（可选）：把仓库的 `skill/` 目录复制为 `~/.claude/skills/pm-assistant/`（Claude Code 启动时自动发现）。没装 skill 的客户端（Cursor 等）可以直接用 server 自带的提示词模板 `daily_report` / `weekly_report` / `plan_from_notes`，内容与本文件的流程一致。
 4. **验证**：对话里问「列出项目」，`list_projects` 应返回项目列表；`claude mcp list` 里 `pm` 应显示已连接。凭证错误会得到 401 `UNAUTHENTICATED`（PAT 被吊销、或被移出租户后同样如此）；503 `MCP_UNAVAILABLE` 表示服务器上的 `pm-agent` 服务没起。
 
 ## 可用工具
 
-共 14 个新工具 + 6 个旧名兼容（详见表后说明）。所有入参都是 snake_case、不接受未知字段（多给字段直接校验失败并提示）。
+共 15 个新工具 + 6 个旧名兼容（详见表后说明）。所有入参都是 snake_case、不接受未知字段（多给字段直接校验失败并提示）。
 
 | 工具 | 级别 | 用途与参数 |
 |---|---|---|
 | `list_projects()` | 读 | 项目列表（key、名称）。其它工具的 `project_key` 从这里取；租户只有一个项目时其它工具可省略 `project_key` |
 | `get_project_overview(project_key?)` | 读 | 一次拿到当前/下一/最近关闭的迭代、当前迭代四态计数与完成百分比、长期计划列表（替代旧的 list_sprints + list_epics + 仪表盘三次调用） |
-| `list_my_work(scope?, project_key?, done_since?, updated_since?)` | 读 | 指派给我的任务，**缺省跨全部项目**。`scope`：`current`（缺省）/ `next` / `previous`（最近关闭的一个迭代）/ `backlog` / `all`（当前 + 下一 + **全部已关闭迭代** + 待办）；`done_since` / `updated_since` 为 `yyyy-MM-dd`（Asia/Shanghai）。每行含 displayKey / projectKey / title / type / status / points / sprintName / epicName / doneAt / updatedAt / description 摘要（≤200 字）/ subtaskDone / subtaskTotal。**日报、周报、standup 用这个** |
+| `list_my_work(scope?, project_key?, done_since?, updated_since?, status_changed_since?)` | 读 | 指派给我的任务，**缺省跨全部项目**。`scope`：`current`（缺省）/ `next` / `previous`（最近关闭的一个迭代）/ `backlog` / `all`（当前 + 下一 + **全部已关闭迭代** + 待办，迭代越多请求越多）；`done_since` / `updated_since` / `status_changed_since` 为 `yyyy-MM-dd`（Asia/Shanghai），分别按 doneAt / updatedAt / statusChangedAt 过滤。每行含 displayKey / projectKey / title / type / status / points / sprintName / epicName / doneAt / updatedAt / statusChangedAt（最近一次状态变更时间）/ description 摘要（≤200 字）/ subtaskDone / subtaskTotal。**日报、周报、standup 用这个** |
 | `get_task(task_key)` | 读 | 任务详情 + 子任务 + 评论（写「进展」时取细节） |
 | `search_tasks(q)` | 读 | 按关键词搜标题/描述，全租户，最多 20 条 |
 | `get_board(project_key?, sprint?)` | 读 | 某个迭代（`current` / `next` / 名称）所有人的任务按 TODO / IN_PROGRESS / COMPLETED / DONE 四列展示 |
@@ -63,7 +63,7 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 
 ## 能力边界（做不到的事与替代）
 
-- 不能创建迭代：`sprint: "next"` 在没有已计划迭代时返回 `NOT_FOUND`（不会自动预建），请用户在网页「所有迭代」页先建。
+- 不能创建迭代：`sprint: "next"` 在没有已计划迭代时返回 `NEXT_SPRINT_MISSING`（不会自动预建），请用户在网页「所有迭代」页先建。
 - 不能创建「记录」（RECORD 类型）、不能删除任务 / 子任务 / 迭代 / 长期计划、不能管理成员或容量——这些留给网页或页内助手。
 - `search_tasks` 最多 20 条且只按关键词；`list_my_work(scope="previous")` 只取最近关闭的一个迭代，`scope="all"` 才遍历当前 / 下一 / 全部已关闭迭代 + 待办（迭代越多请求越多），周报跨两个以上迭代时用 `scope="all"` + `done_since` 补。
 - 工具只看得到 PAT 绑定的那个租户；换租户要换 PAT。
@@ -84,8 +84,8 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 
 用户说「写今天的日报」：
 
-1. `list_my_work(scope: "current")` 取当前迭代我的全部任务（进行中 / 待办从这里来；多项目成员不传 `project_key`，自动跨项目）；再 `list_my_work(scope: "all", updated_since: "<今天 yyyy-MM-dd>")` 拉出今天变更过的任务——它包含 `done_since` 能筛到的（今天进入 `DONE`），也包含只改了状态、没有 `doneAt` 的 `COMPLETED`（后端只在进入 `DONE` 时写 `doneAt`）。
-2. 归组，**今日完成**的唯一规则：doneAt 是今天，或状态为 COMPLETED 且 updatedAt 是今天 → 今日完成（迭代里早先就已 `COMPLETED`/`DONE` 的不算今天）；`IN_PROGRESS` → **进行中**（进展用 `description` 摘要与 `subtaskDone/subtaskTotal`，需要更多细节再 `get_task` 看评论与子任务）；`TODO` → **待办 / 明日计划**。
+1. `list_my_work(scope: "current")` 取当前迭代我的全部任务（进行中 / 今日完成从这里来，每行带 `statusChangedAt`；多项目成员不传 `project_key`，自动跨项目）；再 `list_my_work(scope: "current", status_changed_since: "<今天 yyyy-MM-dd>")` 只拿今天状态变过的，作「今日完成」候选；待办池另调 `list_my_work(scope: "backlog")`。**不要用 `scope: "all"`**：它会遍历全部已关闭迭代，迭代越多请求越多，只有要补更早迭代的任务时才用。
+2. 归组，**今日完成**的唯一规则：status 为 COMPLETED 或 DONE 且 statusChangedAt 是今天 → 今日完成（`statusChangedAt` 只在状态变更时推进，改标题/描述不动它；迭代里早先就已 `COMPLETED`/`DONE` 的不算今天）；`IN_PROGRESS` → **进行中**（进展用 `description` 摘要与 `subtaskDone/subtaskTotal`，需要更多细节再 `get_task` 看评论与子任务）；`TODO` → **待办 / 明日计划**。
 3. 只输出文字，不创建或修改任何任务；系统不存档报告。
 
 ```markdown
@@ -108,8 +108,8 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 
 用户说「写周报」：
 
-1. `list_my_work(scope: "current")` + `list_my_work(scope: "previous")` 汇总本周期与上周期；用 `doneAt` 判断哪些是本周完成的（跨迭代边界时改用 `scope: "all", done_since: "<本周一>"`）。
-2. 「本周完成」以 `DONE`（或本周 `doneAt`）为准，天数小计 = 这些任务 `points` 之和；进行中的写进展与预计完成时间（细节 `get_task`）。
+1. `list_my_work(scope: "current", status_changed_since: "<本周一 yyyy-MM-dd>")` + `list_my_work(scope: "previous", status_changed_since: "<本周一>")` 拉出本周状态变过的任务；进行中 / 结转的再看 `list_my_work(scope: "current")` 全量（跨两个以上迭代时才用 `scope: "all", status_changed_since: "<本周一>"` 补）。
+2. 「本周完成」= status 为 `COMPLETED` 或 `DONE` 且 `statusChangedAt` 在本周，天数小计 = 这些任务 `points` 之和；进行中的写进展与预计完成时间（细节 `get_task`）。
 3. 只输出文字，不创建或修改任何任务。
 
 ```markdown
@@ -143,11 +143,12 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 | code | 含义 | 下一步 |
 |---|---|---|
 | `NOT_FOUND` | 项目 key / 展示号 / 迭代名 / 成员不存在 | 按 message 提示核对（`list_projects`、`search_tasks`、`list_members`），不要换个写法盲试 |
+| `NEXT_SPRINT_MISSING` | `sprint: "next"` 但没有已计划的下一个迭代 | MCP 不能建迭代：请用户在网页「所有迭代」页创建后再调 |
 | `AMBIGUOUS` | 名称匹配到多个，或租户有多个项目却没给 `project_key` | 把 `candidates` 给用户选后重调 |
 | `VALIDATION` | 入参不合法（未知字段、天数步进、超过 20 条、状态枚举） | 按 message 改参数重调 |
 | `CONFIRM_REQUIRED` | L3 工具没带 `confirm: true` | 回到「安全规则」第一条：先展示影响并取得同意 |
 | `CONFLICT` / `ACTIVE_SPRINT_EXISTS` 等 | 后端业务规则（乐观锁、已有进行中迭代…） | 如实告诉用户，不要自动重试写操作 |
-| `UNAUTHENTICATED`（HTTP 401） | PAT 失效、被吊销、或已被移出租户 | 请用户重新生成 PAT 并 `claude mcp add` |
+| `UNAUTHENTICATED`（HTTP 401） | PAT 失效、被吊销、或已被移出租户 | 请用户重新生成 PAT，先 `claude mcp remove pm` 再 `claude mcp add ...`（同名直接 add 会报已存在） |
 | `MCP_UNAVAILABLE`（HTTP 503） | 服务器上的 `pm-agent` 没起 | 请管理员 `systemctl status pm-agent` |
 
 ## 常用话术 → 工具映射
@@ -155,7 +156,7 @@ description: 通过跬步（Kuibu / projectmanager）的 MCP 工具管理任务�
 | 用户说 | 动作 |
 |---|---|
 | "把这些事整理成任务挂到当前迭代" | 整理 → `create_tasks(dry_run)` 展示确认 → `create_tasks(sprint: "current")` |
-| "放到下个迭代" | 同上，`sprint: "next"`（没有已计划迭代会 NOT_FOUND，请先在网页创建） |
+| "放到下个迭代" | 同上，`sprint: "next"`（没有已计划迭代会 `NEXT_SPRINT_MISSING`，请先在网页「所有迭代」页创建） |
 | "先放待办" | 同上，`sprint: "backlog"` |
 | "XX-0 做完了" | `update_task_status("XX-0", "COMPLETED")`；"验收过了 / 上线了" 用 `DONE`；"开始做了" 用 `IN_PROGRESS` |
 | "XX-0 改成 2 天 / 指给张三 / 挂到登录改造" | `update_task("XX-0", points: 2)` / `assignee: "张三"` / `epic_name: "登录改造"` |

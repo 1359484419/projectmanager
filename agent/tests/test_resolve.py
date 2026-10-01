@@ -105,12 +105,16 @@ async def test_resolve_sprint_keywords_and_names():
 
 
 @respx.mock
-async def test_resolve_sprint_next_missing_hints_create():
+async def test_resolve_sprint_next_missing_is_neutral_with_code():
+    """提示分流：_resolve 只给中性 message + code，「可先 create_sprint」/「去网页创建」由页内助手 / MCP 两条路径各自追加。"""
     mock_common()
     respx.get(f"{BASE}/projects/PM/sprints").mock(return_value=ok([s for s in fx("sprints") if s["status"] != "PLANNED"]))
     with pytest.raises(NotFound) as e:
         await r.resolve_sprint("next", "PM")
-    assert "create_sprint" in e.value.message
+    assert e.value.code == "NEXT_SPRINT_MISSING"
+    assert e.value.message == "没有已计划的下一个迭代"
+    assert "create_sprint" not in e.value.message and "网页" not in e.value.message
+    assert NotFound("x").code == "NOT_FOUND"      # 其它 NotFound 缺省 code 不变
     respx.get(f"{BASE}/projects/PM/sprints").mock(return_value=ok([]))
     with pytest.raises(NotFound):
         await r.resolve_sprint("current", "PM")
