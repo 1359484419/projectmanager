@@ -29,6 +29,7 @@ import type {
   Sprint,
   SprintWithTasks,
   Subtask,
+  SubtaskImageMeta,
   Task,
   TaskImageMeta,
   UpdateEpicInput,
@@ -55,6 +56,8 @@ export const qk = {
   burndown: (slug: string, sprintId: number) => [slug, 'sprints', sprintId, 'burndown'] as const,
   comments: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'comments'] as const,
   subtasks: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'subtasks'] as const,
+  subtaskImages: (slug: string, subtaskId: number) =>
+    [slug, 'subtasks', subtaskId, 'images'] as const,
   activities: (slug: string, taskId: number) => [slug, 'tasks', taskId, 'activities'] as const,
   members: (slug: string) => [slug, 'members'] as const,
   search: (slug: string, q: string) => [slug, 'search', q] as const,
@@ -402,24 +405,74 @@ export function useCreateSubtask(slug: string, taskId: number) {
         method: 'POST',
         body: JSON.stringify({ title }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+    // 子任务变化会影响列表/看板角标与活动时间线 → 全 slug 失效
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
   })
 }
 
-export function useUpdateSubtask(slug: string, taskId: number) {
+/** PATCH 子任务：勾选/改名/拖拽排序（rank 传相邻锚点 id，后端算中点）/详情字段 */
+export function useUpdateSubtask(slug: string, _taskId: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...input }: { id: number; done?: boolean; title?: string }) =>
+    mutationFn: ({ id, ...input }: {
+      id: number
+      done?: boolean
+      title?: string
+      rank?: { afterId?: number; beforeId?: number }
+      /** 三态：不传不改；null 置空；字符串更新 */
+      description?: string | null
+      assigneeId?: number | null
+      /** yyyy-MM-dd；null 置空 */
+      dueDate?: string | null
+    }) =>
       api<Subtask>(`${t(slug)}/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
   })
 }
 
-export function useDeleteSubtask(slug: string, taskId: number) {
+export function useDeleteSubtask(slug: string, _taskId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => api(`${t(slug)}/subtasks/${id}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.subtasks(slug, taskId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
+  })
+}
+
+/** 子任务图片附件（与记录图片同模式：meta 列表 + fetch+blob 取字节） */
+export function useSubtaskImages(slug: string, subtaskId: number | null) {
+  return useQuery({
+    queryKey: qk.subtaskImages(slug, subtaskId ?? -1),
+    queryFn: () => api<SubtaskImageMeta[]>(`${t(slug)}/subtasks/${subtaskId}/images`),
+    enabled: !!slug && subtaskId != null && subtaskId > 0,
+  })
+}
+
+export async function uploadSubtaskImage(slug: string, subtaskId: number, file: File): Promise<void> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`/api/t/${slug}/subtasks/${subtaskId}/images`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+    body: form,
+  })
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`)
+}
+
+export async function fetchSubtaskImageUrl(slug: string, imageId: number): Promise<string> {
+  const res = await fetch(`/api/t/${slug}/subtask-images/${imageId}`, {
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+  })
+  if (!res.ok) throw new Error(`image fetch failed: ${res.status}`)
+  return URL.createObjectURL(await res.blob())
+}
+
+/** 删除单个子任务附件（传错不必删整个子任务） */
+export function useDeleteSubtaskImage(slug: string, _subtaskId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (imageId: number) =>
+      api(`${t(slug)}/subtask-images/${imageId}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [slug] }),
   })
 }
 

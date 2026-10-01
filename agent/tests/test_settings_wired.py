@@ -10,7 +10,7 @@ EXEMPT: dict[str, str] = {}
 
 
 def test_every_settings_field_is_consumed_somewhere_in_app():
-    sources = [p.read_text() for p in APP.rglob("*.py") if p.name != "settings.py"]
+    sources = [p.read_text(encoding="utf-8") for p in APP.rglob("*.py") if p.name != "settings.py"]
     missing = [name for name in Settings.model_fields
                if name not in EXEMPT and not any(re.search(rf"\b{name}\b", s) for s in sources)]
     assert missing == [], f"settings 字段声明了但没人读：{missing}"

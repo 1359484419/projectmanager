@@ -24,7 +24,7 @@ from app.tools._client import PmApiError, client
 from app.tools._params import SHANGHAI, SprintRefField, StrictModel, TaskKeyField, validate_date, validate_points
 from app.tools._resolve import (Ambiguous, NotFound, resolve_epic, resolve_member, resolve_project_key,
                                 resolve_sprint, task_project_key)
-from app.tools._wire import NameIndex, load_name_index, strip_internal, task_to_wire
+from app.tools._wire import NameIndex, load_name_index, strip_internal, subtask_to_wire, task_to_wire
 from app.tools.sprints import CloseSprintParams, ListSprintsParams, SprintNameParams
 from app.tools.tasks import Status, UpdateTaskParams
 
@@ -72,7 +72,8 @@ TASK_OBJ = obj("任务（负责人/迭代/长期计划均为名称）", displayK
 WORK_ROW = obj("我的任务行", displayKey=STR, projectKey=STR, title=STR, type=STR, status=STR, points=NNUM,
                assigneeName=NSTR, sprintName=NSTR, epicName=NSTR, doneAt=NSTR, updatedAt=NSTR,
                description={**NSTR, "description": f"描述摘要（≤{DESC_MAX} 字）"}, subtaskDone=INT, subtaskTotal=INT)
-SUBTASK_OBJ = obj("子任务", title=STR, done=BOOL, createdAt=NSTR)
+SUBTASK_OBJ = obj("子任务（负责人/完成人均为姓名）", title=STR, done=BOOL, description=NSTR,
+                  assigneeName=NSTR, dueDate=NSTR, doneAt=NSTR, doneByName=NSTR, createdAt=NSTR)
 COMMENT_OBJ = obj("评论", body=STR, authorName=NSTR, createdAt=NSTR)
 TASK_RESULT = {**obj("修改后的任务", task=TASK_OBJ), "required": ["task"]}
 FAILED_OBJ = obj("失败项", index=INT, title=STR, code=STR, message=STR)
@@ -422,7 +423,8 @@ async def add_comment(p: BaseModel) -> dict:
 
 
 async def create_subtask(p: BaseModel) -> dict:
-    return {"subtask": strip_internal(await _call_reg("create_subtask", p) or {})}
+    # 新建子任务的 assigneeId/doneBy 必为 null，用空索引即可（不产生额外 GET）
+    return {"subtask": subtask_to_wire(await _call_reg("create_subtask", p) or {}, NameIndex())}
 
 
 def _require_confirm(p: Any) -> None:

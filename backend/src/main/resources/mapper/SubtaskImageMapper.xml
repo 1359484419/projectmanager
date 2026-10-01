@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- subtask_images 租户表：所有语句显式 tenant_id 条件 -->
+<mapper namespace="pm.task.SubtaskImageRepository">
+
+    <insert id="insertT" useGeneratedKeys="true" keyProperty="i.id">
+        INSERT INTO subtask_images (tenant_id, subtask_id, filename, content_type, data, created_at)
+        VALUES (#{tenantId}, #{i.subtaskId}, #{i.filename}, #{i.contentType}, #{i.data},
+                #{i.createdAt})
+    </insert>
+
+    <!-- 列表只取元数据，不拖 bytea -->
+    <select id="findMetaBySubtaskIdT" resultType="pm.task.SubtaskImage">
+        SELECT id, tenant_id, subtask_id, filename, content_type, created_at
+        FROM subtask_images
+        WHERE subtask_id = #{subtaskId} AND tenant_id = #{tenantId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findOneByIdT" resultType="pm.task.SubtaskImage">
+        SELECT id, tenant_id, subtask_id, filename, content_type, data, created_at
+        FROM subtask_images
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </select>
+
+    <delete id="deleteByIdT">
+        DELETE FROM subtask_images
+        WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+
+</mapper>

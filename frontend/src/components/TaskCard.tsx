@@ -65,6 +65,33 @@ function PointsChip({ points }: { points: number | null }) {
   )
 }
 
+/** 子任务进度角标：仅在有子任务时显示（total > 0；未装配的响应不显示） */
+function SubtaskChip({ done, total }: { done?: number | null; total?: number | null }) {
+  const t = useT()
+  if (!total) return null
+  return (
+    <span
+      title={t.subtaskProgress(done ?? 0, total)}
+      style={{
+        fontSize: 10.5,
+        fontFamily: 'var(--font-mono)',
+        color: done === total ? 'var(--ok, #3f9d6b)' : 'var(--dim)',
+        background: 'var(--card-2)',
+        borderRadius: 20,
+        padding: '1px 7px',
+        lineHeight: '15px',
+        flex: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+      }}
+    >
+      <Icon name="check" size={9} />
+      {done ?? 0}/{total}
+    </span>
+  )
+}
+
 export interface TaskCardProps {
   task: TaskBrief
   /** 项目 key，用于展示号 "PM-42"；缺省显示 "#42" */
@@ -181,6 +208,7 @@ export default function TaskCard({
         )}
         {showStatus && <StatusBadge status={task.status} />}
         <PointsChip points={task.points} />
+        <SubtaskChip done={task.subtaskDone} total={task.subtaskTotal} />
         {showUnassigned && <UnassignedTag />}
         <Avatar name={task.assigneeName} size={20} />
         {task.assigneeName && (
@@ -235,6 +263,7 @@ export default function TaskCard({
         <span style={{ flex: 1 }} />
         {showStatus && <StatusBadge status={task.status} />}
         <PointsChip points={task.points} />
+        <SubtaskChip done={task.subtaskDone} total={task.subtaskTotal} />
       </div>
       <div
         style={{

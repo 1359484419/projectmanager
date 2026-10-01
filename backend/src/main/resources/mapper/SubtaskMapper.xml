@@ -5,14 +5,15 @@
 <mapper namespace="pm.task.SubtaskRepository">
 
     <sql id="columns">
-        id, tenant_id, task_id, title, done, created_at
+        id, tenant_id, task_id, title, done, rank, done_at, done_by,
+        description, assignee_id, due_date, created_at
     </sql>
 
     <select id="findByTaskIdT" resultType="pm.task.Subtask">
         SELECT <include refid="columns"/>
         FROM subtasks
         WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
-        ORDER BY id ASC
+        ORDER BY rank ASC
     </select>
 
     <select id="findOneByIdT" resultType="pm.task.Subtask">
@@ -21,17 +22,48 @@
         WHERE id = #{id} AND tenant_id = #{tenantId}
     </select>
 
+    <!-- 尾插用：当前任务下最大 rank（与 tasks.maxRankT 同模式） -->
+    <select id="maxRankT" resultType="string">
+        SELECT max(rank)
+        FROM subtasks
+        WHERE task_id = #{taskId} AND tenant_id = #{tenantId}
+    </select>
+
+    <!-- 列表/看板角标：按任务批量聚合计数，一次查询避免 N+1。
+         调用方只传「当前用户可见」的任务 id（backlog/看板 SQL 已排除 RECORD；
+         记录列表只查本人创建），不会泄漏他人私有记录的子任务数。 -->
+    <select id="countByTaskIdsT" resultType="pm.task.SubtaskCount">
+        SELECT task_id AS taskId,
+               count(*) AS total,
+               count(*) FILTER (WHERE done) AS done
+        FROM subtasks
+        WHERE tenant_id = #{tenantId}
+          AND task_id IN
+        <foreach collection="taskIds" item="tid" open="(" separator="," close=")">
+            #{tid}
+        </foreach>
+        GROUP BY task_id
+    </select>
+
     <!-- created_at 写实体值（Instant.now()，与 JPA 行为一致） -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="s.id">
-        INSERT INTO subtasks (tenant_id, task_id, title, done, created_at)
-        VALUES (#{tenantId}, #{s.taskId}, #{s.title}, #{s.done}, #{s.createdAt})
+        INSERT INTO subtasks (tenant_id, task_id, title, done, rank, done_at, done_by,
+                              description, assignee_id, due_date, created_at)
+        VALUES (#{tenantId}, #{s.taskId}, #{s.title}, #{s.done}, #{s.rank}, #{s.doneAt},
+                #{s.doneBy}, #{s.description}, #{s.assigneeId}, #{s.dueDate}, #{s.createdAt})
     </insert>
 
     <update id="update">
         UPDATE subtasks
-        SET task_id = #{s.taskId},
-            title   = #{s.title},
-            done    = #{s.done}
+        SET task_id     = #{s.taskId},
+            title       = #{s.title},
+            done        = #{s.done},
+            rank        = #{s.rank},
+            done_at     = #{s.doneAt},
+            done_by     = #{s.doneBy},
+            description = #{s.description},
+            assignee_id = #{s.assigneeId},
+            due_date    = #{s.dueDate}
         WHERE id = #{s.id} AND tenant_id = #{tenantId}
     </update>
 

@@ -64,6 +64,31 @@ async def test_get_task_returns_names_not_ids_for_task_subtasks_and_comments():
 
 
 @respx.mock
+async def test_get_task_subtask_detail_ids_become_names():
+    """子任务新字段（assigneeId/doneBy）一律换姓名，内部数字 id 不透给模型（评审：_wire 缺 doneBy）。"""
+    mock_common()
+    respx.get(f"{BASE}/tasks/112/subtasks").mock(return_value=ok([
+        {"id": 1, "taskId": 112, "title": "写用例", "done": True, "description": "覆盖边界",
+         "assigneeId": 7, "dueDate": "2026-10-01", "doneAt": "2026-09-28T02:00:00Z", "doneBy": 8,
+         "rank": "b0000000001", "createdAt": "2026-09-20T01:00:00Z"},
+        {"id": 2, "taskId": 112, "title": "没人领", "done": False,
+         "assigneeId": None, "dueDate": None, "doneAt": None, "doneBy": None},
+        {"id": 3, "taskId": 112, "title": "离职成员", "done": True, "assigneeId": 999, "doneBy": 999},
+    ]))
+    respx.get(f"{BASE}/tasks/112/comments").mock(return_value=ok([]))
+    got = await run("get_task", task_key="PM-12")
+    subs = got["subtasks"]
+    assert subs[0]["assigneeName"] == "李雷" and subs[0]["doneByName"] == "张三"
+    assert subs[0]["description"] == "覆盖边界" and subs[0]["dueDate"] == "2026-10-01"
+    for s in subs:
+        for k in ("id", "taskId", "assigneeId", "doneBy", "rank"):
+            assert k not in s, k
+    # 未指派 → None（模型看得出「没有」）；解析不到 → None，不透数字 id
+    assert subs[1]["assigneeName"] is None and subs[1]["doneByName"] is None
+    assert subs[2]["assigneeName"] is None and subs[2]["doneByName"] is None
+
+
+@respx.mock
 async def test_list_backlog_and_my_tasks_and_board_items_are_cleaned():
     mock_common()
     respx.get(f"{BASE}/sprints/30/board").mock(return_value=ok("board"))

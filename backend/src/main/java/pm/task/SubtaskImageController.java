@@ -1,0 +1,118 @@
+package pm.task;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import pm.common.ApiException;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * 子任务附件上传/读取（图片 + 常见文档，≤5MB/个；bytea 入库，与记录图片同模式）。
+ * 归属校验：子任务 → 主任务经 TaskService.requireById（跨租户/他人私有 RECORD 一律 404）。
+ */
+@RestController
+public class SubtaskImageController {
+
+    private static final long MAX_SIZE = 5 * 1024 * 1024;
+    private static final Set<String> ALLOWED = Set.of(
+            // 图片
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            // 文档
+            "application/pdf",
+            "text/plain", "text/markdown", "text/csv",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/zip", "application/x-zip-compressed");
+
+    private final SubtaskRepository subtasks;
+    private final SubtaskImageRepository images;
+    private final TaskService taskService;
+    private final TaskRepository taskRepo;
+
+    public SubtaskImageController(SubtaskRepository subtasks, SubtaskImageRepository images,
+                                  TaskService taskService, TaskRepository taskRepo) {
+        this.subtasks = subtasks;
+        this.images = images;
+        this.taskService = taskService;
+        this.taskRepo = taskRepo;
+    }
+
+    public record ImageMeta(Long id, String filename, String contentType, Instant createdAt) {
+        static ImageMeta from(SubtaskImage i) {
+            return new ImageMeta(i.getId(), i.getFilename(), i.getContentType(), i.getCreatedAt());
+        }
+    }
+
+    @PostMapping("/api/t/{slug}/subtasks/{subtaskId}/images")
+    ImageMeta upload(@PathVariable String slug, @PathVariable Long subtaskId,
+                     @RequestParam("file") MultipartFile file) throws IOException {
+        Subtask subtask = requireOwned(subtaskId);
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED.contains(contentType)) {
+            throw ApiException.badRequest("INVALID_ATTACHMENT",
+                    "仅支持图片（JPEG/PNG/GIF/WebP）与常见文档（PDF/Office/TXT/CSV/ZIP）");
+        }
+        if (file.getSize() > MAX_SIZE) {
+            throw ApiException.badRequest("ATTACHMENT_TOO_LARGE", "附件不能超过 5MB");
+        }
+        SubtaskImage image = new SubtaskImage();
+        image.setSubtaskId(subtask.getId());
+        image.setTenantId(subtask.getTenantId());
+        image.setFilename(file.getOriginalFilename() == null ? "image" : file.getOriginalFilename());
+        image.setContentType(contentType);
+        image.setData(file.getBytes());
+        images.save(image);
+        taskRepo.touchUpdatedAt(subtask.getTaskId()); // 日报取数
+        return ImageMeta.from(image);
+    }
+
+    @GetMapping("/api/t/{slug}/subtasks/{subtaskId}/images")
+    List<ImageMeta> list(@PathVariable String slug, @PathVariable Long subtaskId) {
+        requireOwned(subtaskId);
+        return images.findMetaBySubtaskId(subtaskId).stream().map(ImageMeta::from).toList();
+    }
+
+    /** 图片字节流（前端 fetch + blob 展示，保持与 API 一致的鉴权）。 */
+    @GetMapping("/api/t/{slug}/subtask-images/{imageId}")
+    ResponseEntity<byte[]> bytes(@PathVariable String slug, @PathVariable Long imageId) {
+        SubtaskImage image = images.findOneById(imageId).orElseThrow(ApiException::notFound);
+        requireOwned(image.getSubtaskId());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.getContentType()))
+                .header("Cache-Control", "private, max-age=86400")
+                .body(image.getData());
+    }
+
+    /** 删除单个附件（传错不必删整个子任务）。 */
+    @DeleteMapping("/api/t/{slug}/subtask-images/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(@PathVariable String slug, @PathVariable Long imageId) {
+        SubtaskImage image = images.findOneById(imageId).orElseThrow(ApiException::notFound);
+        Subtask subtask = requireOwned(image.getSubtaskId());
+        images.delete(imageId);
+        taskRepo.touchUpdatedAt(subtask.getTaskId()); // 日报取数
+    }
+
+    /** 子任务存在且主任务归属当前用户可见（跨租户/他人 RECORD → 404）。 */
+    private Subtask requireOwned(Long subtaskId) {
+        Subtask subtask = subtasks.findOneById(subtaskId).orElseThrow(ApiException::notFound);
+        taskService.requireById(subtask.getTaskId());
+        return subtask;
+    }
+}

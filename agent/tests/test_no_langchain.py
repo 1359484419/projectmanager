@@ -20,12 +20,12 @@ def _sources():
 
 
 def test_no_langchain_or_prebuilt_imports():
-    bad = [str(p) for p in _sources() if IMPORT_RE.search(p.read_text())]
+    bad = [str(p) for p in _sources() if IMPORT_RE.search(p.read_text(encoding="utf-8"))]
     assert bad == [], f"禁止 import langchain / langgraph.prebuilt：{bad}"
 
 
 def test_no_dynamic_or_prebuilt_agents():
-    bad = [str(p) for p in _sources() if DYNAMIC_RE.search(p.read_text())]
+    bad = [str(p) for p in _sources() if DYNAMIC_RE.search(p.read_text(encoding="utf-8"))]
     assert bad == [], f"禁止动态导入 langchain 或使用预制智能体：{bad}"
 
 

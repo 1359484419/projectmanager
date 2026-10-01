@@ -130,7 +130,7 @@ async def get_task(p: TaskKeyParams) -> dict:
     subtasks = await c.get(f"/tasks/{t['id']}/subtasks") or []
     comments = await c.get(f"/tasks/{t['id']}/comments") or []
     idx = await load_name_index(task_project_key(t))
-    return {"task": task_to_wire(t, idx), "subtasks": [subtask_to_wire(s) for s in subtasks],
+    return {"task": task_to_wire(t, idx), "subtasks": [subtask_to_wire(s, idx) for s in subtasks],
             "comments": [comment_to_wire(cm, idx) for cm in comments]}
 
 

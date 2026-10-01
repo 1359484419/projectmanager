@@ -11,7 +11,7 @@ from app.tools._client import client
 # 输出里一律剔除的内部键（入参侧对应的禁用清单见 tool_guard.FORBIDDEN_PARAM_NAMES）
 INTERNAL_KEYS: frozenset[str] = frozenset({
     "id", "projectId", "sprintId", "assigneeId", "epicId", "taskId", "authorId", "actorId", "createdBy",
-    "targetSprintId", "rank", "version",
+    "targetSprintId", "rank", "version", "doneBy",
 })
 
 # 内部 id 键 → (名称键, 索引方法名)
@@ -21,6 +21,7 @@ _NAME_OF: dict[str, tuple[str, str]] = {
     "sprintId": ("sprintName", "sprint_name"),
     "authorId": ("authorName", "member_name"),
     "actorId": ("actorName", "member_name"),
+    "doneBy": ("doneByName", "member_name"),
 }
 
 
@@ -88,8 +89,9 @@ def tasks_to_wire(tasks: list[dict] | None, idx: NameIndex, project_key: str | N
     return [task_to_wire(t, idx, project_key) for t in (tasks or [])]
 
 
-def subtask_to_wire(subtask: dict) -> dict:
-    return strip_internal(subtask)
+def subtask_to_wire(subtask: dict, idx: NameIndex) -> dict:
+    """子任务 → 展示字段：assigneeId/doneBy 换成姓名（解析不到为 None），内部 id 剔除。"""
+    return _with_names(subtask, idx)
 
 
 def comment_to_wire(comment: dict, idx: NameIndex) -> dict:

@@ -36,6 +36,8 @@ class WritePermissionMatrixTest {
             "PATCH /api/t/{slug}/subtasks/{id}",
             "DELETE /api/t/{slug}/subtasks/{id}",
             "POST /api/t/{slug}/tasks/{taskId}/images",
+            "POST /api/t/{slug}/subtasks/{subtaskId}/images",
+            "DELETE /api/t/{slug}/subtask-images/{imageId}",
             // Epic：创建与编辑全员，删除 ADMIN（标注）
             "POST /api/t/{slug}/projects/{key}/epics",
             "PATCH /api/t/{slug}/projects/{key}/epics/{id}",
