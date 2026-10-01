@@ -467,7 +467,7 @@ export async function fetchSubtaskImageUrl(slug: string, imageId: number): Promi
 }
 
 /** 删除单个子任务附件（传错不必删整个子任务） */
-export function useDeleteSubtaskImage(slug: string, _subtaskId: number) {
+export function useDeleteSubtaskImage(slug: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (imageId: number) =>

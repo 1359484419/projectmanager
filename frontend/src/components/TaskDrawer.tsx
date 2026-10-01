@@ -35,6 +35,7 @@ import type {
   Member,
   Sprint,
   Subtask,
+  SubtaskImageMeta,
   Task,
   TaskBrief,
   TaskStatus,
@@ -47,8 +48,9 @@ import type { Translations } from '../i18n'
 import { Icon } from './icons'
 import { avatarColor } from './TaskCard'
 import TypeIcon from './TypeIcon'
-import { SelectWrap, selStyle, statusColor, statusOptions, typeOptions } from './ui'
+import { ConfirmDialog, SelectWrap, selStyle, statusColor, statusOptions, typeOptions, useToast } from './ui'
 import { POINTS_CHOICES, fmtPoints } from '../utils/points'
+import { isAttachmentTooLarge, isImageAttachment } from '../utils/attachments'
 import { fetchImageUrl, uploadTaskImage, useTaskImages } from '../api/hooks'
 import { fetchSubtaskImageUrl, uploadSubtaskImage, useDeleteSubtaskImage, useSubtaskImages } from '../api/hooks'
 import { useEffect as useEffectImg, useState as useStateImg } from 'react'
@@ -779,9 +781,12 @@ function SubtaskDetail({
 /** 子任务附件：图片显示缩略图，文档显示文件芯片；fetch+blob 展示（img src 带不了 Authorization） */
 function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId: number }) {
   const t = useT()
+  const toast = useToast()
   const images = useSubtaskImages(slug, subtaskId)
-  const deleteImage = useDeleteSubtaskImage(slug, subtaskId)
+  const deleteImage = useDeleteSubtaskImage(slug)
   const [hoveredId, setHoveredId] = useStateImg<number | null>(null)
+  /** 待二次确认删除的附件；null 表示未弹确认框 */
+  const [pendingDelete, setPendingDelete] = useStateImg<SubtaskImageMeta | null>(null)
   const [urls, setUrls] = useStateImg<Record<number, string>>({})
   const [uploading, setUploading] = useStateImg(false)
 
@@ -802,7 +807,7 @@ function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId:
     if (!files || uploading) return
     setUploading(true)
     for (const f of Array.from(files)) {
-      if (f.size > 5 * 1024 * 1024) continue
+      if (isAttachmentTooLarge(f.size)) continue
       try {
         await uploadSubtaskImage(slug, subtaskId, f)
       } catch {
@@ -824,7 +829,7 @@ function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId:
             onMouseLeave={() => setHoveredId(null)}
             style={{ position: 'relative', display: 'inline-flex' }}
           >
-            {m.contentType.startsWith('image/') ? (
+            {isImageAttachment(m.contentType) ? (
               <a href={urls[m.id]} target="_blank" rel="noreferrer" title={m.filename}>
                 <img
                   src={urls[m.id]}
@@ -870,7 +875,7 @@ function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId:
             )}
             <button
               type="button"
-              onClick={() => deleteImage.mutate(m.id)}
+              onClick={() => setPendingDelete(m)}
               aria-label={t.subtaskAttachmentDelete}
               title={t.subtaskAttachmentDelete}
               className="icon-btn"
@@ -914,6 +919,28 @@ function SubtaskAttachmentsBlock({ slug, subtaskId }: { slug: string; subtaskId:
           />
         </label>
       </div>
+      {pendingDelete && (
+        <ConfirmDialog
+          open
+          title={t.subtaskAttachmentDeleteConfirm(pendingDelete.filename)}
+          message={t.subtaskAttachmentDeleteWarning}
+          actionLabel={t.delete}
+          confirmDisabled={deleteImage.isPending}
+          onConfirm={() => {
+            deleteImage.mutate(pendingDelete.id, {
+              onSuccess: () => {
+                setPendingDelete(null)
+                toast.show(t.subtaskAttachmentDeleted)
+              },
+              onError: (err) => {
+                setPendingDelete(null)
+                toast.show(t.subtaskAttachmentDeleteFailed(apiErrorMessage(err, t)), 'info')
+              },
+            })
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   )
 }
