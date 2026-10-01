@@ -7,7 +7,7 @@
     <sql id="columns">
         id, tenant_id, version, project_id, sprint_id, epic_id, type, seq, title,
         description, points, assignee_id, status, rank, created_by, created_at, updated_at,
-        done_at, remind_at, reminder_dismissed
+        status_changed_at, done_at, remind_at, reminder_dismissed
     </sql>
 
     <select id="findOneByIdT" resultType="pm.task.Task">
@@ -98,11 +98,12 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="t.id">
         INSERT INTO tasks (tenant_id, project_id, sprint_id, epic_id, type, seq, title,
                            description, points, assignee_id, status, rank, created_by,
-                           created_at, updated_at, done_at, remind_at, reminder_dismissed)
+                           created_at, updated_at, status_changed_at, done_at, remind_at,
+                           reminder_dismissed)
         VALUES (#{tenantId}, #{t.projectId}, #{t.sprintId}, #{t.epicId}, #{t.type}, #{t.seq},
                 #{t.title}, #{t.description}, #{t.points}, #{t.assigneeId}, #{t.status},
-                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.updatedAt}, #{t.doneAt}, #{t.remindAt},
-                #{t.reminderDismissed})
+                #{t.rank}, #{t.createdBy}, #{t.createdAt}, #{t.updatedAt}, #{t.statusChangedAt},
+                #{t.doneAt}, #{t.remindAt}, #{t.reminderDismissed})
     </insert>
 
     <!-- 乐观锁：WHERE 带 version，命中 0 行由接口 default save 抛 409 CONFLICT -->
@@ -122,6 +123,7 @@
             rank        = #{t.rank},
             created_by  = #{t.createdBy},
             updated_at  = #{t.updatedAt},
+            status_changed_at = #{t.statusChangedAt},
             done_at     = #{t.doneAt},
             remind_at   = #{t.remindAt},
             reminder_dismissed = #{t.reminderDismissed}

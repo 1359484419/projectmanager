@@ -372,6 +372,20 @@ class SubtaskTest extends IntegrationTest {
                 byte[].class);
         assertThat(bytes.getStatusCode().value()).isEqualTo(200);
         assertThat(bytes.getBody()).isEqualTo(png);
+        // 防 MIME 嗅探；图片 inline 展示
+        assertThat(bytes.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(bytes.getHeaders().getFirst("Content-Disposition"))
+                .isEqualTo("inline; filename*=UTF-8''a.png");
+
+        // 非图片附件：强制下载（attachment），文件名 RFC 5987 编码
+        ResponseEntity<byte[]> pdfBytes = rest.exchange(base + "/subtask-images/" + docUp.getBody().get("id"),
+                HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(fx.adminTokenA)),
+                byte[].class);
+        assertThat(pdfBytes.getStatusCode().value()).isEqualTo(200);
+        assertThat(pdfBytes.getBody()).isEqualTo(pdf);
+        assertThat(pdfBytes.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(pdfBytes.getHeaders().getFirst("Content-Disposition"))
+                .isEqualTo("attachment; filename*=UTF-8''spec.pdf");
 
         // 跨租户读字节 → 404
         ResponseEntity<Map> cross = fx.exchange(fx.adminTokenB, HttpMethod.GET,
@@ -398,6 +412,15 @@ class SubtaskTest extends IntegrationTest {
         ResponseEntity<List> afterDel = fx.getList(fx.adminTokenA,
                 base + "/subtasks/" + s.get("id") + "/images");
         assertThat(afterDel.getBody()).hasSize(1);
+    }
+
+    @Test
+    void rfc5987_encodesNonAsciiAndSpaces() {
+        assertThat(SubtaskImageController.rfc5987("a.png")).isEqualTo("a.png");
+        assertThat(SubtaskImageController.rfc5987("需求 v1.pdf"))
+                .isEqualTo("%E9%9C%80%E6%B1%82%20v1.pdf");
+        // 分号/引号/换行不得裸露进头部
+        assertThat(SubtaskImageController.rfc5987("a;b\"c\r\n.txt")).isEqualTo("a%3Bb%22c%0D%0A.txt");
     }
 
     private static org.springframework.http.HttpHeaders authHeaders(String token) {

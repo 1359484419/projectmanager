@@ -46,6 +46,9 @@ public class Task extends TenantEntity {
     /** 最近一次写入时间（任何写路径都推进；日报按此取「今天改过的任务」）。 */
     private Instant updatedAt = createdAt;
 
+    /** 最近一次状态流转时间：创建即 created_at，只有 status 真正变化才推进（日报「今日完成」按此取数）。 */
+    private Instant statusChangedAt = createdAt;
+
     private Instant doneAt;
 
     /** 记录（RECORD）可选提醒：到期后前端右上角弹框，手动关闭置 reminderDismissed。 */
@@ -174,6 +177,14 @@ public class Task extends TenantEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getStatusChangedAt() {
+        return statusChangedAt;
+    }
+
+    public void setStatusChangedAt(Instant statusChangedAt) {
+        this.statusChangedAt = statusChangedAt;
     }
 
     public Instant getDoneAt() {

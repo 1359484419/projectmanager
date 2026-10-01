@@ -52,7 +52,8 @@ public class TaskService {
     public record TaskView(Long id, Long projectId, int seq, String displayKey, Task.Type type,
                            String title, String description, BigDecimal points, Long epicId,
                            Long sprintId, Long assigneeId, Task.Status status, String rank,
-                           Instant createdAt, Instant updatedAt, Instant doneAt, Long createdBy,
+                           Instant createdAt, Instant updatedAt, Instant statusChangedAt,
+                           Instant doneAt, Long createdBy,
                            Instant remindAt, boolean reminderDismissed,
                            Integer subtaskDone, Integer subtaskTotal) {
         public static TaskView from(Task t, String projectKey) {
@@ -64,7 +65,8 @@ public class TaskService {
             return new TaskView(t.getId(), t.getProjectId(), t.getSeq(),
                     projectKey + "-" + t.getSeq(), t.getType(), t.getTitle(), t.getDescription(),
                     t.getPoints(), t.getEpicId(), t.getSprintId(), t.getAssigneeId(),
-                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getUpdatedAt(), t.getDoneAt(),
+                    t.getStatus(), t.getRank(), t.getCreatedAt(), t.getUpdatedAt(),
+                    t.getStatusChangedAt(), t.getDoneAt(),
                     t.getCreatedBy(), t.getRemindAt(), t.isReminderDismissed(),
                     count == null ? null : (int) count.getDone(),
                     count == null ? null : (int) count.getTotal());
@@ -139,16 +141,18 @@ public class TaskService {
         return TaskView.from(task, project.getKey());
     }
 
-    /** 状态流转：进 DONE 写 done_at，离开清空；写 STATUS_CHANGED。 */
+    /** 状态流转：推进 status_changed_at；进 DONE 写 done_at，离开清空；写 STATUS_CHANGED。 */
     @Transactional
     public void changeStatus(Task task, Task.Status newStatus, Long actor, Activity.Source source) {
         Task.Status old = task.getStatus();
         if (old == newStatus) {
             return;
         }
+        Instant now = Instant.now();
         task.setStatus(newStatus);
+        task.setStatusChangedAt(now);
         if (newStatus == Task.Status.DONE) {
-            task.setDoneAt(Instant.now());
+            task.setDoneAt(now);
         } else if (old == Task.Status.DONE) {
             task.setDoneAt(null);
         }

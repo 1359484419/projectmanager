@@ -1,5 +1,6 @@
 package pm.task;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pm.common.ApiException;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -88,15 +90,44 @@ public class SubtaskImageController {
         return images.findMetaBySubtaskId(subtaskId).stream().map(ImageMeta::from).toList();
     }
 
-    /** 图片字节流（前端 fetch + blob 展示，保持与 API 一致的鉴权）。 */
+    /**
+     * 附件字节流（前端 fetch + blob 展示，保持与 API 一致的鉴权）。
+     * nosniff 防浏览器按内容猜 MIME；图片 inline 展示，非图片（PDF/Office/文本等）一律 attachment 下载，
+     * 不让用户上传的 HTML/SVG 类内容在本站源下被渲染执行；文件名按 RFC 5987（filename*=UTF-8''…）编码。
+     */
     @GetMapping("/api/t/{slug}/subtask-images/{imageId}")
     ResponseEntity<byte[]> bytes(@PathVariable String slug, @PathVariable Long imageId) {
         SubtaskImage image = images.findOneById(imageId).orElseThrow(ApiException::notFound);
         requireOwned(image.getSubtaskId());
+        boolean isImage = image.getContentType().startsWith("image/");
+        String disposition = (isImage ? "inline" : "attachment")
+                + "; filename*=UTF-8''" + rfc5987(image.getFilename());
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.getContentType()))
                 .header("Cache-Control", "private, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
                 .body(image.getData());
+    }
+
+    /**
+     * RFC 5987 ext-value 百分号编码：attr-char（字母数字与 !#$&+-.^_`|~）原样，其余按 UTF-8 字节 %XX。
+     * 不用 Spring ContentDisposition：6.1 起会额外输出 RFC 2047 的 filename="=?UTF-8?Q?…?="，部分客户端解析异常。
+     */
+    static String rfc5987(String filename) {
+        byte[] bytes = filename.getBytes(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder(bytes.length * 3);
+        for (byte b : bytes) {
+            char c = (char) (b & 0xff);
+            boolean attrChar = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || "!#$&+-.^_`|~".indexOf(c) >= 0;
+            if (attrChar) {
+                sb.append(c);
+            } else {
+                sb.append('%').append(String.format("%02X", b & 0xff));
+            }
+        }
+        return sb.toString();
     }
 
     /** 删除单个附件（传错不必删整个子任务）。 */
