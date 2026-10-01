@@ -62,6 +62,10 @@ export interface Task {
   rank: string
   createdAt: string
   doneAt: string | null
+  /** 任意字段最近修改时间（后端 V14） */
+  updatedAt?: string
+  /** 最近一次状态变更时间（日报「今日完成」口径，后端 V17） */
+  statusChangedAt?: string
   remindAt: string | null
   reminderDismissed: boolean
   /** 子任务进度角标（backlog/records 列表装配；单任务响应缺省） */
